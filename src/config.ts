@@ -1,5 +1,5 @@
 export const CONFIG = {
-    CLIENT_ID: 'YOUR_CLIENT_ID_HERE.apps.googleusercontent.com', // User must replace this
+    CLIENT_ID: '689013590063-1sp072ucu6dtui8g60c6qe7akane0858.apps.googleusercontent.com', // User must replace this
     API_KEY: 'YOUR_API_KEY_HERE', // Optional if using OAuth only, but needed for public read if not signed in?
     // Actually, for "Anyone with link", we might not need API Key if we just use the web link, 
     // but to use the Drive API to list/read, we need either Auth or API Key.
