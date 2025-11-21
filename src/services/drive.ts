@@ -1,22 +1,31 @@
 import { gapi } from 'gapi-script';
 import { CONFIG } from '../config';
 
-const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+
 
 export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => void) => {
     gapi.load('client:auth2', () => {
+        console.log("GAPI loaded, initializing client...");
         gapi.client.init({
             clientId: CONFIG.CLIENT_ID,
             apiKey: CONFIG.API_KEY,
-            discoveryDocs: DISCOVERY_DOCS,
             scope: CONFIG.SCOPES,
+            // discoveryDocs: DISCOVERY_DOCS, // Removed to isolate 502 error
         }).then(() => {
+            console.log("Client initialized (Auth), now loading Drive API...");
+            return gapi.client.load('drive', 'v3');
+        }).then(() => {
+            console.log("Drive API loaded successfully. Setting up listeners.");
             // Listen for sign-in state changes.
             gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
             // Handle the initial sign-in state.
             updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
-        }, (error: any) => {
-            console.error("Error initializing Google Client", error);
+        }).catch((error: any) => {
+            console.error("CRITICAL ERROR: Google Client Init or Drive API Load failed", error);
+            // Log full error details
+            if (error.result) {
+                console.error("Error result:", error.result);
+            }
         });
     });
 };
