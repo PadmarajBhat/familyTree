@@ -1,9 +1,11 @@
 import { gapi } from 'gapi-script';
 import { CONFIG } from '../config';
 
-
+declare const google: any;
 
 let gapiInitedPromise: Promise<void> | null = null;
+let tokenClient: any = null;
+let accessToken: string | null = null;
 
 export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => void): Promise<void> => {
     if (gapiInitedPromise) {
@@ -11,21 +13,35 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
     }
 
     gapiInitedPromise = new Promise((resolve, reject) => {
-        gapi.load('client:auth2', () => {
+        // Load the GAPI client for Drive API calls
+        gapi.load('client', () => {
             console.log("GAPI loaded, initializing client...");
             gapi.client.init({
-                clientId: CONFIG.CLIENT_ID,
                 apiKey: CONFIG.API_KEY,
-                scope: CONFIG.SCOPES,
+                // clientId and scope are now handled by GIS
+                discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
             }).then(() => {
-                console.log("Client initialized (Auth), now loading Drive API...");
+                console.log("Client initialized (API Key), now loading Drive API...");
                 return gapi.client.load('drive', 'v3');
             }).then(() => {
-                console.log("Drive API loaded successfully. Setting up listeners.");
-                // Listen for sign-in state changes.
-                gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
-                // Handle the initial sign-in state.
-                updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
+                console.log("Drive API loaded successfully.");
+
+                // Initialize GIS Token Client
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: CONFIG.CLIENT_ID,
+                    scope: CONFIG.SCOPES,
+                    callback: (tokenResponse: any) => {
+                        if (tokenResponse && tokenResponse.access_token) {
+                            accessToken = tokenResponse.access_token;
+                            gapi.client.setToken(tokenResponse);
+                            updateSigninStatus(true);
+                        }
+                    },
+                });
+
+                // Check if we have a valid token stored (optional, for persistent login)
+                // For now, we start as signed out until user clicks Sign In
+                updateSigninStatus(false);
                 resolve();
             }).catch((error: any) => {
                 console.error("CRITICAL ERROR: Google Client Init or Drive API Load failed", error);
@@ -41,11 +57,30 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
 };
 
 export const signIn = () => {
-    gapi.auth2.getAuthInstance().signIn();
+    if (tokenClient) {
+        tokenClient.requestAccessToken();
+    } else {
+        console.error("Token client not initialized");
+    }
 };
 
 export const signOut = () => {
-    gapi.auth2.getAuthInstance().signOut();
+    if (accessToken) {
+        const token = accessToken;
+        google.accounts.oauth2.revoke(token, () => {
+            console.log("Token revoked");
+            accessToken = null;
+            // Update UI
+            // We need a way to notify App.tsx. 
+            // Since we don't have a listener, we might need to expose a callback setter or reload.
+            // For simplicity, we'll reload the page or let the App component handle state if it passed a callback.
+            // But initGoogleClient only takes one callback.
+            // Let's assume the App component will handle the state change if we call the callback passed to init.
+            // But we don't have access to it here easily without storing it.
+            // Let's just reload for now to clear state, or we can store the callback.
+            window.location.reload();
+        });
+    }
 };
 
 export const listTreeFiles = async () => {
