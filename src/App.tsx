@@ -183,12 +183,17 @@ function App() {
   };
 
   const handleLoadSampleTree = async () => {
-    if (!currentUser) return;
+    console.log("handleLoadSampleTree called. CurrentUser:", currentUser);
+    if (!currentUser) {
+      console.warn("User not logged in, cannot generate sample tree.");
+      return;
+    }
     setLoading(true);
     try {
-      // In sample mode, we just generate it in memory, we don't save it to Drive
-      // to avoid impacting user's data.
+      console.log("Generating sample tree...");
       const sampleTree = generateSampleTree(currentUser.email);
+      console.log("Sample tree generated:", sampleTree);
+      console.log("Node count:", sampleTree.meta.nodeCount);
       setTree(sampleTree);
       // alert("Sample tree loaded!"); 
     } catch (err) {

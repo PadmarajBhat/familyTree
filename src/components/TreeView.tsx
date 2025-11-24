@@ -13,6 +13,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, onNodeLon
     const wrapperRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        console.log("TreeView useEffect. Data:", data ? "Present" : "Missing", "SVG:", svgRef.current ? "Ref" : "No Ref");
         if (!data || !svgRef.current || !wrapperRef.current) return;
 
         const width = wrapperRef.current.clientWidth;
