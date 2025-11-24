@@ -101,9 +101,25 @@ function App() {
   };
 
   const handleSaveMember = async (personData: PersonNode, newParentId: string | null) => {
-    if (!tree) return;
+    // Initialize tree if it doesn't exist
+    const currentTree: TreeDocument = tree ? JSON.parse(JSON.stringify(tree)) : {
+      schemaVersion: 1,
+      treeId: crypto.randomUUID(),
+      treeName: "Family Tree",
+      versionIndex: 0,
+      timestamp: getISTTimestamp(),
+      rootNodeId: "",
+      nodes: {},
+      marriages: [],
+      summary: [],
+      meta: {
+        createdBy: currentUser?.email || "unknown",
+        createdTime: getISTTimestamp(),
+        nodeCount: 0
+      }
+    };
 
-    const updatedTree: TreeDocument = JSON.parse(JSON.stringify(tree));
+    const updatedTree: TreeDocument = currentTree;
     const oldNode = editorMode === 'edit' ? updatedTree.nodes[personData.nodeId] : null;
     const oldParentId = oldNode?.parentId || null;
 
@@ -206,12 +222,12 @@ function App() {
           />
         )}
 
-        {editorMode && currentUser && tree && (
+        {editorMode && currentUser && (
           <MemberEditor
             currentUserEmail={currentUser.email}
             mode={editorMode}
-            initialData={editorMode === 'edit' && editingNodeId ? tree.nodes[editingNodeId] : undefined}
-            existingNodes={tree.nodes}
+            initialData={editorMode === 'edit' && editingNodeId && tree ? tree.nodes[editingNodeId] : undefined}
+            existingNodes={tree ? tree.nodes : {}}
             onSave={handleSaveMember}
             onCancel={() => { setEditorMode(null); setEditingNodeId(null); }}
           />
