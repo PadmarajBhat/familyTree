@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent } from './services/drive';
-import type { TreeDocument } from './logic/types';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile } from './services/drive';
+import type { TreeDocument, PersonNode } from './logic/types';
 import { TreeView } from './components/TreeView';
 import { PersonDetail } from './components/PersonDetail';
+import { MemberEditor } from './components/MemberEditor';
+import { canEdit } from './logic/accessControl';
+import { getISTTimestamp } from './logic/dateUtils';
 import './App.css';
 
 function App() {
   const [isSignedIn, setIsSignedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ email: string; name: string } | null>(null);
   const [tree, setTree] = useState<TreeDocument | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [isGapiReady, setIsGapiReady] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  // const [isEditing, setIsEditing] = useState(false); // TODO: Implement edit mode
+  const [editorMode, setEditorMode] = useState<'add' | 'edit' | null>(null);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
 
   useEffect(() => {
     initGoogleClient((signedIn) => {
@@ -24,8 +29,16 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (isGapiReady) {
+    if (isSignedIn && isGapiReady) {
+      getUserProfile().then(profile => {
+        if (profile) {
+          setCurrentUser({ email: profile.email, name: profile.name });
+        }
+      });
       loadTree();
+    } else if (!isSignedIn) {
+      setCurrentUser(null);
+      setTree(null);
     }
   }, [isSignedIn, isGapiReady]);
 
@@ -69,13 +82,74 @@ function App() {
 
   const handleNodeClick = (nodeId: string) => {
     setSelectedNodeId(nodeId);
-    // setIsEditing(false);
   };
 
   const handleNodeLongPress = (nodeId: string) => {
     setSelectedNodeId(nodeId);
-    // setIsEditing(true);
   };
+
+  const handleEditClick = () => {
+    if (selectedNodeId) {
+      setEditingNodeId(selectedNodeId);
+      setEditorMode('edit');
+    }
+  };
+
+  const handleAddClick = () => {
+    setEditingNodeId(null);
+    setEditorMode('add');
+  };
+
+  const handleSaveMember = async (personData: PersonNode, newParentId: string | null) => {
+    if (!tree) return;
+
+    const updatedTree: TreeDocument = JSON.parse(JSON.stringify(tree));
+    const oldNode = editorMode === 'edit' ? updatedTree.nodes[personData.nodeId] : null;
+    const oldParentId = oldNode?.parentId || null;
+
+    // Update/Add Node
+    updatedTree.nodes[personData.nodeId] = personData;
+    updatedTree.timestamp = getISTTimestamp();
+
+    if (editorMode === 'add') {
+      updatedTree.meta.nodeCount++;
+      if (!updatedTree.rootNodeId) {
+        updatedTree.rootNodeId = personData.nodeId;
+      }
+    }
+
+    // Handle Reparenting / Linking
+    if (newParentId !== oldParentId) {
+      // Remove from old parent
+      if (oldParentId && updatedTree.nodes[oldParentId]) {
+        updatedTree.nodes[oldParentId].childrenIds = updatedTree.nodes[oldParentId].childrenIds.filter(id => id !== personData.nodeId);
+      }
+      // Add to new parent
+      if (newParentId && updatedTree.nodes[newParentId]) {
+        if (!updatedTree.nodes[newParentId].childrenIds.includes(personData.nodeId)) {
+          updatedTree.nodes[newParentId].childrenIds.push(personData.nodeId);
+        }
+      }
+    }
+
+    try {
+      setLoading(true);
+      const fileName = `family_tree_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      await saveTreeFile(fileName, updatedTree);
+
+      setTree(updatedTree);
+      setEditorMode(null);
+      setEditingNodeId(null);
+      alert("Member saved successfully!");
+    } catch (err) {
+      console.error("Failed to save tree:", err);
+      alert("Failed to save changes to Google Drive.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isAuthorized = currentUser && canEdit(currentUser.email);
 
   return (
     <div className="app-container">
@@ -83,7 +157,10 @@ function App() {
         <h1>Family Tree</h1>
         <div className="auth-controls">
           {isSignedIn ? (
-            <button onClick={signOut}>Sign Out</button>
+            <div className="user-info">
+              <span>{currentUser?.name}</span>
+              <button onClick={signOut}>Sign Out</button>
+            </div>
           ) : (
             <button onClick={signIn}>Sign In with Google</button>
           )}
@@ -96,6 +173,9 @@ function App() {
         {!loading && !tree && (
           <div className="welcome">
             <p>Welcome. Please sign in or ensure the tree is shared publicly.</p>
+            {isAuthorized && !tree && (
+              <button onClick={handleAddClick}>Start New Tree</button>
+            )}
           </div>
         )}
 
@@ -106,6 +186,15 @@ function App() {
               onNodeClick={handleNodeClick}
               onNodeLongPress={handleNodeLongPress}
             />
+            {isAuthorized && (
+              <button
+                className="fab-add"
+                onClick={handleAddClick}
+                title="Add Member"
+              >
+                +
+              </button>
+            )}
           </div>
         )}
 
@@ -113,7 +202,18 @@ function App() {
           <PersonDetail
             node={tree.nodes[selectedNodeId]}
             onClose={() => setSelectedNodeId(null)}
-            onEdit={() => { }} // setIsEditing(true)
+            onEdit={handleEditClick}
+          />
+        )}
+
+        {editorMode && currentUser && tree && (
+          <MemberEditor
+            currentUserEmail={currentUser.email}
+            mode={editorMode}
+            initialData={editorMode === 'edit' && editingNodeId ? tree.nodes[editingNodeId] : undefined}
+            existingNodes={tree.nodes}
+            onSave={handleSaveMember}
+            onCancel={() => { setEditorMode(null); setEditingNodeId(null); }}
           />
         )}
       </main>

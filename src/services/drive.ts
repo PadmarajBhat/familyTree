@@ -136,3 +136,58 @@ export const saveTreeFile = async (name: string, content: any) => {
         throw err;
     }
 };
+
+export const getUserProfile = async () => {
+    try {
+        const accessToken = gapi.client.getToken()?.access_token;
+        if (!accessToken) return null;
+
+        const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+        if (response.ok) {
+            return await response.json();
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching user profile", error);
+        return null;
+    }
+};
+
+export const uploadImage = async (file: File): Promise<string> => {
+    const metadata = {
+        name: file.name,
+        parents: [CONFIG.DRIVE_ZS_FOLDER_ID],
+        mimeType: file.type,
+    };
+
+    const accessToken = gapi.client.getToken()?.access_token;
+    if (!accessToken) throw new Error("No access token");
+
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', file);
+
+    try {
+        const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+            method: 'POST',
+            headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+            body: form,
+        });
+        const result = await response.json();
+        if (result.id) {
+            // Make the file publicly readable (or at least readable by the app)
+            // For now, we assume the folder permissions are inherited or we might need to set permissions.
+            // But to get a webContentLink, we just return the ID and let the UI construct the URL or fetch metadata.
+            // Actually, let's return the ID. usage: https://drive.google.com/thumbnail?id=ID or similar.
+            return result.id;
+        }
+        throw new Error("Upload failed, no ID returned");
+    } catch (err) {
+        console.error("Error uploading image", err);
+        throw err;
+    }
+};
