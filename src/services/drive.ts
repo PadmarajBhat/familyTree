@@ -88,7 +88,7 @@ export const listTreeFiles = async () => {
         const response = await (gapi.client as any).drive.files.list({
             q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name contains 'json'`,
             fields: 'nextPageToken, files(id, name, createdTime, modifiedTime)',
-            orderBy: 'name desc', // Latest version first if naming convention holds, or modifiedTime desc
+            orderBy: 'createdTime desc', // Load latest created file
         });
         return response.result.files;
     } catch (err) {
