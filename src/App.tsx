@@ -37,16 +37,21 @@ function App() {
           setCurrentUser({ email: profile.email, name: profile.name });
         }
       });
-      if (viewMode === 'user') {
-        loadTree();
-      } else {
-        handleLoadSampleTree();
-      }
     } else if (!isSignedIn) {
       setCurrentUser(null);
       setTree(null);
     }
-  }, [isSignedIn, isGapiReady, viewMode]);
+  }, [isSignedIn, isGapiReady]);
+
+  useEffect(() => {
+    if (!isSignedIn || !isGapiReady || !currentUser) return;
+
+    if (viewMode === 'user') {
+      loadTree();
+    } else {
+      handleLoadSampleTree();
+    }
+  }, [isSignedIn, isGapiReady, viewMode, currentUser]);
 
   const loadTree = async () => {
     setLoading(true);
