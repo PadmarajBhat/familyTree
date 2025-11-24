@@ -36,7 +36,19 @@ function App() {
       const files = await listTreeFiles();
       if (files && files.length > 0) {
         const latestFile = files[0];
+        console.log("Loading file:", latestFile.name, latestFile.id);
         const content = await getFileContent(latestFile.id);
+        console.log("File content:", content);
+
+        if (!content || typeof content !== 'object') {
+          throw new Error("Invalid file content: Not an object");
+        }
+        // Basic validation
+        if (!('nodes' in content) || !('rootNodeId' in content)) {
+          console.error("Invalid tree structure:", content);
+          throw new Error("Invalid tree structure: Missing nodes or rootNodeId");
+        }
+
         setTree(content as TreeDocument);
       } else {
         if (isSignedIn) {
