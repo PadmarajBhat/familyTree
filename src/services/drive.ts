@@ -3,31 +3,41 @@ import { CONFIG } from '../config';
 
 
 
-export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => void) => {
-    gapi.load('client:auth2', () => {
-        console.log("GAPI loaded, initializing client...");
-        gapi.client.init({
-            clientId: CONFIG.CLIENT_ID,
-            apiKey: CONFIG.API_KEY,
-            scope: CONFIG.SCOPES,
-            // discoveryDocs: DISCOVERY_DOCS, // Removed to isolate 502 error
-        }).then(() => {
-            console.log("Client initialized (Auth), now loading Drive API...");
-            return gapi.client.load('drive', 'v3');
-        }).then(() => {
-            console.log("Drive API loaded successfully. Setting up listeners.");
-            // Listen for sign-in state changes.
-            gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
-            // Handle the initial sign-in state.
-            updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
-        }).catch((error: any) => {
-            console.error("CRITICAL ERROR: Google Client Init or Drive API Load failed", error);
-            // Log full error details
-            if (error.result) {
-                console.error("Error result:", error.result);
-            }
+let gapiInitedPromise: Promise<void> | null = null;
+
+export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => void): Promise<void> => {
+    if (gapiInitedPromise) {
+        return gapiInitedPromise;
+    }
+
+    gapiInitedPromise = new Promise((resolve, reject) => {
+        gapi.load('client:auth2', () => {
+            console.log("GAPI loaded, initializing client...");
+            gapi.client.init({
+                clientId: CONFIG.CLIENT_ID,
+                apiKey: CONFIG.API_KEY,
+                scope: CONFIG.SCOPES,
+            }).then(() => {
+                console.log("Client initialized (Auth), now loading Drive API...");
+                return gapi.client.load('drive', 'v3');
+            }).then(() => {
+                console.log("Drive API loaded successfully. Setting up listeners.");
+                // Listen for sign-in state changes.
+                gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
+                // Handle the initial sign-in state.
+                updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
+                resolve();
+            }).catch((error: any) => {
+                console.error("CRITICAL ERROR: Google Client Init or Drive API Load failed", error);
+                if (error.result) {
+                    console.error("Error result:", error.result);
+                }
+                reject(error);
+            });
         });
     });
+
+    return gapiInitedPromise;
 };
 
 export const signIn = () => {

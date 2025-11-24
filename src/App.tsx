@@ -11,18 +11,23 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [isGapiReady, setIsGapiReady] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   // const [isEditing, setIsEditing] = useState(false); // TODO: Implement edit mode
 
   useEffect(() => {
     initGoogleClient((signedIn) => {
       setIsSignedIn(signedIn);
+    }).then(() => {
+      setIsGapiReady(true);
     });
   }, []);
 
   useEffect(() => {
-    loadTree();
-  }, [isSignedIn]);
+    if (isGapiReady) {
+      loadTree();
+    }
+  }, [isSignedIn, isGapiReady]);
 
   const loadTree = async () => {
     setLoading(true);
