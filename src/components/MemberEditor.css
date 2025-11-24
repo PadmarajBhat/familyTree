@@ -13,6 +13,8 @@
 
 .member-editor-content {
     background: white;
+    color: #333;
+    /* Enforce dark text */
     padding: 20px;
     border-radius: 8px;
     width: 90%;
@@ -45,6 +47,10 @@
     border-radius: 4px;
     font-size: 16px;
     box-sizing: border-box;
+    background-color: white;
+    /* Enforce white background */
+    color: #333;
+    /* Enforce dark text */
 }
 
 .image-upload {

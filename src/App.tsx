@@ -6,6 +6,7 @@ import { PersonDetail } from './components/PersonDetail';
 import { MemberEditor } from './components/MemberEditor';
 import { canEdit } from './logic/accessControl';
 import { getISTTimestamp } from './logic/dateUtils';
+import { generateSampleTree } from './logic/sampleData';
 import './App.css';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editorMode, setEditorMode] = useState<'add' | 'edit' | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'user' | 'sample'>('user');
 
   useEffect(() => {
     initGoogleClient((signedIn) => {
@@ -35,12 +37,16 @@ function App() {
           setCurrentUser({ email: profile.email, name: profile.name });
         }
       });
-      loadTree();
+      if (viewMode === 'user') {
+        loadTree();
+      } else {
+        handleLoadSampleTree();
+      }
     } else if (!isSignedIn) {
       setCurrentUser(null);
       setTree(null);
     }
-  }, [isSignedIn, isGapiReady]);
+  }, [isSignedIn, isGapiReady, viewMode]);
 
   const loadTree = async () => {
     setLoading(true);
@@ -66,6 +72,7 @@ function App() {
       } else {
         if (isSignedIn) {
           console.log("No tree found.");
+          setTree(null); // Ensure tree is null if no file found
         }
       }
     } catch (err) {
@@ -89,6 +96,10 @@ function App() {
   };
 
   const handleEditClick = () => {
+    if (viewMode === 'sample') {
+      alert("Editing is disabled in Sample Mode.");
+      return;
+    }
     if (selectedNodeId) {
       setEditingNodeId(selectedNodeId);
       setEditorMode('edit');
@@ -96,11 +107,17 @@ function App() {
   };
 
   const handleAddClick = () => {
+    if (viewMode === 'sample') {
+      alert("Adding members is disabled in Sample Mode.");
+      return;
+    }
     setEditingNodeId(null);
     setEditorMode('add');
   };
 
   const handleSaveMember = async (personData: PersonNode, newParentId: string | null) => {
+    if (viewMode === 'sample') return; // Double check
+
     // Initialize tree if it doesn't exist
     const currentTree: TreeDocument = tree ? JSON.parse(JSON.stringify(tree)) : {
       schemaVersion: 1,
@@ -165,6 +182,23 @@ function App() {
     }
   };
 
+  const handleLoadSampleTree = async () => {
+    if (!currentUser) return;
+    setLoading(true);
+    try {
+      // In sample mode, we just generate it in memory, we don't save it to Drive
+      // to avoid impacting user's data.
+      const sampleTree = generateSampleTree(currentUser.email);
+      setTree(sampleTree);
+      // alert("Sample tree loaded!"); 
+    } catch (err) {
+      console.error("Failed to load sample tree:", err);
+      alert("Failed to create sample tree.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const isAuthorized = currentUser && canEdit(currentUser.email);
 
   return (
@@ -175,6 +209,12 @@ function App() {
           {isSignedIn ? (
             <div className="user-info">
               <span>{currentUser?.name}</span>
+              <button
+                onClick={() => setViewMode(prev => prev === 'user' ? 'sample' : 'user')}
+                style={{ marginRight: '10px', backgroundColor: viewMode === 'sample' ? '#ff9800' : '#2196f3' }}
+              >
+                {viewMode === 'user' ? 'View Sample Tree' : 'View My Tree'}
+              </button>
               <button onClick={signOut}>Sign Out</button>
             </div>
           ) : (
@@ -186,11 +226,19 @@ function App() {
         {loading && <div className="loading">Loading...</div>}
         {error && <div className="error">{error}</div>}
 
-        {!loading && !tree && (
+        {viewMode === 'sample' && (
+          <div className="sample-banner" style={{ background: '#ff9800', color: 'white', padding: '10px', textAlign: 'center' }}>
+            Sample Mode (Read Only)
+          </div>
+        )}
+
+        {!loading && !tree && viewMode === 'user' && (
           <div className="welcome">
             <p>Welcome. Please sign in or ensure the tree is shared publicly.</p>
             {isAuthorized && !tree && (
-              <button onClick={handleAddClick}>Start New Tree</button>
+              <div className="welcome-actions">
+                <button onClick={handleAddClick}>Start New Tree</button>
+              </div>
             )}
           </div>
         )}
@@ -202,7 +250,7 @@ function App() {
               onNodeClick={handleNodeClick}
               onNodeLongPress={handleNodeLongPress}
             />
-            {isAuthorized && (
+            {isAuthorized && viewMode === 'user' && (
               <button
                 className="fab-add"
                 onClick={handleAddClick}

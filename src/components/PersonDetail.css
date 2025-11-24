@@ -13,6 +13,8 @@
 
 .person-detail-card {
     background: white;
+    color: #333;
+    /* Enforce dark text */
     padding: 20px;
     border-radius: 8px;
     width: 90%;
@@ -28,8 +30,14 @@
     right: 10px;
     background: none;
     border: none;
-    font-size: 1.2rem;
+    font-size: 1.5rem;
+    /* Larger for touch */
     cursor: pointer;
+    color: #333;
+    /* Enforce dark color */
+    padding: 10px;
+    /* Increase touch target */
+    line-height: 1;
 }
 
 .profile-pic {
