@@ -228,7 +228,9 @@ function App() {
               <button onClick={signOut}>Sign Out</button>
             </div>
           ) : (
-            <button onClick={signIn}>Sign In with Google</button>
+            <button onClick={signIn} disabled={!isGapiReady}>
+              {isGapiReady ? 'Sign In with Google' : 'Initializing...'}
+            </button>
           )}
         </div>
       </header>
