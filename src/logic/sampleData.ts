@@ -23,8 +23,8 @@ export const generateSampleTree = (currentUserEmail: string): TreeDocument => {
         }
     };
 
-    const createNode = (parentId: string | null, name: string, age: number): PersonNode => {
-        const nodeId = uuidv4();
+    const createNode = (parentId: string | null, name: string, age: number, forcedId?: string): PersonNode => {
+        const nodeId = forcedId || uuidv4();
         return {
             nodeId: nodeId,
             name: name,
@@ -58,7 +58,7 @@ export const generateSampleTree = (currentUserEmail: string): TreeDocument => {
     };
 
     // Create Root
-    const root = createNode(null, "Root Ancestor", 90);
+    const root = createNode(null, "Root Ancestor", 90, rootId);
     addNodeToTree(root);
 
     // Recursive function to build branches

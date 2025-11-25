@@ -75,25 +75,18 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick }) => {
 
             const nodeEnter = node.enter().append("g")
                 .attr("class", "node")
-                .attr("transform", (_d) => `translate(${source.x0},${source.y0})`)
-                .on("click", (_event, d) => {
-                    // Toggle children on click
-                    if (d.children) {
-                        d._children = d.children;
-                        d.children = undefined;
-                    } else {
-                        d.children = d._children || undefined;
-                        d._children = undefined;
-                    }
-                    update(d);
-                })
-                .on("dblclick", (event, d) => {
-                    event.stopPropagation(); // Prevent zoom double click
+                .attr("transform", (_d) => `translate(${source.x0},${source.y0})`);
+
+            // Main Click Area (Profile Pic) -> Open Details
+            const mainGroup = nodeEnter.append("g")
+                .style("cursor", "pointer")
+                .on("click", (event, d) => {
+                    event.stopPropagation();
                     onNodeClick(d.data.nodeId);
                 });
 
             // Profile Picture (Circle with Pattern)
-            nodeEnter.each(function (d) {
+            mainGroup.each(function (d) {
                 const patternId = `pattern-${d.data.nodeId}`;
                 const imageUrl = d.data.imageUrl;
 
@@ -112,16 +105,15 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick }) => {
                 }
             });
 
-            nodeEnter.append("circle")
+            mainGroup.append("circle")
                 .attr("class", "node-circle")
                 .attr("r", 30)
                 .style("fill", (d) => d.data.imageUrl ? `url(#pattern-${d.data.nodeId})` : "#fff")
                 .style("stroke", "steelblue")
-                .style("stroke-width", "3px")
-                .style("cursor", "pointer");
+                .style("stroke-width", "3px");
 
             // Descendant Count Badge
-            const badgeGroup = nodeEnter.append("g")
+            const badgeGroup = mainGroup.append("g")
                 .attr("class", "badge")
                 .attr("transform", "translate(20, -20)")
                 .style("display", (d) => (d.data.descendantCount || 0) > 0 ? "block" : "none");
@@ -140,7 +132,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick }) => {
                 .text((d) => d.data.descendantCount);
 
             // Name Label
-            nodeEnter.append("text")
+            mainGroup.append("text")
                 .attr("dy", ".35em")
                 .attr("y", 45)
                 .style("text-anchor", "middle")
@@ -149,6 +141,39 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick }) => {
                 .style("fill", "#333")
                 .style("text-shadow", "0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff");
 
+            // --- Toggle Button (Collapse/Expand) ---
+            // Only show if children exist (either in children or _children)
+            const toggleButton = nodeEnter.append("g")
+                .attr("class", "toggle-btn")
+                .attr("transform", "translate(0, 30)") // Position below the main circle
+                .style("cursor", "pointer")
+                .style("display", (d) => (d.children || d._children) ? "block" : "none")
+                .on("click", (event, d) => {
+                    event.stopPropagation();
+                    if (d.children) {
+                        d._children = d.children;
+                        d.children = undefined;
+                    } else {
+                        d.children = d._children || undefined;
+                        d._children = undefined;
+                    }
+                    update(d);
+                });
+
+            toggleButton.append("circle")
+                .attr("r", 8)
+                .style("fill", "white")
+                .style("stroke", "steelblue")
+                .style("stroke-width", "1px");
+
+            toggleButton.append("text")
+                .attr("dy", ".35em")
+                .style("text-anchor", "middle")
+                .style("font-size", "10px")
+                .style("font-weight", "bold")
+                .style("fill", "steelblue")
+                .text((d) => d._children ? "+" : "-");
+
             // Transition nodes to their new position
             const nodeUpdate = nodeEnter.merge(node);
 
@@ -156,8 +181,15 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick }) => {
                 .duration(200)
                 .attr("transform", (d) => `translate(${d.x},${d.y})`);
 
+            // Update Toggle Button State (Text and Visibility)
+            nodeUpdate.select(".toggle-btn")
+                .style("display", (d) => (d.children || d._children) ? "block" : "none");
+
+            nodeUpdate.select(".toggle-btn text")
+                .text((d) => d._children ? "+" : "-");
+
             nodeUpdate.select("circle.node-circle")
-                .style("fill", (d) => d.data.imageUrl ? `url(#pattern-${d.data.nodeId})` : (d._children ? "lightsteelblue" : "#fff"));
+                .style("fill", (d) => d.data.imageUrl ? `url(#pattern-${d.data.nodeId})` : "#fff");
 
             // Transition exiting nodes
             const nodeExit = node.exit().transition()
