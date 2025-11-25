@@ -9,7 +9,7 @@ export const generateSampleTree = (currentUserEmail: string): TreeDocument => {
     const tree: TreeDocument = {
         schemaVersion: 1,
         treeId: uuidv4(),
-        treeName: "Large Sample Tree",
+        treeName: "Random Sample Tree",
         versionIndex: 0,
         timestamp: now,
         rootNodeId: rootId,
@@ -23,74 +23,75 @@ export const generateSampleTree = (currentUserEmail: string): TreeDocument => {
         }
     };
 
-    // Create Root
-    tree.nodes[rootId] = {
-        nodeId: rootId,
-        name: "Root Ancestor",
-        imageUrl: `https://i.pravatar.cc/150?u=${rootId}`,
-        phone: null,
-        phoneE164: null,
-        email: null,
-        dob: "1900-01-01",
-        dobApprox: { known: true, year: 1900, month: 1, day: 1 },
-        dod: null,
-        dodApprox: { known: false, year: null, month: null, day: null },
-        ageProvided: null,
-        dobInferred: false,
-        address: { freeform: null },
-        spouseIds: [],
-        parentId: null,
-        childrenIds: [],
-        isEditor: false,
-        editorSince: null,
-        editedBy: currentUserEmail,
-        editedTime: now
+    const createNode = (parentId: string | null, name: string, age: number): PersonNode => {
+        const nodeId = uuidv4();
+        return {
+            nodeId: nodeId,
+            name: name,
+            imageUrl: `https://i.pravatar.cc/150?u=${nodeId}`,
+            phone: "555-0100",
+            phoneE164: "+15550100",
+            email: `${name.replace(/\s/g, '.').toLowerCase()}@example.com`,
+            dob: null,
+            dobApprox: { known: false, year: null, month: null, day: null },
+            dod: null,
+            dodApprox: { known: false, year: null, month: null, day: null },
+            ageProvided: age,
+            dobInferred: false,
+            address: { freeform: "Sample Address, City" },
+            spouseIds: [],
+            parentId: parentId,
+            childrenIds: [],
+            isEditor: false,
+            editorSince: null,
+            editedBy: currentUserEmail,
+            editedTime: now
+        };
     };
-    tree.meta.nodeCount++;
 
-    // Create 10 branches (Wide)
-    for (let i = 0; i < 10; i++) {
-        let parentId = rootId;
-
-        // Create 20 generations (Deep)
-        for (let j = 0; j < 20; j++) {
-            const nodeId = uuidv4();
-            const name = `Sample Person ${i + 1}-${j + 1}`;
-
-            const node: PersonNode = {
-                nodeId: nodeId,
-                name: name,
-                imageUrl: `https://i.pravatar.cc/150?u=${nodeId}`,
-                phone: "555-0100",
-                phoneE164: "+15550100",
-                email: `person${i}-${j}@example.com`,
-                dob: null,
-                dobApprox: { known: false, year: null, month: null, day: null },
-                dod: null,
-                dodApprox: { known: false, year: null, month: null, day: null },
-                ageProvided: 20 + j,
-                dobInferred: false,
-                address: { freeform: "Sample Address, City" },
-                spouseIds: [],
-                parentId: parentId,
-                childrenIds: [],
-                isEditor: false,
-                editorSince: null,
-                editedBy: currentUserEmail,
-                editedTime: now
-            };
-
-            tree.nodes[nodeId] = node;
-
-            // Link to parent
-            if (tree.nodes[parentId]) {
-                tree.nodes[parentId].childrenIds.push(nodeId);
-            }
-            tree.meta.nodeCount++;
-
-            // Set current node as parent for next generation
-            parentId = nodeId;
+    const addNodeToTree = (node: PersonNode) => {
+        tree.nodes[node.nodeId] = node;
+        if (node.parentId && tree.nodes[node.parentId]) {
+            tree.nodes[node.parentId].childrenIds.push(node.nodeId);
         }
+        tree.meta.nodeCount++;
+    };
+
+    // Create Root
+    const root = createNode(null, "Root Ancestor", 90);
+    addNodeToTree(root);
+
+    // Recursive function to build branches
+    const buildBranch = (parentId: string, depth: number, maxDepth: number, branchName: string) => {
+        if (depth > maxDepth) return;
+
+        // Main child (continues the lineage)
+        const mainChildName = `${branchName} - Gen ${depth}`;
+        const mainChild = createNode(parentId, mainChildName, 90 - (depth * 20)); // Rough age calc
+        addNodeToTree(mainChild);
+
+        // Continue main branch
+        buildBranch(mainChild.nodeId, depth + 1, maxDepth, branchName);
+
+        // Chance for siblings (Side branches)
+        if (Math.random() > 0.6) { // 40% chance
+            const siblingCount = Math.floor(Math.random() * 2) + 1; // 1 or 2 siblings
+            for (let k = 0; k < siblingCount; k++) {
+                const siblingName = `${branchName} - Gen ${depth} - Sib ${k + 1}`;
+                const sibling = createNode(parentId, siblingName, 90 - (depth * 20) - 2);
+                addNodeToTree(sibling);
+
+                // Chance for sibling to have a short sub-branch
+                if (Math.random() > 0.7 && depth < maxDepth - 5) { // 30% chance, if not too deep
+                    buildBranch(sibling.nodeId, depth + 1, depth + 3, `${siblingName} Sub`);
+                }
+            }
+        }
+    };
+
+    // Create 5 Main Clans (Deep branches)
+    for (let i = 0; i < 5; i++) {
+        buildBranch(rootId, 1, 20, `Clan ${i + 1}`);
     }
 
     return tree;
