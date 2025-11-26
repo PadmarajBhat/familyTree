@@ -1,9 +1,11 @@
 import { gapi } from 'gapi-script';
 import { CONFIG } from '../config';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const google: any;
 
 let gapiInitedPromise: Promise<void> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let tokenClient: any = null;
 let accessToken: string | null = null;
 
@@ -30,6 +32,7 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: CONFIG.CLIENT_ID,
                     scope: CONFIG.SCOPES,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     callback: (tokenResponse: any) => {
                         if (tokenResponse && tokenResponse.access_token) {
                             accessToken = tokenResponse.access_token;
@@ -43,10 +46,11 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                 // For now, we start as signed out until user clicks Sign In
                 updateSigninStatus(false);
                 resolve();
-            }).catch((error: any) => {
+            }).catch((error: unknown) => {
                 console.error("CRITICAL ERROR: Google Client Init or Drive API Load failed", error);
-                if (error.result) {
-                    console.error("Error result:", error.result);
+                if (error && typeof error === 'object' && 'result' in error) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    console.error("Error result:", (error as any).result);
                 }
                 reject(error);
             });
@@ -85,6 +89,7 @@ export const signOut = () => {
 
 export const listTreeFiles = async () => {
     try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await (gapi.client as any).drive.files.list({
             q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name contains 'json'`,
             fields: 'nextPageToken, files(id, name, createdTime, modifiedTime)',
@@ -99,6 +104,7 @@ export const listTreeFiles = async () => {
 
 export const getFileContent = async (fileId: string) => {
     try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await (gapi.client as any).drive.files.get({
             fileId: fileId,
             alt: 'media',
@@ -110,7 +116,7 @@ export const getFileContent = async (fileId: string) => {
     }
 };
 
-export const saveTreeFile = async (name: string, content: any) => {
+export const saveTreeFile = async (name: string, content: unknown) => {
     const fileContent = JSON.stringify(content, null, 2);
     const file = new Blob([fileContent], { type: 'application/json' });
     const metadata = {

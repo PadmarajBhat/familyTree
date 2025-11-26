@@ -1,20 +1,26 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import type { TreeDocument } from '../logic/types';
+import type { TreeDocument, PersonNode } from '../logic/types';
 
 interface TreeViewProps {
     data: TreeDocument;
     onNodeClick: (nodeId: string) => void;
     onNodeLongPress: (nodeId: string) => void;
+    maxDepth?: number | null;
 }
 
-interface ExtendedHierarchyNode extends d3.HierarchyNode<any> {
+interface HierarchyPersonNode extends PersonNode {
+    children?: HierarchyPersonNode[];
+    descendantCount?: number;
+}
+
+interface ExtendedHierarchyNode extends d3.HierarchyNode<HierarchyPersonNode> {
     _children?: ExtendedHierarchyNode[] | null | undefined;
     x0?: number;
     y0?: number;
 }
 
-export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick }) => {
+export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -32,18 +38,19 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick }) => {
             .attr("height", height)
             .call(d3.zoom<SVGSVGElement, unknown>().on("zoom", (event) => {
                 g.attr("transform", event.transform);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
             }) as any);
 
         const g = svg.append("g");
 
         // --- Build Hierarchy with Descendant Count ---
-        const buildHierarchy = (nodeId: string): any => {
+        const buildHierarchy = (nodeId: string): HierarchyPersonNode | null => {
             const node = data.nodes[nodeId];
             if (!node) return null;
 
             const children = node.childrenIds
                 .map(buildHierarchy)
-                .filter((n): n is any => n !== null);
+                .filter((n): n is HierarchyPersonNode => n !== null);
 
             // Calculate descendant count
             const descendantCount = children.reduce((acc, child) => acc + 1 + (child.descendantCount || 0), 0);
@@ -62,7 +69,25 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick }) => {
         root.x0 = width / 2;
         root.y0 = 0;
 
-        const treeLayout = d3.tree<any>().nodeSize([120, 180]); // Increased spacing
+        // Apply maxDepth if specified
+        if (maxDepth) {
+            root.descendants().forEach((d) => {
+                if (d.depth >= maxDepth) {
+                    if (d.children) {
+                        d._children = d.children;
+                        d.children = undefined;
+                    }
+                } else {
+                    // Ensure expanded if within depth (in case of re-render with different depth)
+                    if (d._children) {
+                        d.children = d._children;
+                        d._children = undefined;
+                    }
+                }
+            });
+        }
+
+        const treeLayout = d3.tree<HierarchyPersonNode>().nodeSize([120, 180]); // Increased spacing
 
         const update = (source: ExtendedHierarchyNode) => {
             const treeData = treeLayout(root);
@@ -75,7 +100,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick }) => {
 
             const nodeEnter = node.enter().append("g")
                 .attr("class", "node")
-                .attr("transform", (_d) => `translate(${source.x0},${source.y0})`);
+                .attr("transform", () => `translate(${source.x0},${source.y0})`);
 
             // Main Click Area (Profile Pic) -> Open Details
             const mainGroup = nodeEnter.append("g")
@@ -129,7 +154,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick }) => {
                 .style("fill", "white")
                 .style("font-size", "10px")
                 .style("font-weight", "bold")
-                .text((d) => d.data.descendantCount);
+                .text((d) => d.data.descendantCount ?? "");
 
             // Name Label
             mainGroup.append("text")
@@ -194,20 +219,21 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick }) => {
             // Transition exiting nodes
             const nodeExit = node.exit().transition()
                 .duration(200)
-                .attr("transform", (_d) => `translate(${source.x},${source.y})`)
+                .attr("transform", () => `translate(${source.x},${source.y})`)
                 .remove();
 
             nodeExit.select("circle")
                 .attr("r", 1e-6);
 
             // --- Links ---
-            const link = g.selectAll<SVGPathElement, any>(".link")
-                .data(links, (d: any) => d.target.data.nodeId);
+            const link = g.selectAll<SVGPathElement, d3.HierarchyPointLink<HierarchyPersonNode>>(".link")
+                .data(links, (d) => d.target.data.nodeId);
 
             const linkEnter = link.enter().insert("path", "g")
                 .attr("class", "link")
-                .attr("d", (_d) => {
+                .attr("d", () => {
                     const o = { x: source.x0 || 0, y: source.y0 || 0 };
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     return d3.linkVertical()({ source: o, target: o } as any);
                 })
                 .style("fill", "none")
@@ -219,14 +245,17 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick }) => {
             linkUpdate.transition()
                 .duration(200)
                 .attr("d", d3.linkVertical()
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     .x((d: any) => d.x)
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     .y((d: any) => d.y) as any
                 );
 
             link.exit().transition()
                 .duration(200)
-                .attr("d", (_d) => {
+                .attr("d", () => {
                     const o = { x: source.x || 0, y: source.y || 0 };
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     return d3.linkVertical()({ source: o, target: o } as any);
                 })
                 .remove();
@@ -243,6 +272,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick }) => {
 
         // Center initially
         const initialTransform = d3.zoomIdentity.translate(width / 2, 50).scale(1);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         svg.call(d3.zoom().transform as any, initialTransform);
 
     }, [data]);

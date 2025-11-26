@@ -1,4 +1,4 @@
-import type { TreeDocument, PersonNode } from './types';
+import type { TreeDocument, PersonNode, Marriage } from './types';
 import { getISTTimestamp } from './dateUtils';
 
 export const mergeTrees = (local: TreeDocument, remote: TreeDocument): TreeDocument => {
@@ -109,8 +109,8 @@ const mergeNodes = (n1: PersonNode, n2: PersonNode): PersonNode => {
     return t2 > t1 ? n2 : n1;
 };
 
-const mergeMarriages = (m1: any[], m2: any[]): any[] => {
-    const map = new Map();
+const mergeMarriages = (m1: Marriage[], m2: Marriage[]): Marriage[] => {
+    const map = new Map<string, Marriage>();
     [...m1, ...m2].forEach(m => {
         // We don't have timestamps on marriages?
         // Requirement: "marriages: [{ id, a, b, marriageDate|null, divorceDate|null }]"

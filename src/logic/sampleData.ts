@@ -3,16 +3,16 @@ import type { TreeDocument, PersonNode } from './types';
 import { getISTTimestamp } from './dateUtils';
 
 export const generateSampleTree = (currentUserEmail: string): TreeDocument => {
-    const rootId = uuidv4();
     const now = getISTTimestamp();
+    const treeId = uuidv4();
 
     const tree: TreeDocument = {
         schemaVersion: 1,
-        treeId: uuidv4(),
-        treeName: "Random Sample Tree",
+        treeId: treeId,
+        treeName: "Mahabharata Lineage",
         versionIndex: 0,
         timestamp: now,
-        rootNodeId: rootId,
+        rootNodeId: "",
         nodes: {},
         marriages: [],
         summary: [],
@@ -23,76 +23,107 @@ export const generateSampleTree = (currentUserEmail: string): TreeDocument => {
         }
     };
 
-    const createNode = (parentId: string | null, name: string, age: number, forcedId?: string): PersonNode => {
-        const nodeId = forcedId || uuidv4();
-        return {
-            nodeId: nodeId,
-            name: name,
-            imageUrl: `https://i.pravatar.cc/150?u=${nodeId}`,
-            phone: "555-0100",
-            phoneE164: "+15550100",
-            email: `${name.replace(/\s/g, '.').toLowerCase()}@example.com`,
+    const addNode = (name: string, parentId: string | null, spouseIds: string[] = [], extra: Partial<PersonNode> = {}): PersonNode => {
+        const nodeId = uuidv4();
+        const node: PersonNode = {
+            nodeId,
+            name,
+            imageUrl: null,
+            phone: null,
+            phoneE164: null,
+            email: null,
             dob: null,
             dobApprox: { known: false, year: null, month: null, day: null },
             dod: null,
             dodApprox: { known: false, year: null, month: null, day: null },
-            ageProvided: age,
+            ageProvided: null,
             dobInferred: false,
-            address: { freeform: "Sample Address, City" },
-            spouseIds: [],
-            parentId: parentId,
+            address: { freeform: "Hastinapura" },
+            spouseIds,
+            parentId,
             childrenIds: [],
             isEditor: false,
             editorSince: null,
             editedBy: currentUserEmail,
-            editedTime: now
+            editedTime: now,
+            ...extra
         };
-    };
-
-    const addNodeToTree = (node: PersonNode) => {
-        tree.nodes[node.nodeId] = node;
-        if (node.parentId && tree.nodes[node.parentId]) {
-            tree.nodes[node.parentId].childrenIds.push(node.nodeId);
-        }
+        tree.nodes[nodeId] = node;
         tree.meta.nodeCount++;
-    };
 
-    // Create Root
-    const root = createNode(null, "Root Ancestor", 90, rootId);
-    addNodeToTree(root);
-
-    // Recursive function to build branches
-    const buildBranch = (parentId: string, depth: number, maxDepth: number, branchName: string) => {
-        if (depth > maxDepth) return;
-
-        // Main child (continues the lineage)
-        const mainChildName = `${branchName} - Gen ${depth}`;
-        const mainChild = createNode(parentId, mainChildName, 90 - (depth * 20)); // Rough age calc
-        addNodeToTree(mainChild);
-
-        // Continue main branch
-        buildBranch(mainChild.nodeId, depth + 1, maxDepth, branchName);
-
-        // Chance for siblings (Side branches)
-        if (Math.random() > 0.6) { // 40% chance
-            const siblingCount = Math.floor(Math.random() * 2) + 1; // 1 or 2 siblings
-            for (let k = 0; k < siblingCount; k++) {
-                const siblingName = `${branchName} - Gen ${depth} - Sib ${k + 1}`;
-                const sibling = createNode(parentId, siblingName, 90 - (depth * 20) - 2);
-                addNodeToTree(sibling);
-
-                // Chance for sibling to have a short sub-branch
-                if (Math.random() > 0.7 && depth < maxDepth - 5) { // 30% chance, if not too deep
-                    buildBranch(sibling.nodeId, depth + 1, depth + 3, `${siblingName} Sub`);
-                }
-            }
+        if (parentId && tree.nodes[parentId]) {
+            tree.nodes[parentId].childrenIds.push(nodeId);
         }
+
+        return node;
     };
 
-    // Create 5 Main Clans (Deep branches)
-    for (let i = 0; i < 5; i++) {
-        buildBranch(rootId, 1, 20, `Clan ${i + 1}`);
-    }
+    // --- Generation 1 ---
+    const shantanu = addNode("Shantanu", null);
+    tree.rootNodeId = shantanu.nodeId;
+
+    const ganga = addNode("Ganga", null, [shantanu.nodeId]);
+    const satyavati = addNode("Satyavati", null, [shantanu.nodeId]);
+
+    shantanu.spouseIds = [ganga.nodeId, satyavati.nodeId];
+
+    // --- Generation 2 ---
+    addNode("Bhishma", shantanu.nodeId, [], { address: { freeform: "Hastinapura (Grandsire)" } });
+
+    addNode("Chitrangada", shantanu.nodeId);
+    const vichitravirya = addNode("Vichitravirya", shantanu.nodeId);
+
+    const ambika = addNode("Ambika", null, [vichitravirya.nodeId]);
+    const ambalika = addNode("Ambalika", null, [vichitravirya.nodeId]);
+    vichitravirya.spouseIds = [ambika.nodeId, ambalika.nodeId];
+
+    // --- Generation 3 ---
+    const dhritarashtra = addNode("Dhritarashtra", vichitravirya.nodeId);
+    const gandhari = addNode("Gandhari", null, [dhritarashtra.nodeId]);
+    dhritarashtra.spouseIds = [gandhari.nodeId];
+
+    const pandu = addNode("Pandu", vichitravirya.nodeId);
+    const kunti = addNode("Kunti", null, [pandu.nodeId]);
+    const madri = addNode("Madri", null, [pandu.nodeId]);
+    pandu.spouseIds = [kunti.nodeId, madri.nodeId];
+
+    addNode("Vidura", vichitravirya.nodeId);
+
+    // --- Generation 4 ---
+    // Kauravas (Sample)
+    addNode("Duryodhana", dhritarashtra.nodeId);
+    addNode("Dushasana", dhritarashtra.nodeId);
+    addNode("Vikarna", dhritarashtra.nodeId);
+
+    // Pandavas
+    const yudhishthira = addNode("Yudhishthira", pandu.nodeId);
+    const bhima = addNode("Bhima", pandu.nodeId);
+    const arjuna = addNode("Arjuna", pandu.nodeId);
+    const nakula = addNode("Nakula", pandu.nodeId);
+    const sahadeva = addNode("Sahadeva", pandu.nodeId);
+
+    const draupadi = addNode("Draupadi", null, [yudhishthira.nodeId, bhima.nodeId, arjuna.nodeId, nakula.nodeId, sahadeva.nodeId]);
+    yudhishthira.spouseIds.push(draupadi.nodeId);
+    bhima.spouseIds.push(draupadi.nodeId);
+    arjuna.spouseIds.push(draupadi.nodeId);
+    nakula.spouseIds.push(draupadi.nodeId);
+    sahadeva.spouseIds.push(draupadi.nodeId);
+
+    const subhadra = addNode("Subhadra", null, [arjuna.nodeId]);
+    arjuna.spouseIds.push(subhadra.nodeId);
+
+    // --- Generation 5 ---
+    const abhimanyu = addNode("Abhimanyu", arjuna.nodeId);
+    const uttara = addNode("Uttara", null, [abhimanyu.nodeId]);
+    abhimanyu.spouseIds = [uttara.nodeId];
+
+    addNode("Ghatotkacha", bhima.nodeId);
+
+    // --- Generation 6 ---
+    const parikshit = addNode("Parikshit", abhimanyu.nodeId);
+
+    // --- Generation 7 ---
+    addNode("Janamejaya", parikshit.nodeId);
 
     return tree;
 };

@@ -22,6 +22,8 @@ function App() {
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'user' | 'sample'>('user');
 
+  const [viewDepth, setViewDepth] = useState<number | null>(null);
+
   useEffect(() => {
     initGoogleClient((signedIn) => {
       setIsSignedIn(signedIn);
@@ -216,6 +218,18 @@ function App() {
       <header className="app-header">
         <h1>Family Tree</h1>
         <div className="auth-controls">
+          {tree && (
+            <select
+              value={viewDepth === null ? 'all' : viewDepth}
+              onChange={(e) => setViewDepth(e.target.value === 'all' ? null : Number(e.target.value))}
+              style={{ marginRight: '10px', padding: '5px' }}
+            >
+              <option value="all">All Generations</option>
+              <option value="3">Top 3 Generations</option>
+              <option value="5">Top 5 Generations</option>
+              <option value="7">Top 7 Generations</option>
+            </select>
+          )}
           {isSignedIn ? (
             <div className="user-info">
               <span>{currentUser?.name}</span>
@@ -261,6 +275,7 @@ function App() {
               data={tree}
               onNodeClick={handleNodeClick}
               onNodeLongPress={handleNodeLongPress}
+              maxDepth={viewDepth}
             />
             {isAuthorized && viewMode === 'user' && (
               <button
