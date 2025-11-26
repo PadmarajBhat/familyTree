@@ -12,6 +12,7 @@ interface TreeViewProps {
 interface HierarchyPersonNode extends PersonNode {
     children?: HierarchyPersonNode[];
     descendantCount?: number;
+    descendantIds?: Set<string>;
 }
 
 interface ExtendedHierarchyNode extends d3.HierarchyNode<HierarchyPersonNode> {
@@ -44,21 +45,33 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
         const g = svg.append("g");
 
         // --- Build Hierarchy with Descendant Count ---
-        const buildHierarchy = (nodeId: string): HierarchyPersonNode | null => {
+        // --- Build Hierarchy with Descendant Count ---
+        const buildHierarchy = (nodeId: string, path: Set<string> = new Set()): HierarchyPersonNode | null => {
+            // Cycle detection
+            if (path.has(nodeId)) return null;
+            const newPath = new Set(path).add(nodeId);
+
             const node = data.nodes[nodeId];
             if (!node) return null;
 
             const children = node.childrenIds
-                .map(buildHierarchy)
+                .map(childId => buildHierarchy(childId, newPath))
                 .filter((n): n is HierarchyPersonNode => n !== null);
 
-            // Calculate descendant count
-            const descendantCount = children.reduce((acc, child) => acc + 1 + (child.descendantCount || 0), 0);
+            // Calculate unique descendant IDs
+            const allDescendantIds = new Set<string>();
+            children.forEach(child => {
+                allDescendantIds.add(child.nodeId);
+                if (child.descendantIds) {
+                    child.descendantIds.forEach(id => allDescendantIds.add(id));
+                }
+            });
 
             return {
                 ...node,
                 children: children.length > 0 ? children : undefined,
-                descendantCount: descendantCount
+                descendantCount: allDescendantIds.size,
+                descendantIds: allDescendantIds
             };
         };
 
