@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import type { TreeDocument, PersonNode } from '../logic/types';
 
@@ -24,12 +24,36 @@ interface ExtendedHierarchyNode extends d3.HierarchyNode<HierarchyPersonNode> {
 export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
+    const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+    useEffect(() => {
+        if (!wrapperRef.current) return;
+
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                setDimensions({
+                    width: entry.contentRect.width,
+                    height: entry.contentRect.height
+                });
+            }
+        });
+
+        resizeObserver.observe(wrapperRef.current);
+
+        return () => {
+            resizeObserver.disconnect();
+        };
+    }, []);
 
     useEffect(() => {
         if (!data || !svgRef.current || !wrapperRef.current) return;
 
-        const width = wrapperRef.current.clientWidth;
-        const height = wrapperRef.current.clientHeight;
+        const { width, height } = dimensions.width > 0 ? dimensions : {
+            width: wrapperRef.current.clientWidth,
+            height: wrapperRef.current.clientHeight
+        };
+
+        if (width === 0 || height === 0) return;
 
         // Clear previous
         d3.select(svgRef.current).selectAll("*").remove();
@@ -44,7 +68,6 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
 
         const g = svg.append("g");
 
-        // --- Build Hierarchy with Descendant Count ---
         // --- Build Hierarchy with Descendant Count ---
         const buildHierarchy = (nodeId: string, path: Set<string> = new Set()): HierarchyPersonNode | null => {
             // Cycle detection
@@ -288,7 +311,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         svg.call(d3.zoom().transform as any, initialTransform);
 
-    }, [data, maxDepth]);
+    }, [data, maxDepth, dimensions]);
 
     return (
         <div ref={wrapperRef} style={{ width: '100%', height: '100vh', overflow: 'hidden', background: '#f9f9f9' }}>
