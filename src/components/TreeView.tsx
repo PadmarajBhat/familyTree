@@ -275,7 +275,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         svg.call(d3.zoom().transform as any, initialTransform);
 
-    }, [data]);
+    }, [data, maxDepth]);
 
     return (
         <div ref={wrapperRef} style={{ width: '100%', height: '100vh', overflow: 'hidden', background: '#f9f9f9' }}>
