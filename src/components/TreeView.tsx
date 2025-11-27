@@ -60,13 +60,16 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
 
         const svg = d3.select(svgRef.current)
             .attr("width", width)
-            .attr("height", height)
-            .call(d3.zoom<SVGSVGElement, unknown>().on("zoom", (event) => {
-                g.attr("transform", event.transform);
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            }) as any);
+            .attr("height", height);
 
         const g = svg.append("g");
+
+        const zoom = d3.zoom<SVGSVGElement, unknown>().on("zoom", (event) => {
+            g.attr("transform", event.transform);
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        svg.call(zoom as any);
 
         // --- Build Hierarchy with Descendant Count ---
         const buildHierarchy = (nodeId: string, path: Set<string> = new Set()): HierarchyPersonNode | null => {
@@ -309,7 +312,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
         // Center initially
         const initialTransform = d3.zoomIdentity.translate(width / 2, 50).scale(1);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        svg.call(d3.zoom().transform as any, initialTransform);
+        svg.call(zoom.transform as any, initialTransform);
 
     }, [data, maxDepth, dimensions]);
 
