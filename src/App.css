@@ -152,6 +152,8 @@ main {
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   min-width: 200px;
+  max-width: 90vw;
+  box-sizing: border-box;
   z-index: 1000;
   padding: 0.5rem 0;
   display: flex;
@@ -170,6 +172,7 @@ main {
   text-align: left;
   font-size: 0.9rem;
   color: #333;
+  flex-wrap: wrap;
 }
 
 .menu-item:hover {
@@ -194,4 +197,5 @@ main {
   border-radius: 4px;
   border: 1px solid #ccc;
   margin-left: 0.5rem;
+  max-width: 100px;
 }
