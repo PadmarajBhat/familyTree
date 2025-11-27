@@ -152,7 +152,8 @@ main {
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   min-width: 200px;
-  max-width: 90vw;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
   box-sizing: border-box;
   z-index: 1000;
   padding: 0.5rem 0;
@@ -173,6 +174,7 @@ main {
   font-size: 0.9rem;
   color: #333;
   flex-wrap: wrap;
+  box-sizing: border-box;
 }
 
 .menu-item:hover {
@@ -198,4 +200,7 @@ main {
   border: 1px solid #ccc;
   margin-left: 0.5rem;
   max-width: 100px;
+  flex-shrink: 1;
+  min-width: 0;
+  box-sizing: border-box;
 }
