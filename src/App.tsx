@@ -78,7 +78,27 @@ function App() {
           throw new Error("Invalid tree structure: Missing nodes or rootNodeId");
         }
 
-        setTree(content as TreeDocument);
+        const treeDoc = content as TreeDocument;
+
+        // Access Control Check
+        if (currentUser && currentUser.email) {
+          const userEmail = currentUser.email.toLowerCase();
+          const nodes = Object.values(treeDoc.nodes);
+          const isMember = nodes.some(n => n.email?.toLowerCase() === userEmail);
+          const isCreator = treeDoc.meta.createdBy?.toLowerCase() === userEmail;
+          const isEmpty = nodes.length === 0;
+
+          if (!isMember && !isCreator && !isEmpty) {
+            alert("Access Denied: Your email is not listed in this family tree.");
+            await signOut();
+            setIsSignedIn(false);
+            setCurrentUser(null);
+            setTree(null);
+            return;
+          }
+        }
+
+        setTree(treeDoc);
       } else {
         if (isSignedIn) {
           console.log("No tree found.");

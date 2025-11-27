@@ -82,6 +82,11 @@ export const MemberSearch: React.FC<MemberSearchProps> = ({ nodes, onMemberClick
                                     {member.parentId && nodes[member.parentId] && (
                                         <span>Child of: {nodes[member.parentId].name}</span>
                                     )}
+                                    {member.editedTime && (
+                                        <span style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                                            Added: {new Date(member.editedTime).toLocaleDateString()}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         </div>
