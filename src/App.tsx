@@ -4,6 +4,7 @@ import type { TreeDocument, PersonNode } from './logic/types';
 import { TreeView } from './components/TreeView';
 import { PersonDetail } from './components/PersonDetail';
 import { MemberEditor } from './components/MemberEditor';
+import { MemberSearch } from './components/MemberSearch';
 import { canEdit } from './logic/accessControl';
 import { getISTTimestamp } from './logic/dateUtils';
 import { generateSampleTree } from './logic/sampleData';
@@ -21,6 +22,7 @@ function App() {
   const [editorMode, setEditorMode] = useState<'add' | 'edit' | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'user' | 'sample'>('user');
+  const [showSearch, setShowSearch] = useState(false);
 
   const [viewDepth, setViewDepth] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -233,19 +235,30 @@ function App() {
                   <div className="menu-item user-label">{currentUser?.name}</div>
                   <div className="menu-divider"></div>
                   {tree && (
-                    <div className="menu-item">
-                      <label>Generations: </label>
-                      <select
-                        value={viewDepth === null ? 'all' : viewDepth}
-                        onChange={(e) => setViewDepth(e.target.value === 'all' ? null : Number(e.target.value))}
-                        onClick={(e) => e.stopPropagation()}
+                    <>
+                      <div className="menu-item">
+                        <label>Generations: </label>
+                        <select
+                          value={viewDepth === null ? 'all' : viewDepth}
+                          onChange={(e) => setViewDepth(e.target.value === 'all' ? null : Number(e.target.value))}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <option value="all">All</option>
+                          <option value="3">3</option>
+                          <option value="5">5</option>
+                          <option value="7">7</option>
+                        </select>
+                      </div>
+                      <button
+                        className="menu-item"
+                        onClick={() => {
+                          setShowSearch(true);
+                          setIsMenuOpen(false);
+                        }}
                       >
-                        <option value="all">All</option>
-                        <option value="3">3</option>
-                        <option value="5">5</option>
-                        <option value="7">7</option>
-                      </select>
-                    </div>
+                        Search Members
+                      </button>
+                    </>
                   )}
                   <button
                     className="menu-item"
@@ -296,7 +309,7 @@ function App() {
           </div>
         )}
 
-        {tree && (
+        {tree && !showSearch && (
           <div className="tree-container">
             <TreeView
               data={tree}
@@ -314,6 +327,17 @@ function App() {
               </button>
             )}
           </div>
+        )}
+
+        {showSearch && tree && (
+          <MemberSearch
+            nodes={tree.nodes}
+            onMemberClick={(nodeId) => {
+              setSelectedNodeId(nodeId);
+              setShowSearch(false);
+            }}
+            onClose={() => setShowSearch(false)}
+          />
         )}
 
         {selectedNodeId && tree && tree.nodes[selectedNodeId] && (
