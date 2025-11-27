@@ -16,6 +16,9 @@
     padding: 20px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     z-index: 10;
+    max-height: 50vh;
+    overflow-y: auto;
+    flex-shrink: 0;
 }
 
 .find-relation-header h2 {
@@ -232,6 +235,10 @@
 
 /* Mobile responsive */
 @media (max-width: 768px) {
+    .find-relation-header {
+        max-height: 60vh;
+    }
+
     .search-inputs {
         flex-direction: column;
     }
