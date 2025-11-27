@@ -309,8 +309,44 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
         // Initial update
         update(root);
 
-        // Center initially
-        const initialTransform = d3.zoomIdentity.translate(width / 2, 50).scale(1);
+        // Calculate bounds to fit screen
+        const nodes = root.descendants() as ExtendedHierarchyNode[];
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+
+        nodes.forEach((d) => {
+            if (d.x !== undefined) {
+                minX = Math.min(minX, d.x);
+                maxX = Math.max(maxX, d.x);
+            }
+            if (d.y !== undefined) {
+                minY = Math.min(minY, d.y);
+                maxY = Math.max(maxY, d.y);
+            }
+        });
+
+        const padding = 50;
+        const treeWidth = maxX - minX;
+        // const treeHeight = maxY - minY; // Not strictly needed for vertical if we just want to fit width or scale reasonably
+
+        // Calculate scale to fit width (with some limits)
+        const availableWidth = width - padding * 2;
+        const scaleX = availableWidth / (treeWidth || 1);
+
+        // Limit scale to be reasonable (e.g., not too zoomed in, not too zoomed out)
+        const scale = Math.min(Math.max(scaleX, 0.2), 1.2);
+
+        // Center horizontally based on the tree's center
+        const centerX = (minX + maxX) / 2;
+        const translateX = width / 2 - centerX * scale;
+        const translateY = 50; // Fixed top padding
+
+        const initialTransform = d3.zoomIdentity
+            .translate(translateX, translateY)
+            .scale(scale);
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         svg.call(zoom.transform as any, initialTransform);
 
