@@ -1,0 +1,256 @@
+.find-relation-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #f9f9f9;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.find-relation-header {
+    background: white;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+}
+
+.find-relation-header h2 {
+    margin: 0 0 20px 0;
+    color: #333;
+}
+
+.close-button {
+    padding: 8px 16px;
+    background: #eee;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.close-button:hover {
+    background: #ddd;
+}
+
+.search-inputs {
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.input-group {
+    flex: 1;
+    min-width: 250px;
+    position: relative;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #555;
+    font-size: 14px;
+}
+
+.autocomplete-wrapper {
+    position: relative;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.input-group input:focus {
+    outline: none;
+    border-color: #4a90e2;
+}
+
+.suggestions-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-top: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+}
+
+.suggestion-item {
+    padding: 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.15s;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background: #f5f5f5;
+}
+
+.suggestion-name {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.suggestion-info {
+    font-size: 12px;
+    color: #888;
+}
+
+.reset-button {
+    padding: 12px 24px;
+    background: #ff6b6b;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.2s;
+    height: fit-content;
+}
+
+.reset-button:hover {
+    background: #ff5252;
+}
+
+.selected-persons {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 20px;
+    padding: 16px;
+    background: #e3f2fd;
+    border-radius: 8px;
+    border-left: 4px solid #2196f3;
+}
+
+.selected-person {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.selected-person strong {
+    color: #333;
+    font-size: 16px;
+}
+
+.selected-person span {
+    color: #666;
+    font-size: 13px;
+}
+
+.arrow {
+    font-size: 24px;
+    color: #2196f3;
+    font-weight: bold;
+}
+
+.path-result {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.no-path-message {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.no-path-message p:first-child {
+    font-size: 24px;
+    margin-bottom: 12px;
+    color: #d32f2f;
+}
+
+.no-path-message .hint {
+    font-size: 16px;
+    color: #888;
+}
+
+.path-found {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.path-info {
+    background: #c8e6c9;
+    color: #2e7d32;
+    padding: 16px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 16px;
+    border-bottom: 2px solid #81c784;
+}
+
+.path-tree-view {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 80px 20px;
+}
+
+.empty-state p:first-child {
+    font-size: 24px;
+    margin-bottom: 12px;
+    color: #555;
+}
+
+.empty-state .hint {
+    font-size: 16px;
+    color: #999;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .search-inputs {
+        flex-direction: column;
+    }
+
+    .input-group {
+        width: 100%;
+        min-width: 100%;
+    }
+
+    .reset-button {
+        width: 100%;
+    }
+
+    .selected-persons {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .arrow {
+        transform: rotate(90deg);
+    }
+}

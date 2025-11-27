@@ -6,6 +6,7 @@ import { PersonDetail } from './components/PersonDetail';
 import { MemberEditor } from './components/MemberEditor';
 import { MemberSearch } from './components/MemberSearch';
 import { CollaboratorList } from './components/CollaboratorList';
+import { FindRelation } from './components/FindRelation';
 import { canEdit } from './logic/accessControl';
 import { getISTTimestamp } from './logic/dateUtils';
 import { generateSampleTree } from './logic/sampleData';
@@ -25,6 +26,7 @@ function App() {
   const [viewMode, setViewMode] = useState<'user' | 'sample'>('user');
   const [showSearch, setShowSearch] = useState(false);
   const [showCollaborators, setShowCollaborators] = useState(false);
+  const [showFindRelation, setShowFindRelation] = useState(false);
 
   const [viewDepth, setViewDepth] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -340,6 +342,15 @@ function App() {
                       >
                         Manage Collaborators
                       </button>
+                      <button
+                        className="menu-item"
+                        onClick={() => {
+                          setShowFindRelation(true);
+                          setIsMenuOpen(false);
+                        }}
+                      >
+                        Find Relation
+                      </button>
                     </>
                   )}
                   <button
@@ -391,7 +402,7 @@ function App() {
           </div>
         )}
 
-        {tree && !showSearch && (
+        {tree && !showSearch && !showFindRelation && (
           <div className="tree-container">
             <TreeView
               data={tree}
@@ -429,6 +440,17 @@ function App() {
             canToggle={!!isAuthorized}
             onToggleEditor={handleToggleEditor}
             onClose={() => setShowCollaborators(false)}
+          />
+        )}
+
+        {showFindRelation && tree && (
+          <FindRelation
+            nodes={tree.nodes}
+            onMemberClick={(nodeId) => {
+              setSelectedNodeId(nodeId);
+              setShowFindRelation(false);
+            }}
+            onClose={() => setShowFindRelation(false)}
           />
         )}
 
