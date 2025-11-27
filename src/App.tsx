@@ -5,6 +5,7 @@ import { TreeView } from './components/TreeView';
 import { PersonDetail } from './components/PersonDetail';
 import { MemberEditor } from './components/MemberEditor';
 import { MemberSearch } from './components/MemberSearch';
+import { CollaboratorList } from './components/CollaboratorList';
 import { canEdit } from './logic/accessControl';
 import { getISTTimestamp } from './logic/dateUtils';
 import { generateSampleTree } from './logic/sampleData';
@@ -23,6 +24,7 @@ function App() {
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'user' | 'sample'>('user');
   const [showSearch, setShowSearch] = useState(false);
+  const [showCollaborators, setShowCollaborators] = useState(false);
 
   const [viewDepth, setViewDepth] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -236,6 +238,57 @@ function App() {
 
   const isAuthorized = currentUser && canEdit(currentUser.email);
 
+  const handleToggleEditor = async (nodeId: string, newStatus: boolean) => {
+    if (viewMode === 'sample') {
+      alert("Editing is disabled in Sample Mode.");
+      return;
+    }
+
+    if (!currentUser || !tree) return;
+
+    // Check if current user is an editor
+    const currentUserNode = Object.values(tree.nodes).find(n => n.email?.toLowerCase() === currentUser.email.toLowerCase());
+    const isCreator = tree.meta.createdBy?.toLowerCase() === currentUser.email.toLowerCase();
+    const canModify = currentUserNode?.isEditor || isCreator;
+
+    if (!canModify) {
+      alert("Only editors can modify permissions.");
+      return;
+    }
+
+    const updatedTree: TreeDocument = JSON.parse(JSON.stringify(tree));
+    const targetNode = updatedTree.nodes[nodeId];
+
+    if (!targetNode) {
+      alert("Member not found.");
+      return;
+    }
+
+    // Update editor status
+    targetNode.isEditor = newStatus;
+    targetNode.editorSince = newStatus ? getISTTimestamp() : null;
+    targetNode.editedBy = currentUser.email;
+    targetNode.editedTime = getISTTimestamp();
+
+    // Increment version
+    updatedTree.versionIndex++;
+    updatedTree.timestamp = getISTTimestamp();
+
+    try {
+      setLoading(true);
+      const fileName = `family_tree_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      await saveTreeFile(fileName, updatedTree);
+
+      setTree(updatedTree);
+      alert(`Editor access ${newStatus ? 'granted to' : 'removed from'} ${targetNode.name}!`);
+    } catch (err) {
+      console.error("Failed to update editor status:", err);
+      alert("Failed to save changes to Google Drive.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="app-container">
       <header className="app-header">
@@ -277,6 +330,15 @@ function App() {
                         }}
                       >
                         Search Members
+                      </button>
+                      <button
+                        className="menu-item"
+                        onClick={() => {
+                          setShowCollaborators(true);
+                          setIsMenuOpen(false);
+                        }}
+                      >
+                        Manage Collaborators
                       </button>
                     </>
                   )}
@@ -357,6 +419,16 @@ function App() {
               setShowSearch(false);
             }}
             onClose={() => setShowSearch(false)}
+          />
+        )}
+
+        {showCollaborators && tree && currentUser && (
+          <CollaboratorList
+            nodes={tree.nodes}
+            currentUserEmail={currentUser.email}
+            canToggle={!!isAuthorized}
+            onToggleEditor={handleToggleEditor}
+            onClose={() => setShowCollaborators(false)}
           />
         )}
 
