@@ -23,6 +23,7 @@ function App() {
   const [viewMode, setViewMode] = useState<'user' | 'sample'>('user');
 
   const [viewDepth, setViewDepth] = useState<number | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     initGoogleClient((signedIn) => {
@@ -218,32 +219,58 @@ function App() {
       <header className="app-header">
         <h1>Family Tree</h1>
         <div className="auth-controls">
-          {tree && (
-            <select
-              value={viewDepth === null ? 'all' : viewDepth}
-              onChange={(e) => setViewDepth(e.target.value === 'all' ? null : Number(e.target.value))}
-              style={{ marginRight: '10px', padding: '5px' }}
-            >
-              <option value="all">All Generations</option>
-              <option value="3">Top 3 Generations</option>
-              <option value="5">Top 5 Generations</option>
-              <option value="7">Top 7 Generations</option>
-            </select>
-          )}
           {isSignedIn ? (
-            <div className="user-info">
-              <span>{currentUser?.name}</span>
+            <div className="menu-container">
               <button
-                onClick={() => setViewMode(prev => prev === 'user' ? 'sample' : 'user')}
-                style={{ marginRight: '10px', backgroundColor: viewMode === 'sample' ? '#ff9800' : '#2196f3' }}
+                className="menu-button"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                aria-label="Menu"
               >
-                {viewMode === 'user' ? 'View Sample Tree' : 'View My Tree'}
+                ☰
               </button>
-              <button onClick={signOut}>Sign Out</button>
+              {isMenuOpen && (
+                <div className="dropdown-menu">
+                  <div className="menu-item user-label">{currentUser?.name}</div>
+                  <div className="menu-divider"></div>
+                  {tree && (
+                    <div className="menu-item">
+                      <label>Generations: </label>
+                      <select
+                        value={viewDepth === null ? 'all' : viewDepth}
+                        onChange={(e) => setViewDepth(e.target.value === 'all' ? null : Number(e.target.value))}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <option value="all">All</option>
+                        <option value="3">3</option>
+                        <option value="5">5</option>
+                        <option value="7">7</option>
+                      </select>
+                    </div>
+                  )}
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      setViewMode(prev => prev === 'user' ? 'sample' : 'user');
+                      setIsMenuOpen(false);
+                    }}
+                  >
+                    {viewMode === 'user' ? 'View Sample Tree' : 'View My Tree'}
+                  </button>
+                  <button
+                    className="menu-item"
+                    onClick={() => {
+                      signOut();
+                      setIsMenuOpen(false);
+                    }}
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <button onClick={signIn} disabled={!isGapiReady}>
-              {isGapiReady ? 'Sign In with Google' : 'Initializing...'}
+              {isGapiReady ? 'Sign In' : '...'}
             </button>
           )}
         </div>
