@@ -475,6 +475,14 @@ function App() {
     }
 
     const summaryText = changes.join('; ');
+    if (!summaryText && editorMode === 'edit') {
+      // No changes detected
+      setEditorMode(null);
+      setEditingNodeId(null);
+      alert("No changes detected.");
+      return;
+    }
+
     if (summaryText) {
       updatedTree.summary.unshift({
         editedBy: currentUser?.email || 'unknown',

@@ -36,15 +36,60 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                     callback: (tokenResponse: any) => {
                         if (tokenResponse && tokenResponse.access_token) {
                             accessToken = tokenResponse.access_token;
+                            // Store token info for silent login
+                            localStorage.setItem('gapi_token', tokenResponse.access_token);
+                            if (tokenResponse.expires_in) {
+                                const expiresAt = Date.now() + (tokenResponse.expires_in * 1000);
+                                localStorage.setItem('gapi_token_expires', expiresAt.toString());
+                            }
                             gapi.client.setToken(tokenResponse);
                             updateSigninStatus(true);
                         }
                     },
                 });
 
-                // Check if we have a valid token stored (optional, for persistent login)
-                // For now, we start as signed out until user clicks Sign In
-                updateSigninStatus(false);
+                // Silent login: Check if we have a valid token stored
+                const storedToken = localStorage.getItem('gapi_token');
+                const tokenExpires = localStorage.getItem('gapi_token_expires');
+
+                if (storedToken && tokenExpires) {
+                    const expiresAt = parseInt(tokenExpires, 10);
+                    const now = Date.now();
+
+                    // Check if token is still valid (with 5-minute buffer)
+                    if (expiresAt > now + (5 * 60 * 1000)) {
+                        console.log("Found valid stored token, attempting silent sign-in...");
+                        accessToken = storedToken;
+                        gapi.client.setToken({ access_token: storedToken });
+
+                        // Verify token is actually valid by making a test API call
+                        getUserProfile().then(profile => {
+                            if (profile) {
+                                console.log("Silent sign-in successful!");
+                                updateSigninStatus(true);
+                            } else {
+                                console.log("Stored token is invalid, clearing...");
+                                localStorage.removeItem('gapi_token');
+                                localStorage.removeItem('gapi_token_expires');
+                                updateSigninStatus(false);
+                            }
+                        }).catch(() => {
+                            console.log("Token validation failed, clearing...");
+                            localStorage.removeItem('gapi_token');
+                            localStorage.removeItem('gapi_token_expires');
+                            updateSigninStatus(false);
+                        });
+                    } else {
+                        console.log("Stored token has expired, clearing...");
+                        localStorage.removeItem('gapi_token');
+                        localStorage.removeItem('gapi_token_expires');
+                        updateSigninStatus(false);
+                    }
+                } else {
+                    console.log("No stored token found, user needs to sign in.");
+                    updateSigninStatus(false);
+                }
+
                 resolve();
             }).catch((error: unknown) => {
                 console.error("CRITICAL ERROR: Google Client Init or Drive API Load failed", error);
@@ -74,14 +119,10 @@ export const signOut = () => {
         google.accounts.oauth2.revoke(token, () => {
             console.log("Token revoked");
             accessToken = null;
-            // Update UI
-            // We need a way to notify App.tsx. 
-            // Since we don't have a listener, we might need to expose a callback setter or reload.
-            // For simplicity, we'll reload the page or let the App component handle state if it passed a callback.
-            // But initGoogleClient only takes one callback.
-            // Let's assume the App component will handle the state change if we call the callback passed to init.
-            // But we don't have access to it here easily without storing it.
-            // Let's just reload for now to clear state, or we can store the callback.
+            // Clear stored tokens
+            localStorage.removeItem('gapi_token');
+            localStorage.removeItem('gapi_token_expires');
+            // Reload to clear all state
             window.location.reload();
         });
     }
