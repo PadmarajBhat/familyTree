@@ -11,8 +11,7 @@ interface TreeViewProps {
 
 interface HierarchyPersonNode extends PersonNode {
     children?: HierarchyPersonNode[];
-    descendantCount?: number;
-    descendantIds?: Set<string>;
+    childrenCount?: number;
 }
 
 interface ExtendedHierarchyNode extends d3.HierarchyNode<HierarchyPersonNode> {
@@ -71,7 +70,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         svg.call(zoom as any);
 
-        // --- Build Hierarchy with Descendant Count ---
+        // --- Build Hierarchy with Direct Children Count ---
         const buildHierarchy = (nodeId: string, path: Set<string> = new Set()): HierarchyPersonNode | null => {
             // Cycle detection
             if (path.has(nodeId)) return null;
@@ -84,20 +83,10 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
                 .map(childId => buildHierarchy(childId, newPath))
                 .filter((n): n is HierarchyPersonNode => n !== null);
 
-            // Calculate unique descendant IDs
-            const allDescendantIds = new Set<string>();
-            children.forEach(child => {
-                allDescendantIds.add(child.nodeId);
-                if (child.descendantIds) {
-                    child.descendantIds.forEach(id => allDescendantIds.add(id));
-                }
-            });
-
             return {
                 ...node,
                 children: children.length > 0 ? children : undefined,
-                descendantCount: allDescendantIds.size,
-                descendantIds: allDescendantIds
+                childrenCount: children.length
             };
         };
 
@@ -176,11 +165,11 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
                 .style("stroke", "steelblue")
                 .style("stroke-width", "3px");
 
-            // Descendant Count Badge
+            // Children Count Badge
             const badgeGroup = mainGroup.append("g")
                 .attr("class", "badge")
                 .attr("transform", "translate(20, -20)")
-                .style("display", (d) => (d.data.descendantCount || 0) > 0 ? "block" : "none");
+                .style("display", (d) => (d.data.childrenCount || 0) > 0 ? "block" : "none");
 
             badgeGroup.append("circle")
                 .attr("r", 10)
@@ -193,7 +182,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
                 .style("fill", "white")
                 .style("font-size", "10px")
                 .style("font-weight", "bold")
-                .text((d) => d.data.descendantCount ?? "");
+                .text((d) => d.data.childrenCount ?? "");
 
             // Name Label
             mainGroup.append("text")
