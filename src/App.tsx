@@ -9,6 +9,7 @@ import { MemberSearch } from './components/MemberSearch';
 import { CollaboratorList } from './components/CollaboratorList';
 import { FindRelation } from './components/FindRelation';
 import { VersionHistory } from './components/VersionHistory';
+import { LoadingOverlay } from './components/LoadingOverlay';
 import { canEdit } from './logic/accessControl';
 import { getISTTimestamp } from './logic/dateUtils';
 import { generateSampleTree } from './logic/sampleData';
@@ -740,7 +741,7 @@ function App() {
         </div>
       </header>
       <main>
-        {loading && <div className="loading">Loading...</div>}
+        {loading && <LoadingOverlay />}
         {error && <div className="error">{error}</div>}
 
         {viewMode === 'sample' && (
