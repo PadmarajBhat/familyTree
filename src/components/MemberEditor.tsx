@@ -90,8 +90,10 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!email || !email.trim()) {
-            alert("Email is required.");
+        // Email is only required for editors
+        const isEditor = initialData?.isEditor || false;
+        if (isEditor && (!email || !email.trim())) {
+            alert("Email is required for editors.");
             return;
         }
 
@@ -247,8 +249,8 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                     </div>
 
                     <div className="form-group">
-                        <label>Email <span style={{ color: 'red' }}>*</span></label>
-                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                        <label>Email {(initialData?.isEditor) && <span style={{ color: 'red' }}>*</span>}</label>
+                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required={initialData?.isEditor || false} />
                     </div>
 
                     <div className="form-group">
