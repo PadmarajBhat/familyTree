@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type { PersonNode } from '../logic/types';
 import { findPath, getDisambiguationInfo, buildPathTree } from '../logic/relationshipUtils';
 import { TreeView } from './TreeView';
+import { CloseButton } from './CloseButton';
 import './FindRelation.css';
 
 interface FindRelationProps {
@@ -105,9 +106,7 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
             <div className="find-relation-header">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2>Find Relation</h2>
-                    <button onClick={onClose} className="close-button">
-                        Close
-                    </button>
+                    <CloseButton onClick={onClose} />
                 </div>
 
                 <div className="search-inputs">

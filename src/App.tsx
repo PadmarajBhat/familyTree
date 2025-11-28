@@ -1,6 +1,8 @@
+```
 import { useEffect, useState } from 'react';
 import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile } from './services/drive';
-import type { TreeDocument, PersonNode } from './logic/types';
+import type { TreeDocument, ChangeLog } from './logic/types';
+import { CloseButton } from './components/CloseButton';
 import { TreeView } from './components/TreeView';
 import { PersonDetail } from './components/PersonDetail';
 import { MemberEditor } from './components/MemberEditor';
@@ -32,6 +34,65 @@ function App() {
 
   const [viewDepth, setViewDepth] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // --- History / Back Button Logic ---
+  const isAnyModalOpen = showSearch || showCollaborators || showFindRelation || showVersionHistory || !!selectedNodeId || !!editorMode;
+
+  useEffect(() => {
+    // When a modal opens, push a state if we aren't already in one
+    if (isAnyModalOpen) {
+      // We only want to push state if we didn't just pop to get here.
+      // However, detecting that is hard. Simpler: ensure we have a 'modal' state.
+      // But if we just push every time a modal opens, we might stack them.
+      // The requirement is "Back button... should go to the home screen".
+      // So we want exactly ONE history entry for "Modal Open" vs "Home".
+
+      // Check if we already have our state
+      if (window.history.state?.modal !== true) {
+        window.history.pushState({ modal: true }, '');
+      }
+    }
+  }, [isAnyModalOpen]);
+
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      // If we go back (popstate), and we were in a modal, we should close everything.
+      // Actually, if we hit back, the browser removes the state.
+      // So if we are here, it means the user pressed back.
+      // If we have any modals open, close them.
+      if (isAnyModalOpen) {
+        closeAllModals();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isAnyModalOpen]); // Re-bind if modal state changes? No, handlePopState needs fresh closure or ref.
+
+  // Better approach for handlePopState to access latest state without re-binding:
+  // Use a ref or just rely on the fact that setX functions work.
+  // But wait, if I put isAnyModalOpen in dependency, it re-binds.
+  // Let's just define closeAllModals and use it.
+
+  const closeAllModals = () => {
+    setShowSearch(false);
+    setShowCollaborators(false);
+    setShowFindRelation(false);
+    setShowVersionHistory(false);
+    setSelectedNodeId(null);
+    setEditorMode(null);
+    setEditingNodeId(null);
+  };
+
+  // Also, when we manually close a modal (e.g. click X), we should probably go back in history
+  // if we pushed a state.
+  const handleManualClose = () => {
+    closeAllModals();
+    if (window.history.state?.modal) {
+      window.history.back();
+    }
+  };
+
 
   useEffect(() => {
     initGoogleClient((signedIn) => {
@@ -181,7 +242,7 @@ function App() {
     const structuredChanges: { type: 'ADD' | 'EDIT' | 'DELETE' | 'REPARENT'; nodeId: string | null; fieldsChanged: string[]; before: Partial<PersonNode>; after: Partial<PersonNode>; }[] = [];
 
     if (editorMode === 'add') {
-      changes.push(`Added new member: ${personData.name}`);
+      changes.push(`Added new member: ${ personData.name } `);
       structuredChanges.push({
         type: 'ADD',
         nodeId: personData.nodeId,
@@ -208,7 +269,7 @@ function App() {
       }
 
       if (fieldsChanged.length > 0) {
-        changes.push(`Edited member ${personData.name}: Changed ${fieldsChanged.join(', ')}`);
+        changes.push(`Edited member ${ personData.name }: Changed ${ fieldsChanged.join(', ') } `);
         structuredChanges.push({
           type: 'EDIT',
           nodeId: personData.nodeId,
@@ -231,7 +292,15 @@ function App() {
           updatedTree.nodes[newParentId].childrenIds.push(personData.nodeId);
         }
       }
-      changes.push(`Reparented ${personData.name} from ${oldParentId || 'None'} to ${newParentId || 'None'}`);
+
+      if (!oldParentId && newParentId) {
+        changes.push(`Linked ${ personData.name } to parent ${ updatedTree.nodes[newParentId]?.name || newParentId } `);
+      } else if (oldParentId && !newParentId) {
+        changes.push(`Removed parent link for ${ personData.name }`);
+      } else {
+        changes.push(`Changed parent of ${ personData.name } from ${ updatedTree.nodes[oldParentId!]?.name || oldParentId } to ${ updatedTree.nodes[newParentId!]?.name || newParentId } `);
+      }
+
       structuredChanges.push({
         type: 'REPARENT',
         nodeId: personData.nodeId,
@@ -252,6 +321,23 @@ function App() {
       }
     }
 
+    // Check if we need to update the root node (if the current root got a parent)
+    if (personData.nodeId === updatedTree.rootNodeId && personData.parentId) {
+      let newRootId = personData.parentId;
+      // Traverse up to find the ultimate root
+      const visited = new Set<string>();
+      while (updatedTree.nodes[newRootId] && updatedTree.nodes[newRootId].parentId) {
+        if (visited.has(newRootId)) {
+          console.error("Cycle detected while finding new root!");
+          break;
+        }
+        visited.add(newRootId);
+        newRootId = updatedTree.nodes[newRootId].parentId!;
+      }
+      updatedTree.rootNodeId = newRootId;
+      console.log(`Root node updated from ${ personData.nodeId } to ${ newRootId } `);
+    }
+
     const summaryText = changes.join('; ');
     if (summaryText) {
       updatedTree.summary.unshift({
@@ -264,7 +350,7 @@ function App() {
 
     try {
       setLoading(true);
-      const fileName = `family_tree_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      const fileName = `family_tree_${ new Date().toISOString().replace(/[:.]/g, '-') }.json`;
       await saveTreeFile(fileName, updatedTree, summaryText);
 
       setTree(updatedTree);
@@ -341,11 +427,11 @@ function App() {
 
     try {
       setLoading(true);
-      const fileName = `family_tree_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      const fileName = `family_tree_${ new Date().toISOString().replace(/[:.]/g, '-') }.json`;
       await saveTreeFile(fileName, updatedTree);
 
       setTree(updatedTree);
-      alert(`Editor access ${newStatus ? 'granted to' : 'removed from'} ${targetNode.name}!`);
+      alert(`Editor access ${ newStatus ? 'granted to' : 'removed from' } ${ targetNode.name } !`);
     } catch (err) {
       console.error("Failed to update editor status:", err);
       alert("Failed to save changes to Google Drive.");
@@ -501,7 +587,7 @@ function App() {
               setSelectedNodeId(nodeId);
               setShowSearch(false);
             }}
-            onClose={() => setShowSearch(false)}
+            onClose={handleManualClose}
           />
         )}
 
@@ -511,7 +597,7 @@ function App() {
             currentUserEmail={currentUser.email}
             canToggle={!!isAuthorized}
             onToggleEditor={handleToggleEditor}
-            onClose={() => setShowCollaborators(false)}
+            onClose={handleManualClose}
           />
         )}
 
@@ -522,14 +608,14 @@ function App() {
               setSelectedNodeId(nodeId);
               setShowFindRelation(false);
             }}
-            onClose={() => setShowFindRelation(false)}
+            onClose={handleManualClose}
           />
         )}
 
         {showVersionHistory && (
           <div className="modal-overlay">
-            <div className="modal-content" style={{ width: '90%', maxWidth: '900px' }}>
-              <button className="close-button" onClick={() => setShowVersionHistory(false)}>×</button>
+            <div className="modal-content" style={{ width: '90%', maxWidth: '900px', position: 'relative' }}>
+              <CloseButton onClick={() => setShowVersionHistory(false)} />
               <VersionHistory />
             </div>
           </div>
@@ -538,7 +624,7 @@ function App() {
         {selectedNodeId && tree && tree.nodes[selectedNodeId] && (
           <PersonDetail
             node={tree.nodes[selectedNodeId]}
-            onClose={() => setSelectedNodeId(null)}
+            onClose={handleManualClose}
             onEdit={handleEditClick}
           />
         )}
@@ -550,7 +636,7 @@ function App() {
             initialData={editorMode === 'edit' && editingNodeId && tree ? tree.nodes[editingNodeId] : undefined}
             existingNodes={tree ? tree.nodes : {}}
             onSave={handleSaveMember}
-            onCancel={() => { setEditorMode(null); setEditingNodeId(null); }}
+            onCancel={handleManualClose}
           />
         )}
       </main>

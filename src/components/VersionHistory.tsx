@@ -118,45 +118,47 @@ export const VersionHistory: React.FC = () => {
             {mergeStatus && <div className="merge-status">{mergeStatus}</div>}
 
             {loading ? <p>Loading versions...</p> : (
-                <table className="version-table">
-                    <thead>
-                        <tr>
-                            <th>Select</th>
-                            <th>Name</th>
-                            <th>Created Time</th>
-                            <th>Summary</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {files.map(file => (
-                            <tr key={file.id} className={selectedFiles.includes(file.id) ? 'selected' : ''}>
-                                <td>
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedFiles.includes(file.id)}
-                                        onChange={() => handleSelect(file.id)}
-                                    />
-                                </td>
-                                <td>{file.name}</td>
-                                <td>{new Date(file.createdTime).toLocaleString()}</td>
-                                <td>{file.description || <em>No summary</em>}</td>
-                                <td>
-                                    <button onClick={() => handleViewLog(file.id)} disabled={loadingLog}>
-                                        View Full Log
-                                    </button>
-                                </td>
+                <div className="version-table-wrapper">
+                    <table className="version-table">
+                        <thead>
+                            <tr>
+                                <th>Select</th>
+                                <th>Name</th>
+                                <th>Created Time</th>
+                                <th>Summary</th>
+                                <th>Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {files.map(file => (
+                                <tr key={file.id} className={selectedFiles.includes(file.id) ? 'selected' : ''}>
+                                    <td>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedFiles.includes(file.id)}
+                                            onChange={() => handleSelect(file.id)}
+                                        />
+                                    </td>
+                                    <td>{file.name}</td>
+                                    <td>{new Date(file.createdTime).toLocaleString()}</td>
+                                    <td>{file.description || <em>No summary</em>}</td>
+                                    <td>
+                                        <button onClick={() => handleViewLog(file.id)} disabled={loadingLog}>
+                                            View Full Log
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             )}
 
             {viewingLog && (
                 <div className="log-modal">
                     <div className="log-modal-content">
                         <h3>Version Change Log</h3>
-                        <button className="close-log" onClick={() => setViewingLog(null)}>Close</button>
+                        <CloseButton onClick={() => setViewingLog(null)} />
                         <div className="log-list">
                             {viewingLog.length === 0 ? <p>No history available.</p> : (
                                 viewingLog.map((log, idx) => (

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { PersonNode } from '../logic/types';
 import { searchMembers, sortMembers, type SortOption, type SortOrder } from '../logic/searchUtils';
+import { CloseButton } from './CloseButton';
 import './MemberSearch.css';
 
 interface MemberSearchProps {
@@ -31,9 +32,7 @@ export const MemberSearch: React.FC<MemberSearchProps> = ({ nodes, onMemberClick
             <div className="search-header">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2>Search Members ({filteredAndSortedMembers.length})</h2>
-                    <button onClick={onClose} style={{ padding: '8px 16px', background: '#eee', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-                        Close
-                    </button>
+                    <CloseButton onClick={onClose} />
                 </div>
 
                 <div className="search-bar">

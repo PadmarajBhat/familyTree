@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { PersonNode } from '../logic/types';
 import { getISTTimestamp, deriveDobFromAge, calculateAge } from '../logic/dateUtils';
 import { uploadImage } from '../services/drive';
+import { CloseButton } from './CloseButton';
 import './MemberEditor.css';
 
 interface MemberEditorProps {
@@ -149,6 +150,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     return (
         <div className="member-editor-modal">
             <div className="member-editor-content">
+                <CloseButton onClick={onCancel} />
                 <h2>{mode === 'add' ? 'Add Member' : 'Edit Member'}</h2>
                 <form onSubmit={handleSubmit}>
                     <div className="form-group image-upload">

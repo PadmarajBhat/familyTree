@@ -1,5 +1,6 @@
 import React from 'react';
 import type { PersonNode } from '../logic/types';
+import { CloseButton } from './CloseButton';
 import './PersonDetail.css';
 
 interface PersonDetailProps {
@@ -12,7 +13,7 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, onClose, onEdi
     return (
         <div className="person-detail-overlay">
             <div className="person-detail-card">
-                <button className="close-btn" onClick={onClose}>X</button>
+                <CloseButton onClick={onClose} />
                 <h2>{node.name || "Unknown"}</h2>
                 {node.imageUrl && <img src={node.imageUrl} alt={node.name || "Profile"} className="profile-pic" />}
                 <p><strong>Born:</strong> {node.dob || "Unknown"}</p>

@@ -1,5 +1,6 @@
 import type { PersonNode } from '../logic/types';
 import { calculateAge } from '../logic/dateUtils';
+import { CloseButton } from './CloseButton';
 import './CollaboratorList.css';
 
 interface CollaboratorListProps {
@@ -63,7 +64,7 @@ export function CollaboratorList({ nodes, canToggle, onToggleEditor, onClose }: 
             <div className="collaborator-container" onClick={(e) => e.stopPropagation()}>
                 <div className="collaborator-header">
                     <h2>Manage Collaborators</h2>
-                    <button className="close-button" onClick={onClose}>×</button>
+                    <CloseButton onClick={onClose} />
                 </div>
 
                 {!canToggle && (
