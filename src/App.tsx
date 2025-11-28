@@ -7,6 +7,7 @@ import { MemberEditor } from './components/MemberEditor';
 import { MemberSearch } from './components/MemberSearch';
 import { CollaboratorList } from './components/CollaboratorList';
 import { FindRelation } from './components/FindRelation';
+import { VersionHistory } from './components/VersionHistory';
 import { canEdit } from './logic/accessControl';
 import { getISTTimestamp } from './logic/dateUtils';
 import { generateSampleTree } from './logic/sampleData';
@@ -27,6 +28,7 @@ function App() {
   const [showSearch, setShowSearch] = useState(false);
   const [showCollaborators, setShowCollaborators] = useState(false);
   const [showFindRelation, setShowFindRelation] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   const [viewDepth, setViewDepth] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -351,6 +353,15 @@ function App() {
                       >
                         Find Relation
                       </button>
+                      <button
+                        className="menu-item"
+                        onClick={() => {
+                          setShowVersionHistory(true);
+                          setIsMenuOpen(false);
+                        }}
+                      >
+                        Version History
+                      </button>
                     </>
                   )}
                   <button
@@ -402,7 +413,7 @@ function App() {
           </div>
         )}
 
-        {tree && !showSearch && !showFindRelation && (
+        {tree && !showSearch && !showFindRelation && !showVersionHistory && (
           <div className="tree-container">
             <TreeView
               data={tree}
@@ -452,6 +463,15 @@ function App() {
             }}
             onClose={() => setShowFindRelation(false)}
           />
+        )}
+
+        {showVersionHistory && (
+          <div className="modal-overlay">
+            <div className="modal-content" style={{ width: '90%', maxWidth: '900px' }}>
+              <button className="close-button" onClick={() => setShowVersionHistory(false)}>×</button>
+              <VersionHistory />
+            </div>
+          </div>
         )}
 
         {selectedNodeId && tree && tree.nodes[selectedNodeId] && (

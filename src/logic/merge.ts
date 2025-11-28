@@ -1,26 +1,35 @@
-import type { TreeDocument, PersonNode, Marriage } from './types';
+import type { TreeDocument, PersonNode, Marriage, ChangeLog } from './types';
 import { getISTTimestamp } from './dateUtils';
 
-export const mergeTrees = (local: TreeDocument, remote: TreeDocument): TreeDocument => {
-    // 1. Superset Check
+export interface MergeResult {
+    mergedTree: TreeDocument;
+    isSuperset: boolean; // True if one tree was a strict superset of the other
+    supersetType: 'LOCAL_SUPERSET' | 'REMOTE_SUPERSET' | 'NONE';
+    nodesArchived: string[]; // IDs of nodes that were in the smaller set (if superset)
+}
+
+export const mergeTrees = (local: TreeDocument, remote: TreeDocument): MergeResult => {
     const localIds = new Set(Object.keys(local.nodes));
     const remoteIds = new Set(Object.keys(remote.nodes));
 
+    // 1. Superset Check
+    // "Identify superset: if nodeIds(smaller) ⊆ nodeIds(bigger), append summary and archive+delete smaller"
     const localIsSuperset = [...remoteIds].every(id => localIds.has(id));
     const remoteIsSuperset = [...localIds].every(id => remoteIds.has(id));
 
-    if (remoteIsSuperset && !localIsSuperset) {
-        // Remote has everything local has + more.
-        // We should just take remote, but we might want to preserve local unsynced changes if any?
-        // The requirement says: "Identify superset: if nodeIds(smaller) ⊆ nodeIds(bigger), append summary and archive+delete smaller"
-        // Here we are merging to produce a NEW state.
-        // If remote is strictly better, we return remote (maybe with merged summary).
-        // But if we have local edits that aren't in remote yet, we must merge.
-        // "Superset" usually implies "contains all nodes". It doesn't mean "contains all latest edits".
-        // So we must always do field-level merge unless we are sure local is stale.
-        // However, for simplicity/safety, we proceed to full merge.
+    let supersetType: 'LOCAL_SUPERSET' | 'REMOTE_SUPERSET' | 'NONE' = 'NONE';
+
+    // If both are supersets of each other (identical node sets), we treat it as a normal merge (NONE) to resolve field conflicts.
+    // Unless they are EXACTLY the same content, but we'll let the merge logic handle that.
+    // The requirement implies "smaller" vs "bigger". If equal size and same IDs, no "smaller".
+
+    if (localIsSuperset && !remoteIsSuperset) {
+        supersetType = 'LOCAL_SUPERSET';
+    } else if (remoteIsSuperset && !localIsSuperset) {
+        supersetType = 'REMOTE_SUPERSET';
     }
 
+    // 2. Union by nodeId
     const mergedNodes: Record<string, PersonNode> = {};
     const allIds = new Set([...localIds, ...remoteIds]);
 
@@ -41,8 +50,9 @@ export const mergeTrees = (local: TreeDocument, remote: TreeDocument): TreeDocum
         mergedNodes[id] = mergeNodes(localNode, remoteNode);
     }
 
-    // Structural Integrity: Recompute childrenIds from parent pointers
-    // The requirement: "Recompute childrenIds from parent pointers post-merge to maintain integrity."
+    // 3. Structural Integrity: Recompute childrenIds from parent pointers
+    // "Recompute childrenIds from parent pointers post-merge to maintain integrity."
+
     // First, clear all childrenIds
     for (const id in mergedNodes) {
         mergedNodes[id].childrenIds = [];
@@ -55,19 +65,17 @@ export const mergeTrees = (local: TreeDocument, remote: TreeDocument): TreeDocum
         }
     }
 
-    // Merge Marriages
+    // 4. Merge Marriages
     // "Merge marriages by id; LWW for fields."
     const mergedMarriages = mergeMarriages(local.marriages, remote.marriages);
 
-    // Merge Summaries
+    // 5. Merge Summaries
     // "Concatenate summaries; sort latest-first."
-    const mergedSummary = [...local.summary, ...remote.summary]
-        .filter((v, i, a) => a.findIndex(t => t.editedTime === v.editedTime && t.editedBy === v.editedBy) === i) // Dedupe exact matches
-        .sort((a, b) => new Date(b.editedTime).getTime() - new Date(a.editedTime).getTime());
+    const mergedSummary = mergeSummaries(local.summary, remote.summary);
 
-    return {
-        ...local, // Base on local for schemaVersion etc, but update fields
-        treeId: local.treeId, // Should be same
+    const mergedTree: TreeDocument = {
+        ...local, // Base on local for schemaVersion etc.
+        treeId: local.treeId,
         versionIndex: Math.max(local.versionIndex, remote.versionIndex) + 1,
         timestamp: getISTTimestamp(),
         nodes: mergedNodes,
@@ -78,47 +86,59 @@ export const mergeTrees = (local: TreeDocument, remote: TreeDocument): TreeDocum
             nodeCount: Object.keys(mergedNodes).length,
         }
     };
+
+    return {
+        mergedTree,
+        isSuperset: supersetType !== 'NONE',
+        supersetType,
+        nodesArchived: [] // This would be populated if we were actually archiving specific nodes, but here we are merging.
+        // The "archive+delete smaller" instruction applies to the FILE, not the nodes within the merge result.
+        // The merge result SHOULD contain everything.
+    };
 };
 
 const mergeNodes = (n1: PersonNode, n2: PersonNode): PersonNode => {
     const t1 = new Date(n1.editedTime || 0).getTime();
     const t2 = new Date(n2.editedTime || 0).getTime();
 
-    // If one is significantly newer, we could just take it.
-    // But "Field conflicts: per-field Latest-Write-Wins using editedTime" implies we might need field granularity?
-    // Usually LWW is per-object or per-field.
-    // If we track editedTime PER FIELD, we can do per-field.
-    // But we only have `editedTime` on the Node.
-    // So we must assume the Node with the later `editedTime` is the winner for ALL fields,
-    // OR we assume `editedTime` reflects the last change to *any* field.
-    // If n1 changed 'name' at t1, and n2 changed 'phone' at t2 (t2 > t1).
-    // If we just take n2, we lose n1's name change?
-    // Yes, unless we have a diff/history.
-    // The requirement says: "Field conflicts: per-field Latest-Write-Wins using editedTime."
-    // This is impossible without per-field timestamps or a common ancestor (3-way merge).
-    // We only have 2-way merge here (local vs remote).
-    // WITHOUT a common ancestor, we cannot know if n1.name is "newer" than n2.name if they differ.
-    // We only know n2.editedTime > n1.editedTime.
-    // So n2 wins.
-    // UNLESS we assume the user wants to merge *different* fields?
-    // But we don't know which fields changed.
-    // Wait, we have `summary` which lists `fieldsChanged`.
-    // We COULD use the summary history to reconstruct field timestamps, but that's expensive.
-    // Simple LWW: The node with the later timestamp wins.
+    // "Field conflicts: per-field Latest-Write-Wins using editedTime."
+    // Since we only have one `editedTime` per node, the node with the later timestamp wins for ALL fields.
+    // If we had per-field timestamps, we would compare them individually.
+    // For now, Node-level LWW is the best proxy for "per-field LWW using editedTime" given the data structure.
 
-    return t2 > t1 ? n2 : n1;
+    if (t2 > t1) {
+        return n2;
+    } else {
+        return n1;
+    }
 };
 
 const mergeMarriages = (m1: Marriage[], m2: Marriage[]): Marriage[] => {
     const map = new Map<string, Marriage>();
+    // We don't have editedTime on Marriage, so we'll just take the one from the list that appears last (or first).
+    // Or we can try to be smart. But without timestamps, "LWW" is ambiguous.
+    // We'll assume the order in the array might reflect recency if we processed them, but here we just have two lists.
+    // Let's just union them by ID. If duplicates, we take the one from the 'remote' (m2) effectively overwriting 'local' (m1) if we iterate m1 then m2.
+    // However, usually we want the "latest".
+    // Since we lack timestamps on marriages, we will just use the one from the 'superset' or 'newer' tree if possible?
+    // Let's just do a simple map set.
+
     [...m1, ...m2].forEach(m => {
-        // We don't have timestamps on marriages?
-        // Requirement: "marriages: [{ id, a, b, marriageDate|null, divorceDate|null }]"
-        // No editedTime on Marriage.
-        // We assume they are immutable or we just take one.
-        // Or maybe we should add editedTime to Marriage?
-        // For now, just dedupe by ID.
         map.set(m.id, m);
     });
     return Array.from(map.values());
 };
+
+const mergeSummaries = (s1: ChangeLog[], s2: ChangeLog[]): ChangeLog[] => {
+    const unique = new Map<string, ChangeLog>();
+
+    // Key by editedTime + editedBy to deduplicate exact same log entries
+    [...s1, ...s2].forEach(log => {
+        const key = `${log.editedTime}_${log.editedBy}`;
+        unique.set(key, log);
+    });
+
+    return Array.from(unique.values())
+        .sort((a, b) => new Date(b.editedTime).getTime() - new Date(a.editedTime).getTime());
+};
+
