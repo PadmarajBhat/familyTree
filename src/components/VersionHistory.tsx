@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { listTreeFiles, getFileContent, saveTreeFile } from '../services/drive';
+import { listTreeFiles, getFileContent, saveTreeFile, deleteFile } from '../services/drive';
 import { mergeTrees } from '../logic/merge';
 import type { TreeDocument, ChangeLog } from '../logic/types';
 import { CloseButton } from './CloseButton';
@@ -13,7 +13,11 @@ interface DriveFile {
     description?: string;
 }
 
-export const VersionHistory: React.FC = () => {
+interface VersionHistoryProps {
+    onClose: () => void;
+}
+
+export const VersionHistory: React.FC<VersionHistoryProps> = ({ onClose }) => {
     const [files, setFiles] = useState<DriveFile[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
@@ -42,11 +46,7 @@ export const VersionHistory: React.FC = () => {
         if (selectedFiles.includes(id)) {
             setSelectedFiles(selectedFiles.filter(f => f !== id));
         } else {
-            if (selectedFiles.length < 2) {
-                setSelectedFiles([...selectedFiles, id]);
-            } else {
-                alert("You can only select up to 2 versions to merge.");
-            }
+            setSelectedFiles([...selectedFiles, id]);
         }
     };
 
@@ -65,37 +65,63 @@ export const VersionHistory: React.FC = () => {
     };
 
     const handleMerge = async () => {
-        if (selectedFiles.length !== 2) {
-            alert("Please select exactly 2 versions to merge.");
+        if (selectedFiles.length < 2) {
+            alert("Please select at least 2 versions to merge.");
             return;
         }
 
         setMergeStatus("Downloading versions...");
         try {
-            const [id1, id2] = selectedFiles;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const content1 = await getFileContent(id1) as TreeDocument;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const content2 = await getFileContent(id2) as TreeDocument;
+            // Load all selected files
+            const contents: TreeDocument[] = [];
+            for (const fileId of selectedFiles) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const content = await getFileContent(fileId) as TreeDocument;
+                contents.push(content);
+            }
 
-            setMergeStatus("Merging...");
-            const result = mergeTrees(content1, content2);
+            setMergeStatus(`Merging ${selectedFiles.length} versions...`);
+
+            // Sequentially merge all files (merge first two, then merge result with third, etc.)
+            let mergedResult = contents[0];
+            let supersetTypes: string[] = [];
+
+            for (let i = 1; i < contents.length; i++) {
+                const result = mergeTrees(mergedResult, contents[i]);
+                mergedResult = result.mergedTree;
+                supersetTypes.push(result.supersetType);
+            }
 
             setMergeStatus("Saving merged version...");
             const newName = `family_tree_${Date.now()}.json`;
-            const mergeDescription = `Merged versions ${id1} and ${id2}. Superset: ${result.supersetType}`;
+            const fileIdList = selectedFiles.join(', ');
+            const mergeDescription = `Merged ${selectedFiles.length} versions: ${fileIdList}`;
 
             // Add a merge entry to the summary
-            result.mergedTree.summary.unshift({
+            mergedResult.summary.unshift({
                 editedBy: 'System (Merge)',
                 editedTime: new Date().toISOString(),
                 changes: mergeDescription,
                 structured: []
             });
 
-            await saveTreeFile(newName, result.mergedTree, mergeDescription);
+            // Save the merged file first
+            await saveTreeFile(newName, mergedResult, mergeDescription);
 
-            setMergeStatus(`Merge Complete! New version created: ${newName}. Superset Type: ${result.supersetType}`);
+            // After successful merge, delete the source files
+            setMergeStatus("Deleting source files...");
+            let deletedCount = 0;
+            for (const fileId of selectedFiles) {
+                try {
+                    await deleteFile(fileId);
+                    deletedCount++;
+                } catch (delErr) {
+                    console.error(`Failed to delete file ${fileId}:`, delErr);
+                    // Continue deleting other files even if one fails
+                }
+            }
+
+            setMergeStatus(`Merge Complete! ${deletedCount}/${selectedFiles.length} source files deleted.`);
 
             // Refresh list
             setSelectedFiles([]);
@@ -109,10 +135,13 @@ export const VersionHistory: React.FC = () => {
 
     return (
         <div className="version-history-container">
-            <h2>Version History</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px 0 20px' }}>
+                <h2>Version History</h2>
+                <CloseButton onClick={onClose} />
+            </div>
             <div className="controls">
                 <button onClick={loadFiles} disabled={loading}>Refresh</button>
-                <button onClick={handleMerge} disabled={selectedFiles.length !== 2 || loading}>
+                <button onClick={handleMerge} disabled={selectedFiles.length < 2 || loading}>
                     Merge Selected ({selectedFiles.length})
                 </button>
             </div>

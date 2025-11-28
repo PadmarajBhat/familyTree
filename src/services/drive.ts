@@ -185,6 +185,19 @@ export const saveTreeFile = async (name: string, content: unknown, description?:
     }
 };
 
+export const deleteFile = async (fileId: string): Promise<void> => {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (gapi.client as any).drive.files.delete({
+            fileId: fileId,
+        });
+        console.log(`File ${fileId} deleted successfully`);
+    } catch (err) {
+        console.error("Error deleting file", err);
+        throw err;
+    }
+};
+
 export const getUserProfile = async () => {
     try {
         const accessToken = gapi.client.getToken()?.access_token;

@@ -842,12 +842,7 @@ function App() {
         )}
 
         {showVersionHistory && (
-          <div className="modal-overlay">
-            <div className="modal-content" style={{ width: '90%', maxWidth: '900px', position: 'relative' }}>
-              <CloseButton onClick={() => setShowVersionHistory(false)} />
-              <VersionHistory />
-            </div>
-          </div>
+          <VersionHistory onClose={handleManualClose} />
         )}
 
         {selectedNodeId && tree && tree.nodes[selectedNodeId] && (
