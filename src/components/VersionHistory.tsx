@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { listTreeFiles, getFileContent, saveTreeFile } from '../services/drive';
 import { mergeTrees } from '../logic/merge';
 import type { TreeDocument, ChangeLog } from '../logic/types';
+import { CloseButton } from './CloseButton';
 import './VersionHistory.css';
 
 interface DriveFile {

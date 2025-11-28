@@ -1,7 +1,6 @@
-```
 import { useEffect, useState } from 'react';
 import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile } from './services/drive';
-import type { TreeDocument, ChangeLog } from './logic/types';
+import type { TreeDocument, PersonNode } from './logic/types';
 import { CloseButton } from './components/CloseButton';
 import { TreeView } from './components/TreeView';
 import { PersonDetail } from './components/PersonDetail';
@@ -55,7 +54,7 @@ function App() {
   }, [isAnyModalOpen]);
 
   useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
+    const handlePopState = () => {
       // If we go back (popstate), and we were in a modal, we should close everything.
       // Actually, if we hit back, the browser removes the state.
       // So if we are here, it means the user pressed back.
@@ -242,7 +241,7 @@ function App() {
     const structuredChanges: { type: 'ADD' | 'EDIT' | 'DELETE' | 'REPARENT'; nodeId: string | null; fieldsChanged: string[]; before: Partial<PersonNode>; after: Partial<PersonNode>; }[] = [];
 
     if (editorMode === 'add') {
-      changes.push(`Added new member: ${ personData.name } `);
+      changes.push(`Added new member: ${personData.name}`);
       structuredChanges.push({
         type: 'ADD',
         nodeId: personData.nodeId,
@@ -269,7 +268,7 @@ function App() {
       }
 
       if (fieldsChanged.length > 0) {
-        changes.push(`Edited member ${ personData.name }: Changed ${ fieldsChanged.join(', ') } `);
+        changes.push(`Edited member ${personData.name}: Changed ${fieldsChanged.join(', ')}`);
         structuredChanges.push({
           type: 'EDIT',
           nodeId: personData.nodeId,
@@ -294,11 +293,11 @@ function App() {
       }
 
       if (!oldParentId && newParentId) {
-        changes.push(`Linked ${ personData.name } to parent ${ updatedTree.nodes[newParentId]?.name || newParentId } `);
+        changes.push(`Linked ${personData.name} to parent ${updatedTree.nodes[newParentId]?.name || newParentId}`);
       } else if (oldParentId && !newParentId) {
-        changes.push(`Removed parent link for ${ personData.name }`);
+        changes.push(`Removed parent link for ${personData.name}`);
       } else {
-        changes.push(`Changed parent of ${ personData.name } from ${ updatedTree.nodes[oldParentId!]?.name || oldParentId } to ${ updatedTree.nodes[newParentId!]?.name || newParentId } `);
+        changes.push(`Changed parent of ${personData.name} from ${updatedTree.nodes[oldParentId!]?.name || oldParentId} to ${updatedTree.nodes[newParentId!]?.name || newParentId}`);
       }
 
       structuredChanges.push({
@@ -335,7 +334,7 @@ function App() {
         newRootId = updatedTree.nodes[newRootId].parentId!;
       }
       updatedTree.rootNodeId = newRootId;
-      console.log(`Root node updated from ${ personData.nodeId } to ${ newRootId } `);
+      console.log(`Root node updated from ${personData.nodeId} to ${newRootId}`);
     }
 
     const summaryText = changes.join('; ');
@@ -350,7 +349,7 @@ function App() {
 
     try {
       setLoading(true);
-      const fileName = `family_tree_${ new Date().toISOString().replace(/[:.]/g, '-') }.json`;
+      const fileName = `family_tree_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
       await saveTreeFile(fileName, updatedTree, summaryText);
 
       setTree(updatedTree);
@@ -427,11 +426,11 @@ function App() {
 
     try {
       setLoading(true);
-      const fileName = `family_tree_${ new Date().toISOString().replace(/[:.]/g, '-') }.json`;
+      const fileName = `family_tree_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
       await saveTreeFile(fileName, updatedTree);
 
       setTree(updatedTree);
-      alert(`Editor access ${ newStatus ? 'granted to' : 'removed from' } ${ targetNode.name } !`);
+      alert(`Editor access ${newStatus ? 'granted to' : 'removed from'} ${targetNode.name}!`);
     } catch (err) {
       console.error("Failed to update editor status:", err);
       alert("Failed to save changes to Google Drive.");
