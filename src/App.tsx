@@ -341,6 +341,26 @@ function App() {
       }
     });
 
+    // Check if any of the added children was the root node
+    // If so, we need to update the root to point to the ultimate ancestor
+    const rootWasReparented = addedChildren.some(childId => childId === updatedTree.rootNodeId);
+    if (rootWasReparented) {
+      // The old root now has a parent, so we need to find the new root
+      let newRootId = personData.nodeId;
+      // Traverse up to find the ultimate root
+      const visited = new Set<string>();
+      while (updatedTree.nodes[newRootId] && updatedTree.nodes[newRootId].parentId) {
+        if (visited.has(newRootId)) {
+          console.error("Cycle detected while finding new root!");
+          break;
+        }
+        visited.add(newRootId);
+        newRootId = updatedTree.nodes[newRootId].parentId!;
+      }
+      console.log(`Root node updated from ${updatedTree.rootNodeId} to ${newRootId} (old root became a child)`);
+      updatedTree.rootNodeId = newRootId;
+    }
+
     // Process Removed Children
     removedChildren.forEach(childId => {
       const childNode = updatedTree.nodes[childId];
