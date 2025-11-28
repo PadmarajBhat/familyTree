@@ -36,6 +36,39 @@
     font-weight: bold;
 }
 
+background: rgba(255, 255, 255, 0.9);
+border-radius: 8px;
+margin-top: 20px;
+}
+
+.controls {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+.controls button {
+    padding: 10px 20px;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+}
+
+.controls button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.merge-status {
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
 .version-table {
     width: 100%;
     border-collapse: collapse;
@@ -54,4 +87,50 @@
 
 .version-table tr.selected {
     background-color: #e6f7ff;
+}
+
+.log-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.log-modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    width: 80%;
+    max-height: 80%;
+    overflow-y: auto;
+    position: relative;
+}
+
+.close-log {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+.log-entry {
+    border-bottom: 1px solid #eee;
+    padding: 10px 0;
+}
+
+.log-header {
+    font-size: 0.9em;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.log-changes {
+    font-weight: 500;
 }

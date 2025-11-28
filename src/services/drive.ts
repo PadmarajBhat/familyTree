@@ -92,7 +92,7 @@ export const listTreeFiles = async () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await (gapi.client as any).drive.files.list({
             q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name contains 'json'`,
-            fields: 'nextPageToken, files(id, name, createdTime, modifiedTime)',
+            fields: 'nextPageToken, files(id, name, createdTime, modifiedTime, description)',
             orderBy: 'createdTime desc', // Load latest created file
         });
         return response.result.files;
@@ -116,13 +116,14 @@ export const getFileContent = async (fileId: string) => {
     }
 };
 
-export const saveTreeFile = async (name: string, content: unknown) => {
+export const saveTreeFile = async (name: string, content: unknown, description?: string) => {
     const fileContent = JSON.stringify(content, null, 2);
     const file = new Blob([fileContent], { type: 'application/json' });
     const metadata = {
         name: name,
         parents: [CONFIG.DRIVE_TREE_FOLDER_ID],
         mimeType: 'application/json',
+        description: description || "",
     };
 
     const accessToken = gapi.auth.getToken().access_token;

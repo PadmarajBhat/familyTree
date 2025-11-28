@@ -176,14 +176,46 @@ function App() {
     const oldNode = editorMode === 'edit' ? updatedTree.nodes[personData.nodeId] : null;
     const oldParentId = oldNode?.parentId || null;
 
-    // Update/Add Node
-    updatedTree.nodes[personData.nodeId] = personData;
-    updatedTree.timestamp = getISTTimestamp();
+    // Generate Summary
+    const changes: string[] = [];
+    const structuredChanges: { type: 'ADD' | 'EDIT' | 'DELETE' | 'REPARENT'; nodeId: string | null; fieldsChanged: string[]; before: Partial<PersonNode>; after: Partial<PersonNode>; }[] = [];
 
     if (editorMode === 'add') {
-      updatedTree.meta.nodeCount++;
-      if (!updatedTree.rootNodeId) {
-        updatedTree.rootNodeId = personData.nodeId;
+      changes.push(`Added new member: ${personData.name}`);
+      structuredChanges.push({
+        type: 'ADD',
+        nodeId: personData.nodeId,
+        fieldsChanged: Object.keys(personData),
+        before: {},
+        after: personData
+      });
+    } else {
+      // Edit mode - diff fields
+      const fieldsChanged: string[] = [];
+      const before: Partial<PersonNode> = {};
+      const after: Partial<PersonNode> = {};
+
+      if (oldNode) {
+        (Object.keys(personData) as (keyof PersonNode)[]).forEach(key => {
+          if (JSON.stringify(personData[key]) !== JSON.stringify(oldNode[key])) {
+            fieldsChanged.push(key);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (before as any)[key] = oldNode[key];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (after as any)[key] = personData[key];
+          }
+        });
+      }
+
+      if (fieldsChanged.length > 0) {
+        changes.push(`Edited member ${personData.name}: Changed ${fieldsChanged.join(', ')}`);
+        structuredChanges.push({
+          type: 'EDIT',
+          nodeId: personData.nodeId,
+          fieldsChanged,
+          before,
+          after
+        });
       }
     }
 
@@ -199,12 +231,41 @@ function App() {
           updatedTree.nodes[newParentId].childrenIds.push(personData.nodeId);
         }
       }
+      changes.push(`Reparented ${personData.name} from ${oldParentId || 'None'} to ${newParentId || 'None'}`);
+      structuredChanges.push({
+        type: 'REPARENT',
+        nodeId: personData.nodeId,
+        fieldsChanged: ['parentId'],
+        before: { parentId: oldParentId },
+        after: { parentId: newParentId }
+      });
+    }
+
+    // Update/Add Node
+    updatedTree.nodes[personData.nodeId] = personData;
+    updatedTree.timestamp = getISTTimestamp();
+
+    if (editorMode === 'add') {
+      updatedTree.meta.nodeCount++;
+      if (!updatedTree.rootNodeId) {
+        updatedTree.rootNodeId = personData.nodeId;
+      }
+    }
+
+    const summaryText = changes.join('; ');
+    if (summaryText) {
+      updatedTree.summary.unshift({
+        editedBy: currentUser?.email || 'unknown',
+        editedTime: getISTTimestamp(),
+        changes: summaryText,
+        structured: structuredChanges
+      });
     }
 
     try {
       setLoading(true);
       const fileName = `family_tree_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-      await saveTreeFile(fileName, updatedTree);
+      await saveTreeFile(fileName, updatedTree, summaryText);
 
       setTree(updatedTree);
       setEditorMode(null);

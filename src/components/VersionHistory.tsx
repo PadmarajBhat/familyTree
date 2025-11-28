@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { listTreeFiles, getFileContent, saveTreeFile } from '../services/drive';
 import { mergeTrees } from '../logic/merge';
-import type { TreeDocument } from '../logic/types';
+import type { TreeDocument, ChangeLog } from '../logic/types';
 import './VersionHistory.css';
 
 interface DriveFile {
@@ -9,6 +9,7 @@ interface DriveFile {
     name: string;
     createdTime: string;
     modifiedTime: string;
+    description?: string;
 }
 
 export const VersionHistory: React.FC = () => {
@@ -16,6 +17,8 @@ export const VersionHistory: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
     const [mergeStatus, setMergeStatus] = useState<string | null>(null);
+    const [viewingLog, setViewingLog] = useState<ChangeLog[] | null>(null);
+    const [loadingLog, setLoadingLog] = useState(false);
 
     useEffect(() => {
         loadFiles();
@@ -41,9 +44,22 @@ export const VersionHistory: React.FC = () => {
             if (selectedFiles.length < 2) {
                 setSelectedFiles([...selectedFiles, id]);
             } else {
-                // Replace the oldest selection or just warn? Let's just prevent > 2
                 alert("You can only select up to 2 versions to merge.");
             }
+        }
+    };
+
+    const handleViewLog = async (fileId: string) => {
+        setLoadingLog(true);
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const content = await getFileContent(fileId) as TreeDocument;
+            setViewingLog(content.summary || []);
+        } catch (err) {
+            console.error("Failed to load file content", err);
+            alert("Failed to load version details.");
+        } finally {
+            setLoadingLog(false);
         }
     };
 
@@ -66,17 +82,23 @@ export const VersionHistory: React.FC = () => {
 
             setMergeStatus("Saving merged version...");
             const newName = `family_tree_${Date.now()}.json`;
-            await saveTreeFile(newName, result.mergedTree);
+            const mergeDescription = `Merged versions ${id1} and ${id2}. Superset: ${result.supersetType}`;
+
+            // Add a merge entry to the summary
+            result.mergedTree.summary.unshift({
+                editedBy: 'System (Merge)',
+                editedTime: new Date().toISOString(),
+                changes: mergeDescription,
+                structured: []
+            });
+
+            await saveTreeFile(newName, result.mergedTree, mergeDescription);
 
             setMergeStatus(`Merge Complete! New version created: ${newName}. Superset Type: ${result.supersetType}`);
 
             // Refresh list
             setSelectedFiles([]);
             loadFiles();
-
-            // TODO: Handle archiving/deletion of superset "smaller" files if required.
-            // Requirement: "Identify superset: if nodeIds(smaller) ⊆ nodeIds(bigger), append summary and archive+delete smaller (after 30 days)."
-            // We are not implementing the 30-day wait here, but we could flag them.
 
         } catch (err) {
             console.error("Merge failed", err);
@@ -102,7 +124,8 @@ export const VersionHistory: React.FC = () => {
                             <th>Select</th>
                             <th>Name</th>
                             <th>Created Time</th>
-                            <th>ID</th>
+                            <th>Summary</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -117,11 +140,43 @@ export const VersionHistory: React.FC = () => {
                                 </td>
                                 <td>{file.name}</td>
                                 <td>{new Date(file.createdTime).toLocaleString()}</td>
-                                <td>{file.id}</td>
+                                <td>{file.description || <em>No summary</em>}</td>
+                                <td>
+                                    <button onClick={() => handleViewLog(file.id)} disabled={loadingLog}>
+                                        View Full Log
+                                    </button>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
+            )}
+
+            {viewingLog && (
+                <div className="log-modal">
+                    <div className="log-modal-content">
+                        <h3>Version Change Log</h3>
+                        <button className="close-log" onClick={() => setViewingLog(null)}>Close</button>
+                        <div className="log-list">
+                            {viewingLog.length === 0 ? <p>No history available.</p> : (
+                                viewingLog.map((log, idx) => (
+                                    <div key={idx} className="log-entry">
+                                        <div className="log-header">
+                                            <strong>{new Date(log.editedTime).toLocaleString()}</strong> by {log.editedBy}
+                                        </div>
+                                        <div className="log-changes">{log.changes}</div>
+                                        {log.structured && log.structured.length > 0 && (
+                                            <details>
+                                                <summary>Details</summary>
+                                                <pre>{JSON.stringify(log.structured, null, 2)}</pre>
+                                            </details>
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
