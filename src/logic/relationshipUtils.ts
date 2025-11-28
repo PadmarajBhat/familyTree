@@ -126,3 +126,28 @@ export function buildPathTree(
 
     return { rootId, filteredNodes };
 }
+
+/**
+ * Check if a node is an ancestor of another node
+ * Returns true if potentialAncestorId is an ancestor of nodeId
+ */
+export function isAncestor(
+    nodeId: string,
+    potentialAncestorId: string,
+    nodes: Record<string, PersonNode>
+): boolean {
+    if (!nodeId || !potentialAncestorId || !nodes[nodeId]) return false;
+    if (nodeId === potentialAncestorId) return true; // Self is considered ancestor in this context (cycle)
+
+    let current = nodes[nodeId];
+    while (current && current.parentId) {
+        if (current.parentId === potentialAncestorId) {
+            return true;
+        }
+        // Cycle protection in traversal
+        if (current.parentId === nodeId) break;
+
+        current = nodes[current.parentId];
+    }
+    return false;
+}

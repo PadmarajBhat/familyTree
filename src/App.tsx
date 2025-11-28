@@ -211,7 +211,7 @@ function App() {
     setEditorMode('add');
   };
 
-  const handleSaveMember = async (personData: PersonNode, newParentId: string | null) => {
+  const handleSaveMember = async (personData: PersonNode, newParentId: string | null, newChildrenIds: string[]) => {
     if (viewMode === 'sample') return; // Double check
 
     // Initialize tree if it doesn't exist
@@ -308,6 +308,60 @@ function App() {
         after: { parentId: newParentId }
       });
     }
+
+    // Handle Children Updates
+    // We need to update the parentId of all children in the list
+    // 1. Identify added children
+    const addedChildren = newChildrenIds.filter(id => !oldNode?.childrenIds.includes(id));
+    // 2. Identify removed children
+    const removedChildren = oldNode ? oldNode.childrenIds.filter(id => !newChildrenIds.includes(id)) : [];
+
+    // Process Added Children
+    addedChildren.forEach(childId => {
+      const childNode = updatedTree.nodes[childId];
+      if (childNode) {
+        const oldChildParentId = childNode.parentId;
+        // Remove from old parent's children list if exists
+        if (oldChildParentId && updatedTree.nodes[oldChildParentId]) {
+          updatedTree.nodes[oldChildParentId].childrenIds = updatedTree.nodes[oldChildParentId].childrenIds.filter(id => id !== childId);
+        }
+
+        // Set new parent
+        childNode.parentId = personData.nodeId;
+
+        changes.push(`Added child ${childNode.name} to ${personData.name}`);
+        structuredChanges.push({
+          type: 'REPARENT',
+          nodeId: childId,
+          fieldsChanged: ['parentId'],
+          before: { parentId: oldChildParentId },
+          after: { parentId: personData.nodeId }
+        });
+      }
+    });
+
+    // Process Removed Children
+    removedChildren.forEach(childId => {
+      const childNode = updatedTree.nodes[childId];
+      if (childNode) {
+        const oldChildParentId = childNode.parentId; // Should be personData.nodeId
+
+        // Set parent to null (unlink)
+        childNode.parentId = null;
+
+        changes.push(`Removed child ${childNode.name} from ${personData.name}`);
+        structuredChanges.push({
+          type: 'REPARENT',
+          nodeId: childId,
+          fieldsChanged: ['parentId'],
+          before: { parentId: oldChildParentId },
+          after: { parentId: null }
+        });
+      }
+    });
+
+    // Update the current node's childrenIds
+    personData.childrenIds = newChildrenIds;
 
     // Update/Add Node
     updatedTree.nodes[personData.nodeId] = personData;
