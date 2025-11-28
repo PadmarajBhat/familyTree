@@ -524,6 +524,71 @@ function App() {
 
   const isAuthorized = currentUser && canEdit(currentUser.email);
 
+  const handleDeleteMember = async (nodeId: string) => {
+    if (viewMode === 'sample') {
+      alert("Deletion is disabled in Sample Mode.");
+      return;
+    }
+    if (!tree) return;
+
+    const node = tree.nodes[nodeId];
+    if (!node) return;
+
+    // Strict Orphan Check
+    const isOrphan = !node.parentId && node.childrenIds.length === 0 && node.spouseIds.length === 0;
+    if (!isOrphan) {
+      alert("Cannot delete member. Member must be an orphan (no parents, children, or spouses). Please unlink relationships first.");
+      return;
+    }
+
+    const updatedTree: TreeDocument = JSON.parse(JSON.stringify(tree));
+
+    // Remove node
+    delete updatedTree.nodes[nodeId];
+    updatedTree.meta.nodeCount--;
+    updatedTree.timestamp = getISTTimestamp();
+
+    // If root was deleted, clear rootNodeId
+    if (updatedTree.rootNodeId === nodeId) {
+      updatedTree.rootNodeId = "";
+      // If there are other nodes, we might want to pick a new root, but for now let's leave it empty
+      // or pick the first available node?
+      const remainingIds = Object.keys(updatedTree.nodes);
+      if (remainingIds.length > 0) {
+        updatedTree.rootNodeId = remainingIds[0];
+      }
+    }
+
+    // Add Change Log
+    updatedTree.summary.unshift({
+      editedBy: currentUser?.email || 'unknown',
+      editedTime: getISTTimestamp(),
+      changes: `Deleted orphan member: ${node.name}`,
+      structured: [{
+        type: 'DELETE',
+        nodeId: nodeId,
+        fieldsChanged: [],
+        before: node,
+        after: {}
+      }]
+    });
+
+    try {
+      setLoading(true);
+      const fileName = `family_tree_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      await saveTreeFile(fileName, updatedTree);
+
+      setTree(updatedTree);
+      setSelectedNodeId(null); // Close detail view
+      alert("Member deleted successfully.");
+    } catch (err) {
+      console.error("Failed to delete member:", err);
+      alert("Failed to save changes to Google Drive.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleToggleEditor = async (nodeId: string, newStatus: boolean) => {
     if (viewMode === 'sample') {
       alert("Editing is disabled in Sample Mode.");
@@ -761,6 +826,7 @@ function App() {
             node={tree.nodes[selectedNodeId]}
             onClose={handleManualClose}
             onEdit={handleEditClick}
+            onDelete={handleDeleteMember}
           />
         )}
 

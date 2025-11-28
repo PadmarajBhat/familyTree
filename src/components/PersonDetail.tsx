@@ -7,9 +7,12 @@ interface PersonDetailProps {
     node: PersonNode;
     onClose: () => void;
     onEdit: () => void;
+    onDelete: (nodeId: string) => void;
 }
 
-export const PersonDetail: React.FC<PersonDetailProps> = ({ node, onClose, onEdit }) => {
+export const PersonDetail: React.FC<PersonDetailProps> = ({ node, onClose, onEdit, onDelete }) => {
+    const isOrphan = !node.parentId && node.childrenIds.length === 0 && node.spouseIds.length === 0;
+
     return (
         <div className="person-detail-overlay">
             <div className="person-detail-card">
@@ -43,6 +46,19 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, onClose, onEdi
                 */}
                 <div className="detail-actions">
                     <button onClick={onEdit}>Edit</button>
+                    {isOrphan && (
+                        <button
+                            onClick={() => {
+                                if (window.confirm(`Are you sure you want to delete ${node.name}? This cannot be undone.`)) {
+                                    onDelete(node.nodeId);
+                                }
+                            }}
+                            className="delete-button"
+                            style={{ backgroundColor: '#ff4444', marginLeft: '10px' }}
+                        >
+                            Delete
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
