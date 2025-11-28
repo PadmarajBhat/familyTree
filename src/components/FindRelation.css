@@ -13,17 +13,16 @@
 
 .find-relation-header {
     background: white;
-    padding: 20px;
+    padding: 16px 20px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     z-index: 10;
-    max-height: 50vh;
-    overflow-y: auto;
     flex-shrink: 0;
 }
 
 .find-relation-header h2 {
-    margin: 0 0 20px 0;
+    margin: 0 0 16px 0;
     color: #333;
+    font-size: 20px;
 }
 
 .close-button {
@@ -55,10 +54,10 @@
 
 .input-group label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     font-weight: 600;
     color: #555;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 .autocomplete-wrapper {
@@ -67,7 +66,7 @@
 
 .input-group input {
     width: 100%;
-    padding: 12px;
+    padding: 10px 12px;
     border: 2px solid #ddd;
     border-radius: 8px;
     font-size: 14px;
@@ -122,7 +121,7 @@
 }
 
 .reset-button {
-    padding: 12px 24px;
+    padding: 10px 24px;
     background: #ff6b6b;
     color: white;
     border: none;
@@ -142,8 +141,8 @@
     display: flex;
     align-items: center;
     gap: 16px;
-    margin-top: 20px;
-    padding: 16px;
+    margin-top: 16px;
+    padding: 12px 16px;
     background: #e3f2fd;
     border-radius: 8px;
     border-left: 4px solid #2196f3;
@@ -157,23 +156,23 @@
 
 .selected-person strong {
     color: #333;
-    font-size: 16px;
+    font-size: 15px;
 }
 
 .selected-person span {
     color: #666;
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .arrow {
-    font-size: 24px;
+    font-size: 20px;
     color: #2196f3;
     font-weight: bold;
 }
 
 .path-result {
     flex: 1;
-    overflow: hidden;
+    overflow: auto;
     display: flex;
     flex-direction: column;
 }
@@ -204,17 +203,19 @@
 .path-info {
     background: #c8e6c9;
     color: #2e7d32;
-    padding: 16px;
+    padding: 12px 16px;
     text-align: center;
     font-weight: 600;
-    font-size: 16px;
+    font-size: 14px;
     border-bottom: 2px solid #81c784;
+    flex-shrink: 0;
 }
 
 .path-tree-view {
     flex: 1;
-    overflow: hidden;
+    overflow: auto;
     position: relative;
+    background: white;
 }
 
 .empty-state {
@@ -236,7 +237,12 @@
 /* Mobile responsive */
 @media (max-width: 768px) {
     .find-relation-header {
-        max-height: 60vh;
+        padding: 12px 16px;
+    }
+
+    .find-relation-header h2 {
+        font-size: 18px;
+        margin-bottom: 12px;
     }
 
     .search-inputs {
