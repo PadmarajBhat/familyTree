@@ -211,7 +211,7 @@ function App() {
     setEditorMode('add');
   };
 
-  const handleSaveMember = async (personData: PersonNode, newParentId: string | null, newChildrenIds: string[]) => {
+  const handleSaveMember = async (personData: PersonNode, newParentId: string | null, newChildrenIds: string[], newSpouseIds: string[], newSiblingIds: string[]) => {
     if (viewMode === 'sample') return; // Double check
 
     // Initialize tree if it doesn't exist
@@ -362,6 +362,88 @@ function App() {
 
     // Update the current node's childrenIds
     personData.childrenIds = newChildrenIds;
+
+    // Handle Spouse Updates (Bidirectional)
+    // 1. Identify added spouses
+    const addedSpouses = newSpouseIds.filter(id => !oldNode?.spouseIds.includes(id));
+    // 2. Identify removed spouses
+    const removedSpouses = oldNode ? oldNode.spouseIds.filter(id => !newSpouseIds.includes(id)) : [];
+
+    // Process Added Spouses
+    addedSpouses.forEach(spouseId => {
+      const spouseNode = updatedTree.nodes[spouseId];
+      if (spouseNode) {
+        if (!spouseNode.spouseIds.includes(personData.nodeId)) {
+          spouseNode.spouseIds.push(personData.nodeId);
+          changes.push(`Added spouse link between ${personData.name} and ${spouseNode.name}`);
+          // We could add structured change for the spouse too, but maybe overkill for now
+        }
+      }
+    });
+
+    // Process Removed Spouses
+    removedSpouses.forEach(spouseId => {
+      const spouseNode = updatedTree.nodes[spouseId];
+      if (spouseNode) {
+        spouseNode.spouseIds = spouseNode.spouseIds.filter(id => id !== personData.nodeId);
+        changes.push(`Removed spouse link between ${personData.name} and ${spouseNode.name}`);
+      }
+    });
+    personData.spouseIds = newSpouseIds;
+
+    // Handle Sibling Updates (Shared Parent)
+    // Siblings are children of the same parent.
+    // "Adding" a sibling means setting their parentId to the current node's parentId.
+    // "Removing" a sibling means setting their parentId to null (unlinking from parent).
+    // Note: This only works if the current node HAS a parent.
+    if (personData.parentId) {
+      const parentId = personData.parentId;
+
+      // 1. Identify added siblings
+      // These are nodes that are in newSiblingIds but were NOT children of parentId before?
+      // Or rather, we just enforce that everyone in newSiblingIds has parentId set to parentId.
+      // But we need to be careful not to overwrite if they already have it.
+      // Actually, the UI logic was: siblingIds = parent's children (excluding self).
+      // So if we added someone to this list, we want to link them to parentId.
+
+      // Let's look at the diff from the perspective of the PARENT's children list (excluding self).
+      // But we don't have the "old sibling list" easily accessible unless we look at the parent's old children.
+      // Let's just iterate through newSiblingIds and ensure they are linked.
+
+      newSiblingIds.forEach(sibId => {
+        const sibNode = updatedTree.nodes[sibId];
+        if (sibNode && sibNode.parentId !== parentId) {
+          // Link to parent
+          const oldSibParent = sibNode.parentId;
+          if (oldSibParent && updatedTree.nodes[oldSibParent]) {
+            updatedTree.nodes[oldSibParent].childrenIds = updatedTree.nodes[oldSibParent].childrenIds.filter(id => id !== sibId);
+          }
+          sibNode.parentId = parentId;
+          if (updatedTree.nodes[parentId] && !updatedTree.nodes[parentId].childrenIds.includes(sibId)) {
+            updatedTree.nodes[parentId].childrenIds.push(sibId);
+          }
+
+          changes.push(`Linked sibling ${sibNode.name} to parent ${updatedTree.nodes[parentId].name}`);
+        }
+      });
+
+      // What about removed siblings?
+      // If someone was a child of parentId (and not self), but is NOT in newSiblingIds, it means they were removed.
+      // We need to unlink them.
+      if (updatedTree.nodes[parentId]) {
+        const currentSiblings = updatedTree.nodes[parentId].childrenIds.filter(id => id !== personData.nodeId);
+        const removedSiblings = currentSiblings.filter(id => !newSiblingIds.includes(id));
+
+        removedSiblings.forEach(sibId => {
+          const sibNode = updatedTree.nodes[sibId];
+          if (sibNode) {
+            sibNode.parentId = null;
+            updatedTree.nodes[parentId].childrenIds = updatedTree.nodes[parentId].childrenIds.filter(id => id !== sibId);
+            changes.push(`Unlinked sibling ${sibNode.name} from parent ${updatedTree.nodes[parentId].name}`);
+          }
+        });
+      }
+    }
 
     // Update/Add Node
     updatedTree.nodes[personData.nodeId] = personData;

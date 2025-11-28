@@ -12,7 +12,7 @@ interface MemberEditorProps {
     mode: 'add' | 'edit';
     initialData?: PersonNode;
     existingNodes: Record<string, PersonNode>;
-    onSave: (person: PersonNode, newParentId: string | null, newChildrenIds: string[]) => void;
+    onSave: (person: PersonNode, newParentId: string | null, newChildrenIds: string[], newSpouseIds: string[], newSiblingIds: string[]) => void;
     onCancel: () => void;
 }
 
@@ -43,6 +43,41 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     const [childrenIds, setChildrenIds] = useState<string[]>(initialData?.childrenIds || []);
     const [childSearch, setChildSearch] = useState('');
     const [showChildSuggestions, setShowChildSuggestions] = useState(false);
+
+    // Spouse Management State
+    const [spouseIds, setSpouseIds] = useState<string[]>(initialData?.spouseIds || []);
+    const [spouseSearch, setSpouseSearch] = useState('');
+    const [showSpouseSuggestions, setShowSpouseSuggestions] = useState(false);
+
+    // Sibling Management State
+    // Siblings are derived from parentId, but we want to allow adding/removing them.
+    // "Adding" a sibling means linking another node to the same parent.
+    // "Removing" a sibling means unlinking that node from the parent.
+    // To manage this locally, we need to know who the CURRENT siblings are.
+    // If parentId changes, the available siblings context changes, which is tricky.
+    // For now, let's assume siblings are relevant to the *current* parentId state.
+    const [siblingIds, setSiblingIds] = useState<string[]>(() => {
+        if (!initialData?.parentId || !existingNodes[initialData.parentId]) return [];
+        return existingNodes[initialData.parentId].childrenIds.filter(id => id !== initialData.nodeId);
+    });
+    const [siblingSearch, setSiblingSearch] = useState('');
+    const [showSiblingSuggestions, setShowSiblingSuggestions] = useState(false);
+
+    // Update siblings if parentId changes (e.g. user selects a new father)
+    useEffect(() => {
+        if (parentId && existingNodes[parentId]) {
+            // If we picked a new parent, the siblings are the children of that parent (excluding self)
+            // But wait, if we are *editing*, we might have made changes to the sibling list that aren't saved yet?
+            // Simpler approach: When parent changes, reset sibling list to that parent's children.
+            // But we also want to allow *adding* new siblings to this list.
+            const newParentChildren = existingNodes[parentId].childrenIds.filter(id => id !== initialData?.nodeId);
+            // We should merge? Or just reset?
+            // Let's reset for now to avoid confusion.
+            setSiblingIds(newParentChildren);
+        } else {
+            setSiblingIds([]);
+        }
+    }, [parentId, existingNodes, initialData]);
 
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(initialData?.imageUrl || null);
@@ -104,6 +139,38 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
             .slice(0, 5);
     }, [childSearch, existingNodes, initialData, childrenIds]);
 
+    const filteredSpouses = useMemo(() => {
+        if (!spouseSearch) return [];
+        const lowerSearch = spouseSearch.toLowerCase();
+        return Object.values(existingNodes)
+            .filter(node =>
+                node.nodeId !== initialData?.nodeId && // Cannot be own spouse
+                !spouseIds.includes(node.nodeId) && // Not already added
+                (node.name?.toLowerCase().includes(lowerSearch)) &&
+                // Prevent cycle/weirdness: Spouse shouldn't be a direct ancestor/descendant?
+                // Technically possible in some trees but usually an error. Let's allow for now but maybe warn?
+                // Let's stick to basic filtering.
+                true
+            )
+            .slice(0, 5);
+    }, [spouseSearch, existingNodes, initialData, spouseIds]);
+
+    const filteredSiblings = useMemo(() => {
+        if (!siblingSearch) return [];
+        const lowerSearch = siblingSearch.toLowerCase();
+        return Object.values(existingNodes)
+            .filter(node =>
+                node.nodeId !== initialData?.nodeId && // Cannot be own sibling
+                !siblingIds.includes(node.nodeId) && // Not already added
+                (node.name?.toLowerCase().includes(lowerSearch)) &&
+                // Sibling candidates should probably not be ancestors/descendants either?
+                // If A is sibling of B, they share a parent.
+                // If B is child of A, B cannot be sibling of A.
+                (initialData ? !isAncestor(initialData.nodeId, node.nodeId, existingNodes) && !isAncestor(node.nodeId, initialData.nodeId, existingNodes) : true)
+            )
+            .slice(0, 5);
+    }, [siblingSearch, existingNodes, initialData, siblingIds]);
+
     const handleFatherSelect = (node: PersonNode) => {
         setParentId(node.nodeId);
         setFatherSearch(node.name || 'Unknown');
@@ -118,6 +185,26 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
 
     const handleRemoveChild = (childId: string) => {
         setChildrenIds(prev => prev.filter(id => id !== childId));
+    };
+
+    const handleSpouseSelect = (node: PersonNode) => {
+        setSpouseIds(prev => [...prev, node.nodeId]);
+        setSpouseSearch('');
+        setShowSpouseSuggestions(false);
+    };
+
+    const handleRemoveSpouse = (id: string) => {
+        setSpouseIds(prev => prev.filter(sid => sid !== id));
+    };
+
+    const handleSiblingSelect = (node: PersonNode) => {
+        setSiblingIds(prev => [...prev, node.nodeId]);
+        setSiblingSearch('');
+        setShowSiblingSuggestions(false);
+    };
+
+    const handleRemoveSibling = (id: string) => {
+        setSiblingIds(prev => prev.filter(sid => sid !== id));
     };
 
     const handleSubmit = async (e: React.FormEvent, shouldAddChild: boolean = false) => {
@@ -173,7 +260,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                 editedTime: now,
             };
 
-            onSave(personData, parentId, childrenIds);
+            onSave(personData, parentId, childrenIds, spouseIds, siblingIds);
             if (shouldAddChild) {
                 // Logic handled in parent component via a specific signal or just by knowing the flow
                 // Actually, onSave is void. We might need a way to signal "Add Child".
@@ -253,6 +340,86 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                     </div>
 
                     <div className="form-group">
+                        <label>Spouses</label>
+                        <div className="children-list">
+                            {spouseIds.map(id => {
+                                const node = existingNodes[id];
+                                return (
+                                    <div key={id} className="child-tag">
+                                        <span>{node?.name || 'Unknown'}</span>
+                                        <button type="button" onClick={() => handleRemoveSpouse(id)}>×</button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="autocomplete">
+                            <input
+                                type="text"
+                                value={spouseSearch}
+                                onChange={e => {
+                                    setSpouseSearch(e.target.value);
+                                    setShowSpouseSuggestions(true);
+                                }}
+                                onFocus={() => setShowSpouseSuggestions(true)}
+                                placeholder="Search to add spouse..."
+                            />
+                            {showSpouseSuggestions && filteredSpouses.length > 0 && (
+                                <ul className="suggestions-list">
+                                    {filteredSpouses.map(node => (
+                                        <li key={node.nodeId} onClick={() => handleSpouseSelect(node)}>
+                                            {node.name}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="form-group">
+                        <label>Siblings {(!parentId) && <span style={{ fontSize: '0.8em', color: '#888' }}>(Requires Parent)</span>}</label>
+                        {parentId ? (
+                            <>
+                                <div className="children-list">
+                                    {siblingIds.map(id => {
+                                        const node = existingNodes[id];
+                                        return (
+                                            <div key={id} className="child-tag">
+                                                <span>{node?.name || 'Unknown'}</span>
+                                                <button type="button" onClick={() => handleRemoveSibling(id)}>×</button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <div className="autocomplete">
+                                    <input
+                                        type="text"
+                                        value={siblingSearch}
+                                        onChange={e => {
+                                            setSiblingSearch(e.target.value);
+                                            setShowSiblingSuggestions(true);
+                                        }}
+                                        onFocus={() => setShowSiblingSuggestions(true)}
+                                        placeholder="Search to add sibling..."
+                                    />
+                                    {showSiblingSuggestions && filteredSiblings.length > 0 && (
+                                        <ul className="suggestions-list">
+                                            {filteredSiblings.map(node => (
+                                                <li key={node.nodeId} onClick={() => handleSiblingSelect(node)}>
+                                                    {node.name}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="info-text" style={{ color: '#666', fontStyle: 'italic' }}>
+                                Please select a father/parent first to manage siblings.
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="form-group">
                         <label>Children</label>
                         <div className="children-list">
                             {childrenIds.map(childId => {
@@ -313,19 +480,23 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         <input type="date" value={dob} onChange={e => { setDob(e.target.value); setAge(''); }} />
                     </div>
 
-                    {!dob && (
-                        <div className="form-group">
-                            <label>Or Age (approx)</label>
-                            <input type="number" value={age} onChange={e => { setAge(e.target.value); setDob(''); }} placeholder="Years" />
-                        </div>
-                    )}
+                    {
+                        !dob && (
+                            <div className="form-group">
+                                <label>Or Age (approx)</label>
+                                <input type="number" value={age} onChange={e => { setAge(e.target.value); setDob(''); }} placeholder="Years" />
+                            </div>
+                        )
+                    }
 
-                    {!isAlive && (
-                        <div className="form-group">
-                            <label>Date of Death</label>
-                            <input type="date" value={dod} onChange={e => setDod(e.target.value)} />
-                        </div>
-                    )}
+                    {
+                        !isAlive && (
+                            <div className="form-group">
+                                <label>Date of Death</label>
+                                <input type="date" value={dod} onChange={e => setDod(e.target.value)} />
+                            </div>
+                        )
+                    }
 
                     <div className="form-group">
                         <label>Phone</label>
@@ -355,8 +526,8 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                             {uploading ? 'Saving...' : 'Save'}
                         </button>
                     </div>
-                </form>
-            </div>
-        </div>
+                </form >
+            </div >
+        </div >
     );
 };
