@@ -284,7 +284,7 @@ function App() {
     const structuredChanges: { type: 'ADD' | 'EDIT' | 'DELETE' | 'REPARENT'; nodeId: string | null; fieldsChanged: string[]; before: Partial<PersonNode>; after: Partial<PersonNode>; }[] = [];
 
     if (editorMode === 'add') {
-      changes.push(`Added new member: ${personData.name}`);
+      changes.push(`Added ${personData.name}`);
       structuredChanges.push({
         type: 'ADD',
         nodeId: personData.nodeId,
@@ -311,7 +311,7 @@ function App() {
       }
 
       if (fieldsChanged.length > 0) {
-        changes.push(`Edited member ${personData.name}: Changed ${fieldsChanged.join(', ')}`);
+        changes.push(`Edited ${personData.name} with ${fieldsChanged.join(', ')}`);
         structuredChanges.push({
           type: 'EDIT',
           nodeId: personData.nodeId,
@@ -628,7 +628,7 @@ function App() {
     updatedTree.summary.unshift({
       editedBy: currentUser?.email || 'unknown',
       editedTime: getISTTimestamp(),
-      changes: `Deleted orphan member: ${node.name}`,
+      changes: `Deleted ${node.name}`,
       structured: [{
         type: 'DELETE',
         nodeId: nodeId,
@@ -691,7 +691,7 @@ function App() {
 
     try {
       setLoading(true);
-      const savedTree = await saveWithMerge(updatedTree, `Changed editor status for ${targetNode.name}`);
+      const savedTree = await saveWithMerge(updatedTree, `Edited ${targetNode.name} with isEditor`);
 
       setTree(savedTree);
       alert(`Editor access ${newStatus ? 'granted to' : 'removed from'} ${targetNode.name}!`);
@@ -875,8 +875,8 @@ function App() {
           />
         )}
 
-        {showVersionHistory && (
-          <VersionHistory onClose={handleManualClose} />
+        {showVersionHistory && tree && (
+          <VersionHistory summary={tree.summary} onClose={handleManualClose} />
         )}
 
         {selectedNodeId && tree && tree.nodes[selectedNodeId] && (
