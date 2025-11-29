@@ -185,6 +185,38 @@ export const saveTreeFile = async (name: string, content: unknown, description?:
     }
 };
 
+export const updateTreeFile = async (fileId: string, content: unknown, description?: string) => {
+    const fileContent = JSON.stringify(content, null, 2);
+    const file = new Blob([fileContent], { type: 'application/json' });
+
+    // For update, we use PATCH to /upload/drive/v3/files/fileId?uploadType=multipart
+    // Note: The endpoint for update is slightly different or we can use the same upload URL with method PATCH and fileId
+
+    const metadata: any = {
+        mimeType: 'application/json',
+    };
+    if (description) {
+        metadata.description = description;
+    }
+
+    const accessToken = gapi.auth.getToken().access_token;
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', file);
+
+    try {
+        const response = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
+            method: 'PATCH',
+            headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+            body: form,
+        });
+        return await response.json();
+    } catch (err) {
+        console.error("Error updating file", err);
+        throw err;
+    }
+};
+
 export const deleteFile = async (fileId: string): Promise<void> => {
     try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

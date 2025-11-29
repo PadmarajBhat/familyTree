@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile } from './services/drive';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile } from './services/drive';
 import type { TreeDocument, PersonNode } from './logic/types';
-import { CloseButton } from './components/CloseButton';
+import { mergeTrees } from './logic/merge';
 import { TreeView } from './components/TreeView';
 import { PersonDetail } from './components/PersonDetail';
 import { MemberEditor } from './components/MemberEditor';
@@ -208,9 +208,39 @@ function App() {
       alert("Adding members is disabled in Sample Mode.");
       return;
     }
-    setEditingNodeId(null);
     setEditorMode('add');
   };
+
+  const saveWithMerge = async (localTree: TreeDocument, summaryText: string) => {
+    const todayFileName = `family_tree_${new Date().toISOString().split('T')[0]}.json`;
+    const files = await listTreeFiles();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const todaysFile = files.find((f: any) => f.name === todayFileName);
+
+    if (todaysFile) {
+      console.log("Found today's file, merging...", todaysFile.id);
+      const remoteContent = await getFileContent(todaysFile.id) as TreeDocument;
+      const { mergedTree } = mergeTrees(localTree, remoteContent);
+      // Ensure the summary is up to date in the file metadata
+      const latestSummary = mergedTree.summary.length > 0 ? mergedTree.summary[0].changes : summaryText;
+      await updateTreeFile(todaysFile.id, mergedTree, latestSummary);
+      return mergedTree;
+    } else {
+      console.log("Creating new file for today...", todayFileName);
+      // Check if there's a more recent file than what we started with, just in case
+      if (files.length > 0) {
+        // const latestFile = files[0];
+        // If the latest file is NOT the one we loaded (unlikely if we just listed), 
+        // or if it has been modified since we loaded.
+        // But for simplicity, let's assume if today's file doesn't exist, we are starting the day.
+        // However, if someone else created today's file just now, 'todaysFile' would be found.
+        // So we are safe.
+      }
+      await saveTreeFile(todayFileName, localTree, summaryText);
+      return localTree;
+    }
+  };
+
 
   const handleSaveMember = async (personData: PersonNode, newParentId: string | null, newChildrenIds: string[], newSpouseIds: string[], newSiblingIds: string[]) => {
     if (viewMode === 'sample') return; // Double check
@@ -236,6 +266,18 @@ function App() {
     const updatedTree: TreeDocument = currentTree;
     const oldNode = editorMode === 'edit' ? updatedTree.nodes[personData.nodeId] : null;
     const oldParentId = oldNode?.parentId || null;
+
+    // Helper to update edited metadata for any node we touch
+    const touchNode = (nodeId: string) => {
+      if (updatedTree.nodes[nodeId]) {
+        updatedTree.nodes[nodeId].editedBy = currentUser?.email || 'unknown';
+        updatedTree.nodes[nodeId].editedTime = getISTTimestamp();
+      }
+    };
+
+    // Update the main node's metadata
+    personData.editedBy = currentUser?.email || 'unknown';
+    personData.editedTime = getISTTimestamp();
 
     // Generate Summary
     const changes: string[] = [];
@@ -285,11 +327,13 @@ function App() {
       // Remove from old parent
       if (oldParentId && updatedTree.nodes[oldParentId]) {
         updatedTree.nodes[oldParentId].childrenIds = updatedTree.nodes[oldParentId].childrenIds.filter(id => id !== personData.nodeId);
+        touchNode(oldParentId);
       }
       // Add to new parent
       if (newParentId && updatedTree.nodes[newParentId]) {
         if (!updatedTree.nodes[newParentId].childrenIds.includes(personData.nodeId)) {
           updatedTree.nodes[newParentId].childrenIds.push(personData.nodeId);
+          touchNode(newParentId);
         }
       }
 
@@ -325,10 +369,12 @@ function App() {
         // Remove from old parent's children list if exists
         if (oldChildParentId && updatedTree.nodes[oldChildParentId]) {
           updatedTree.nodes[oldChildParentId].childrenIds = updatedTree.nodes[oldChildParentId].childrenIds.filter(id => id !== childId);
+          touchNode(oldChildParentId);
         }
 
         // Set new parent
         childNode.parentId = personData.nodeId;
+        touchNode(childId);
 
         changes.push(`Added child ${childNode.name} to ${personData.name}`);
         structuredChanges.push({
@@ -369,6 +415,7 @@ function App() {
 
         // Set parent to null (unlink)
         childNode.parentId = null;
+        touchNode(childId);
 
         changes.push(`Removed child ${childNode.name} from ${personData.name}`);
         structuredChanges.push({
@@ -396,8 +443,8 @@ function App() {
       if (spouseNode) {
         if (!spouseNode.spouseIds.includes(personData.nodeId)) {
           spouseNode.spouseIds.push(personData.nodeId);
+          touchNode(spouseId);
           changes.push(`Added spouse link between ${personData.name} and ${spouseNode.name}`);
-          // We could add structured change for the spouse too, but maybe overkill for now
         }
       }
     });
@@ -407,29 +454,15 @@ function App() {
       const spouseNode = updatedTree.nodes[spouseId];
       if (spouseNode) {
         spouseNode.spouseIds = spouseNode.spouseIds.filter(id => id !== personData.nodeId);
+        touchNode(spouseId);
         changes.push(`Removed spouse link between ${personData.name} and ${spouseNode.name}`);
       }
     });
     personData.spouseIds = newSpouseIds;
 
     // Handle Sibling Updates (Shared Parent)
-    // Siblings are children of the same parent.
-    // "Adding" a sibling means setting their parentId to the current node's parentId.
-    // "Removing" a sibling means setting their parentId to null (unlinking from parent).
-    // Note: This only works if the current node HAS a parent.
     if (personData.parentId) {
       const parentId = personData.parentId;
-
-      // 1. Identify added siblings
-      // These are nodes that are in newSiblingIds but were NOT children of parentId before?
-      // Or rather, we just enforce that everyone in newSiblingIds has parentId set to parentId.
-      // But we need to be careful not to overwrite if they already have it.
-      // Actually, the UI logic was: siblingIds = parent's children (excluding self).
-      // So if we added someone to this list, we want to link them to parentId.
-
-      // Let's look at the diff from the perspective of the PARENT's children list (excluding self).
-      // But we don't have the "old sibling list" easily accessible unless we look at the parent's old children.
-      // Let's just iterate through newSiblingIds and ensure they are linked.
 
       newSiblingIds.forEach(sibId => {
         const sibNode = updatedTree.nodes[sibId];
@@ -438,10 +471,14 @@ function App() {
           const oldSibParent = sibNode.parentId;
           if (oldSibParent && updatedTree.nodes[oldSibParent]) {
             updatedTree.nodes[oldSibParent].childrenIds = updatedTree.nodes[oldSibParent].childrenIds.filter(id => id !== sibId);
+            touchNode(oldSibParent);
           }
           sibNode.parentId = parentId;
+          touchNode(sibId);
+
           if (updatedTree.nodes[parentId] && !updatedTree.nodes[parentId].childrenIds.includes(sibId)) {
             updatedTree.nodes[parentId].childrenIds.push(sibId);
+            touchNode(parentId);
           }
 
           changes.push(`Linked sibling ${sibNode.name} to parent ${updatedTree.nodes[parentId].name}`);
@@ -449,8 +486,6 @@ function App() {
       });
 
       // What about removed siblings?
-      // If someone was a child of parentId (and not self), but is NOT in newSiblingIds, it means they were removed.
-      // We need to unlink them.
       if (updatedTree.nodes[parentId]) {
         const currentSiblings = updatedTree.nodes[parentId].childrenIds.filter(id => id !== personData.nodeId);
         const removedSiblings = currentSiblings.filter(id => !newSiblingIds.includes(id));
@@ -459,7 +494,9 @@ function App() {
           const sibNode = updatedTree.nodes[sibId];
           if (sibNode) {
             sibNode.parentId = null;
+            touchNode(sibId);
             updatedTree.nodes[parentId].childrenIds = updatedTree.nodes[parentId].childrenIds.filter(id => id !== sibId);
+            touchNode(parentId);
             changes.push(`Unlinked sibling ${sibNode.name} from parent ${updatedTree.nodes[parentId].name}`);
           }
         });
@@ -514,10 +551,9 @@ function App() {
 
     try {
       setLoading(true);
-      const fileName = `family_tree_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-      await saveTreeFile(fileName, updatedTree, summaryText);
+      const savedTree = await saveWithMerge(updatedTree, summaryText);
 
-      setTree(updatedTree);
+      setTree(savedTree);
       setEditorMode(null);
       setEditingNodeId(null);
       alert("Member saved successfully!");
@@ -604,10 +640,9 @@ function App() {
 
     try {
       setLoading(true);
-      const fileName = `family_tree_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-      await saveTreeFile(fileName, updatedTree);
+      const savedTree = await saveWithMerge(updatedTree, updatedTree.summary[0]?.changes || "Deleted member");
 
-      setTree(updatedTree);
+      setTree(savedTree);
       setSelectedNodeId(null); // Close detail view
       alert("Member deleted successfully.");
     } catch (err) {
@@ -656,10 +691,9 @@ function App() {
 
     try {
       setLoading(true);
-      const fileName = `family_tree_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-      await saveTreeFile(fileName, updatedTree);
+      const savedTree = await saveWithMerge(updatedTree, `Changed editor status for ${targetNode.name}`);
 
-      setTree(updatedTree);
+      setTree(savedTree);
       alert(`Editor access ${newStatus ? 'granted to' : 'removed from'} ${targetNode.name}!`);
     } catch (err) {
       console.error("Failed to update editor status:", err);
