@@ -718,7 +718,7 @@ function App() {
                           setIsMenuOpen(false);
                         }}
                       >
-                        Manage Collaborators
+                        Editors
                       </button>
                       <button
                         className="menu-item"

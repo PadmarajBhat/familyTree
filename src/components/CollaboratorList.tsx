@@ -63,7 +63,7 @@ export function CollaboratorList({ nodes, canToggle, onToggleEditor, onClose }: 
         <div className="collaborator-overlay" onClick={onClose}>
             <div className="collaborator-container" onClick={(e) => e.stopPropagation()}>
                 <div className="collaborator-header">
-                    <h2>Manage Collaborators</h2>
+                    <h2>Editors</h2>
                     <CloseButton onClick={onClose} />
                 </div>
 
