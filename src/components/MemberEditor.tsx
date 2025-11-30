@@ -301,7 +301,6 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         <input
                             type="file"
                             accept="image/*"
-                            capture="environment"
                             ref={fileInputRef}
                             onChange={handleImageChange}
                             style={{ display: 'none' }}
