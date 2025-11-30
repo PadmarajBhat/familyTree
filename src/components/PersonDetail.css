@@ -2,26 +2,83 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    width: 100vw;
+    height: 100vh;
+    background: #f9f9f9;
+    z-index: 2000;
+    /* Ensure it's on top of everything */
     display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
+    flex-direction: column;
+    overflow: hidden;
 }
 
-.person-detail-card {
+.person-detail-header {
     background: white;
-    color: #333;
-    /* Enforce dark text */
-    padding: 20px;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 400px;
+    padding: 15px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
     position: relative;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    text-align: center;
+    z-index: 2;
+}
+
+.person-detail-info {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: center;
+}
+
+.profile-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 120px;
+}
+
+.profile-pic {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    background-color: #eee;
+    /* Fallback */
+}
+
+.info-section {
+    flex: 1;
+    min-width: 200px;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.info-item {
+    background: #f5f5f5;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.info-label {
+    font-weight: bold;
+    color: #555;
+    display: block;
+    font-size: 0.8rem;
+    margin-bottom: 2px;
+}
+
+.info-value {
+    color: #333;
+    word-break: break-word;
 }
 
 .close-btn {
@@ -31,42 +88,16 @@
     background: none;
     border: none;
     font-size: 1.5rem;
-    /* Larger for touch */
     cursor: pointer;
     color: #333;
-    /* Enforce dark color */
     padding: 10px;
-    /* Increase touch target */
-    line-height: 1;
-}
-
-.profile-pic {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    object-fit: cover;
-    margin: 10px auto;
-    display: block;
-    border: 3px solid #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.person-detail-card h2 {
-    margin-top: 0;
-    color: #333;
-}
-
-.person-detail-card p {
-    margin: 8px 0;
-    color: #555;
-    text-align: left;
-    padding-left: 20px;
+    z-index: 10;
 }
 
 .detail-actions {
-    margin-top: 20px;
+    margin-top: 15px;
     display: flex;
-    justify-content: center;
+    gap: 10px;
 }
 
 .detail-actions button {
@@ -78,6 +109,13 @@
     cursor: pointer;
 }
 
-.detail-actions button:hover {
-    background-color: #0056b3;
+.detail-actions button.delete-button {
+    background-color: #ff4444;
+}
+
+.person-detail-tree {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    background: #f0f2f5;
 }

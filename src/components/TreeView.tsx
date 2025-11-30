@@ -268,7 +268,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
                         .attr("dy", ".35em")
                         .attr("y", 45)
                         .style("text-anchor", "middle")
-                        .text((d) => d.data.name || "Unknown")
+                        .text(d.data.name || "Unknown")
                         .style("font-size", "12px")
                         .style("fill", "#333")
                         .style("text-shadow", "0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff");

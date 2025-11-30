@@ -884,9 +884,11 @@ function App() {
         {selectedNodeId && tree && tree.nodes[selectedNodeId] && (
           <PersonDetail
             node={tree.nodes[selectedNodeId]}
+            tree={tree}
             onClose={handleManualClose}
             onEdit={handleEditClick}
             onDelete={handleDeleteMember}
+            onNodeClick={handleNodeClick}
           />
         )}
 
