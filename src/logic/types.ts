@@ -33,6 +33,7 @@ export interface ChangeLog {
   editedBy: string;
   editedTime: string;
   changes: string;
+  rootNodeName?: string;
   structured: StructuredChange[];
 }
 

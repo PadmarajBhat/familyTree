@@ -23,26 +23,27 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, onClose
                     <table className="version-table">
                         <thead>
                             <tr>
-                                <th>Who</th>
-                                <th>When</th>
-                                <th>What</th>
+                                <th className="sr-col">Sr No</th>
+                                <th className="root-col">Root Node Name</th>
+                                <th className="summary-col">Summary</th>
                             </tr>
                         </thead>
                         <tbody>
                             {summary.map((log, idx) => (
                                 <tr key={idx}>
-                                    <td>{log.editedBy}</td>
-                                    <td className="date-cell">
-                                        {new Date(log.editedTime).toLocaleString('en-IN', {
-                                            year: 'numeric',
-                                            month: 'short',
-                                            day: 'numeric',
-                                            hour: '2-digit',
-                                            minute: '2-digit'
-                                        })}
-                                    </td>
-                                    <td>
+                                    <td className="sr-cell">{summary.length - idx}</td>
+                                    <td className="root-cell">{log.rootNodeName || '-'}</td>
+                                    <td className="summary-cell">
                                         <div className="changes-text">{log.changes}</div>
+                                        <div className="changes-meta">
+                                            By {log.editedBy} on {new Date(log.editedTime).toLocaleString('en-IN', {
+                                                year: 'numeric',
+                                                month: 'short',
+                                                day: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
+                                        </div>
                                         {log.structured && log.structured.length > 0 && (
                                             <details className="changes-details">
                                                 <summary>Details</summary>

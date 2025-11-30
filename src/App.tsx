@@ -545,6 +545,7 @@ function App() {
         editedBy: currentUser?.email || 'unknown',
         editedTime: getISTTimestamp(),
         changes: summaryText,
+        rootNodeName: updatedTree.nodes[updatedTree.rootNodeId]?.name || 'Unknown',
         structured: structuredChanges
       });
     }
@@ -629,6 +630,7 @@ function App() {
       editedBy: currentUser?.email || 'unknown',
       editedTime: getISTTimestamp(),
       changes: `Deleted ${node.name}`,
+      rootNodeName: updatedTree.nodes[updatedTree.rootNodeId]?.name || 'Unknown',
       structured: [{
         type: 'DELETE',
         nodeId: nodeId,
