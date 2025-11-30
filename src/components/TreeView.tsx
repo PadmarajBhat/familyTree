@@ -115,7 +115,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
             });
         }
 
-        const treeLayout = d3.tree<HierarchyPersonNode>().nodeSize([120, 180]); // Increased spacing
+        const treeLayout = d3.tree<HierarchyPersonNode>().nodeSize([160, 200]); // Increased spacing
 
         const update = (source: ExtendedHierarchyNode) => {
             const treeData = treeLayout(root);
@@ -138,15 +138,18 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
                     onNodeClick(d.data.nodeId);
                 });
 
-            // Profile Picture (Circle with Pattern)
+            // --- Profile Pictures & Patterns ---
             mainGroup.each(function (d) {
-                const patternId = `pattern-${d.data.nodeId}`;
-                const imageUrl = d.data.imageUrl;
+                const mainNodeId = d.data.nodeId;
+                const spouseId = d.data.spouseIds && d.data.spouseIds.length > 0 ? d.data.spouseIds[0] : null;
+                const spouseNode = spouseId ? data.nodes[spouseId] : null;
 
-                if (imageUrl) {
-                    d3.select(this).append("defs")
-                        .append("pattern")
-                        .attr("id", patternId)
+                const defs = d3.select(this).append("defs");
+
+                // 1. Main Person Pattern
+                if (d.data.imageUrl) {
+                    defs.append("pattern")
+                        .attr("id", `pattern-${mainNodeId}`)
                         .attr("height", "100%")
                         .attr("width", "100%")
                         .attr("patternContentUnits", "objectBoundingBox")
@@ -154,21 +157,69 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
                         .attr("height", 1)
                         .attr("width", 1)
                         .attr("preserveAspectRatio", "none")
-                        .attr("href", imageUrl);
+                        .attr("href", d.data.imageUrl);
+                }
+
+                // 2. Spouse Pattern
+                if (spouseNode && spouseNode.imageUrl) {
+                    defs.append("pattern")
+                        .attr("id", `pattern-${spouseNode.nodeId}`)
+                        .attr("height", "100%")
+                        .attr("width", "100%")
+                        .attr("patternContentUnits", "objectBoundingBox")
+                        .append("image")
+                        .attr("height", 1)
+                        .attr("width", 1)
+                        .attr("preserveAspectRatio", "none")
+                        .attr("href", spouseNode.imageUrl);
                 }
             });
 
-            mainGroup.append("circle")
-                .attr("class", "node-circle")
-                .attr("r", 30)
-                .style("fill", (d) => d.data.imageUrl ? `url(#pattern-${d.data.nodeId})` : "#fff")
-                .style("stroke", "steelblue")
-                .style("stroke-width", "3px");
+            // --- Render Circles ---
+            mainGroup.each(function (d) {
+                const group = d3.select(this);
+                const spouseId = d.data.spouseIds && d.data.spouseIds.length > 0 ? d.data.spouseIds[0] : null;
+                const spouseNode = spouseId ? data.nodes[spouseId] : null;
+
+                if (spouseNode) {
+                    // --- Couple Rendering ---
+
+                    // Spouse Circle
+                    group.append("circle")
+                        .attr("class", "node-circle-spouse")
+                        .attr("cx", 20)
+                        .attr("r", 30)
+                        .style("fill", spouseNode.imageUrl ? `url(#pattern-${spouseNode.nodeId})` : "#fff")
+                        .style("stroke", "pink")
+                        .style("stroke-width", "3px");
+
+                    // Main Person Circle
+                    group.append("circle")
+                        .attr("class", "node-circle-main")
+                        .attr("cx", -20)
+                        .attr("r", 30)
+                        .style("fill", d.data.imageUrl ? `url(#pattern-${d.data.nodeId})` : "#fff")
+                        .style("stroke", "steelblue")
+                        .style("stroke-width", "3px");
+
+                } else {
+                    // --- Single Person Rendering ---
+                    group.append("circle")
+                        .attr("class", "node-circle-main")
+                        .attr("r", 30)
+                        .style("fill", d.data.imageUrl ? `url(#pattern-${d.data.nodeId})` : "#fff")
+                        .style("stroke", "steelblue")
+                        .style("stroke-width", "3px");
+                }
+            });
 
             // Children Count Badge
             const badgeGroup = mainGroup.append("g")
                 .attr("class", "badge")
-                .attr("transform", "translate(20, -20)")
+                .attr("transform", (d) => {
+                    const hasSpouse = d.data.spouseIds && d.data.spouseIds.length > 0;
+                    return hasSpouse ? "translate(40, -20)" : "translate(20, -20)";
+                })
                 .style("display", (d) => (d.data.childrenCount || 0) > 0 ? "block" : "none");
 
             badgeGroup.append("circle")
@@ -184,21 +235,54 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
                 .style("font-weight", "bold")
                 .text((d) => d.data.childrenCount ?? "");
 
-            // Name Label
-            mainGroup.append("text")
-                .attr("dy", ".35em")
-                .attr("y", 45)
-                .style("text-anchor", "middle")
-                .text((d) => d.data.name || "Unknown")
-                .style("font-size", "12px")
-                .style("fill", "#333")
-                .style("text-shadow", "0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff");
+            // --- Names ---
+            mainGroup.each(function (d) {
+                const group = d3.select(this);
+                const spouseId = d.data.spouseIds && d.data.spouseIds.length > 0 ? d.data.spouseIds[0] : null;
+                const spouseNode = spouseId ? data.nodes[spouseId] : null;
+
+                if (spouseNode) {
+                    // Main Name
+                    group.append("text")
+                        .attr("dy", ".35em")
+                        .attr("y", 45)
+                        .style("text-anchor", "middle")
+                        .text(`${d.data.name || "Unknown"}`)
+                        .style("font-size", "12px")
+                        .style("fill", "#333")
+                        .style("font-weight", "bold")
+                        .style("text-shadow", "0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff");
+
+                    // Spouse Name
+                    group.append("text")
+                        .attr("dy", ".35em")
+                        .attr("y", 60) // Below main name
+                        .style("text-anchor", "middle")
+                        .text(`& ${spouseNode.name || "Unknown"}`)
+                        .style("font-size", "11px")
+                        .style("fill", "#555")
+                        .style("text-shadow", "0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff");
+
+                } else {
+                    group.append("text")
+                        .attr("dy", ".35em")
+                        .attr("y", 45)
+                        .style("text-anchor", "middle")
+                        .text((d) => d.data.name || "Unknown")
+                        .style("font-size", "12px")
+                        .style("fill", "#333")
+                        .style("text-shadow", "0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff");
+                }
+            });
 
             // --- Toggle Button (Collapse/Expand) ---
             // Only show if children exist (either in children or _children)
             const toggleButton = nodeEnter.append("g")
                 .attr("class", "toggle-btn")
-                .attr("transform", "translate(0, 30)") // Position below the main circle
+                .attr("transform", (d) => {
+                    const hasSpouse = d.data.spouseIds && d.data.spouseIds.length > 0;
+                    return hasSpouse ? "translate(0, 75)" : "translate(0, 55)"; // Adjust based on names height
+                })
                 .style("cursor", "pointer")
                 .style("display", (d) => (d.children || d._children) ? "block" : "none")
                 .on("click", (event, d) => {
@@ -241,8 +325,17 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
             nodeUpdate.select(".toggle-btn text")
                 .text((d) => d._children ? "+" : "-");
 
-            nodeUpdate.select("circle.node-circle")
+            // Update circles fills in case images loaded or changed
+            nodeUpdate.select(".node-circle-main")
                 .style("fill", (d) => d.data.imageUrl ? `url(#pattern-${d.data.nodeId})` : "#fff");
+
+            nodeUpdate.each(function (d) {
+                const spouseId = d.data.spouseIds && d.data.spouseIds.length > 0 ? d.data.spouseIds[0] : null;
+                if (spouseId) {
+                    d3.select(this).select(".node-circle-spouse")
+                        .style("fill", data.nodes[spouseId]?.imageUrl ? `url(#pattern-${spouseId})` : "#fff");
+                }
+            });
 
             // Transition exiting nodes
             const nodeExit = node.exit().transition()
