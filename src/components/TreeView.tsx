@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
+import { getPhotoUrl } from '../services/drive';
 import type { TreeDocument, PersonNode } from '../logic/types';
 
 interface TreeViewProps {
@@ -157,7 +158,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
                         .attr("height", 1)
                         .attr("width", 1)
                         .attr("preserveAspectRatio", "none")
-                        .attr("href", d.data.imageUrl);
+                        .attr("href", getPhotoUrl(d.data.imageUrl));
                 }
 
                 // 2. Spouse Pattern
@@ -171,7 +172,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
                         .attr("height", 1)
                         .attr("width", 1)
                         .attr("preserveAspectRatio", "none")
-                        .attr("href", spouseNode.imageUrl);
+                        .attr("href", getPhotoUrl(spouseNode.imageUrl));
                 }
             });
 

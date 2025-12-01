@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { PersonNode } from '../logic/types';
 import { getISTTimestamp, deriveDobFromAge, calculateAge } from '../logic/dateUtils';
 import { isAncestor } from '../logic/relationshipUtils';
-import { uploadImage } from '../services/drive';
+import { uploadImage, getPhotoUrl } from '../services/drive';
 import { CloseButton } from './CloseButton';
 import './MemberEditor.css';
 
@@ -80,7 +80,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     }, [parentId, existingNodes, initialData]);
 
     const [imageFile, setImageFile] = useState<File | null>(null);
-    const [imagePreview, setImagePreview] = useState<string | null>(initialData?.imageUrl || null);
+    const [imagePreview, setImagePreview] = useState<string | null>(getPhotoUrl(initialData?.imageUrl || null) || null);
     const [uploading, setUploading] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);

@@ -284,3 +284,13 @@ export const uploadImage = async (file: File): Promise<string> => {
         throw err;
     }
 };
+
+export const getPhotoUrl = (fileIdOrUrl: string | null): string | null => {
+    if (!fileIdOrUrl) return null;
+    if (fileIdOrUrl.startsWith('http') || fileIdOrUrl.startsWith('data:')) {
+        return fileIdOrUrl;
+    }
+    // It's a Google Drive ID. Use the thumbnail link which is more reliable for display
+    // sz=w1000 requests a width of 1000px (or original if smaller), which is good for quality
+    return `https://drive.google.com/thumbnail?id=${fileIdOrUrl}&sz=w1000`;
+};

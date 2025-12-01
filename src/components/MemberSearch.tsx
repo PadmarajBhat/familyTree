@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { PersonNode } from '../logic/types';
 import { searchMembers, sortMembers, type SortOption, type SortOrder } from '../logic/searchUtils';
+import { getPhotoUrl } from '../services/drive';
 import { CloseButton } from './CloseButton';
 import './MemberSearch.css';
 
@@ -64,7 +65,7 @@ export const MemberSearch: React.FC<MemberSearchProps> = ({ nodes, onMemberClick
                         <div key={member.nodeId} className="member-card" onClick={() => onMemberClick(member.nodeId)}>
                             <div
                                 className="member-avatar"
-                                style={{ backgroundImage: member.imageUrl ? `url(${member.imageUrl})` : 'none' }}
+                                style={{ backgroundImage: member.imageUrl ? `url(${getPhotoUrl(member.imageUrl)})` : 'none' }}
                             >
                                 {!member.imageUrl && <span style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#aaa', fontSize: '24px' }}>?</span>}
                             </div>

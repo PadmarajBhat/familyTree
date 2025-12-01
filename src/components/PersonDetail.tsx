@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import type { PersonNode, TreeDocument } from '../logic/types';
 import { CloseButton } from './CloseButton';
+import { getPhotoUrl } from '../services/drive';
 import { TreeView } from './TreeView';
 import './PersonDetail.css';
 
@@ -110,7 +111,7 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, onClose,
                 <div className="person-detail-info">
                     <div className="profile-section">
                         {node.imageUrl ? (
-                            <img src={node.imageUrl} alt={node.name || "Profile"} className="profile-pic" />
+                            <img src={getPhotoUrl(node.imageUrl) || ""} alt={node.name || "Profile"} className="profile-pic" />
                         ) : (
                             <div className="profile-pic" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ccc', color: '#fff', fontSize: '2rem' }}>
                                 {node.name ? node.name.charAt(0).toUpperCase() : "?"}
