@@ -749,20 +749,8 @@ function App() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <option value="all">All</option>
-                          <option value="3">3</option>
                           <option value="5">5</option>
                           <option value="7">7</option>
-                        </select>
-                      </div>
-                      <div className="menu-item">
-                        <label>View Type: </label>
-                        <select
-                          value={treeViewType}
-                          onChange={(e) => setTreeViewType(e.target.value as 'standard' | 'fanchart')}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <option value="standard">Standard Tree</option>
-                          <option value="fanchart">Fan Chart (Ancestors)</option>
                         </select>
                       </div>
                       <button
@@ -834,6 +822,41 @@ function App() {
       <main>
         {loading && <LoadingOverlay />}
         {error && <div className="error">{error}</div>}
+
+        {tree && !loading && !error && (
+          <div className="view-toggle-bar" style={{ display: 'flex', justifyContent: 'center', padding: '10px', background: '#fff', borderBottom: '1px solid #eee' }}>
+            <div style={{ display: 'flex', gap: '10px', background: '#f0f0f0', padding: '5px', borderRadius: '20px' }}>
+              <button
+                onClick={() => setTreeViewType('standard')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '15px',
+                  border: 'none',
+                  background: treeViewType === 'standard' ? '#2196f3' : 'transparent',
+                  color: treeViewType === 'standard' ? 'white' : '#666',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                Tree View
+              </button>
+              <button
+                onClick={() => setTreeViewType('fanchart')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '15px',
+                  border: 'none',
+                  background: treeViewType === 'fanchart' ? '#2196f3' : 'transparent',
+                  color: treeViewType === 'fanchart' ? 'white' : '#666',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                Fan Chart
+              </button>
+            </div>
+          </div>
+        )}
 
         {viewMode === 'sample' && (
           <div className="sample-banner" style={{ background: '#ff9800', color: 'white', padding: '10px', textAlign: 'center' }}>
