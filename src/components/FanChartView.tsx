@@ -129,7 +129,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
         d3.select(svgRef.current)
             .call(zoom as any);
 
-        const renderTree = (rootData: AncestorNode, partitionSize: number, rotationOffset: number, skipCenterText: boolean = false) => {
+        const renderTree = (rootData: AncestorNode, partitionSize: number, rotationOffset: number, skipCenterText: boolean = false, isDescendants: boolean = false) => {
             const hierarchy = d3.hierarchy(rootData)
                 .sum(() => 1)
                 .sort((a, b) => (b.value || 0) - (a.value || 0));
@@ -195,10 +195,12 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                 const endAngle = d.x1;
                 const midAngle = (startAngle + endAngle) / 2;
 
-                // Always orient text downward (readable)
-                // In the bottom half, text should read left-to-right
-                // In the top half, text should also read left-to-right but mirrored around the arc
-                const needsFlip = midAngle > Math.PI;
+                // Text orientation logic:
+                // For ancestors (top half, rotated -90): flip text when it would be upside down
+                // For descendants (bottom half, rotated 90): flip text to orient upward
+                const needsFlip = isDescendants
+                    ? midAngle < Math.PI  // Descendants: flip text in first half to orient upward
+                    : midAngle > Math.PI; // Ancestors: flip text in second half
 
                 const r = needsFlip
                     ? d.y0 + (d.y1 - d.y0) * 0.8
@@ -257,15 +259,29 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
         const descendantData = buildDescendantTree(rootNodeId);
 
         if (ancestorData) {
-            renderTree(ancestorData, Math.PI, -90, true);
+            renderTree(ancestorData, Math.PI, -90, true, false);
         }
         if (descendantData) {
-            renderTree(descendantData, Math.PI, 90, true);
+            renderTree(descendantData, Math.PI, 90, true, true);
         }
 
         // Manually render center text for Hourglass (only once, horizontally)
+        // Add background to make it readable over the dividing line
         if (ancestorData || descendantData) {
             const rootName = (ancestorData || descendantData)?.name || "Unknown";
+
+            // Add white background rectangle
+            const textWidth = rootName.length * 8; // Approximate width
+            mainGroup.append("rect")
+                .attr("x", -textWidth / 2 - 5)
+                .attr("y", -10)
+                .attr("width", textWidth + 10)
+                .attr("height", 20)
+                .attr("fill", "white")
+                .attr("rx", 5)
+                .style("opacity", 0.95);
+
+            // Add text on top of background
             mainGroup.append("text")
                 .attr("text-anchor", "middle")
                 .attr("dy", "0.35em")
