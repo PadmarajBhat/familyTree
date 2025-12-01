@@ -180,6 +180,42 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             .on("mousedown.drag", null) // Clear default drag
             .call(dragRotate as any);
 
+        // Two-finger touch rotation support
+        let lastTouchAngle = 0;
+
+        const handleTouchMove = (event: TouchEvent) => {
+            if (event.touches.length === 2) {
+                event.preventDefault();
+                const touch1 = event.touches[0];
+                const touch2 = event.touches[1];
+
+                const dx = touch2.clientX - touch1.clientX;
+                const dy = touch2.clientY - touch1.clientY;
+                const touchAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+                if (lastTouchAngle !== 0) {
+                    const deltaAngle = touchAngle - lastTouchAngle;
+                    currentRotation += deltaAngle;
+                    setRotation(currentRotation);
+                    const cx = width / 2;
+                    const cy = height / 2;
+                    mainGroup.attr("transform",
+                        `translate(${cx + currentTranslate.x},${cy + currentTranslate.y}) rotate(${currentRotation}) scale(${currentScale})`);
+                }
+                lastTouchAngle = touchAngle;
+            } else {
+                lastTouchAngle = 0;
+            }
+        };
+
+        const handleTouchEnd = () => {
+            lastTouchAngle = 0;
+        };
+
+        const svgElement = svgRef.current;
+        svgElement.addEventListener('touchmove', handleTouchMove, { passive: false });
+        svgElement.addEventListener('touchend', handleTouchEnd);
+
         const paths = mainGroup.selectAll("g")
             .data(root.descendants().filter(d => d.depth < 6))
             .join("g");
@@ -296,6 +332,12 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                 .attr("text-anchor", "middle")
                 .text(displayText);
         });
+
+        // Cleanup
+        return () => {
+            svgElement.removeEventListener('touchmove', handleTouchMove);
+            svgElement.removeEventListener('touchend', handleTouchEnd);
+        };
 
     }, [data, rootNodeId, dimensions, mode, rotation]);
 
