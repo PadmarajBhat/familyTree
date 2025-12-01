@@ -29,6 +29,7 @@ function App() {
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'user' | 'sample'>('user');
   const [treeViewType, setTreeViewType] = useState<'standard' | 'fanchart'>('standard');
+  const [fanRootId, setFanRootId] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showCollaborators, setShowCollaborators] = useState(false);
   const [showFindRelation, setShowFindRelation] = useState(false);
@@ -187,7 +188,20 @@ function App() {
   };
 
   const handleNodeClick = (nodeId: string) => {
-    setSelectedNodeId(nodeId);
+    if (treeViewType === 'fanchart') {
+      // In Fan Chart, click means "Navigate/Re-center"
+      // Unless it's the center node?
+      // For now, let's just make it re-center.
+      // If the user wants details, they can use Long Press (which we need to ensure works)
+      // OR we can check if the clicked node is ALREADY the fan root, then show details.
+      if (nodeId === (fanRootId || tree?.rootNodeId)) {
+        setSelectedNodeId(nodeId);
+      } else {
+        setFanRootId(nodeId);
+      }
+    } else {
+      setSelectedNodeId(nodeId);
+    }
   };
 
   const handleNodeLongPress = (nodeId: string) => {
@@ -860,7 +874,7 @@ function App() {
               <div className="tree-container">
                 <FanChartView
                   data={tree}
-                  rootNodeId={selectedNodeId || tree.rootNodeId}
+                  rootNodeId={fanRootId || selectedNodeId || tree.rootNodeId}
                   onNodeClick={handleNodeClick}
                 />
               </div>

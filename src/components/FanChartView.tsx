@@ -11,12 +11,15 @@ interface FanChartViewProps {
 interface AncestorNode extends PersonNode {
     children?: AncestorNode[];
     generation: number;
+    // For descendants
+    _children?: AncestorNode[];
 }
 
 export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, onNodeClick }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+    const [mode, setMode] = useState<'ancestor' | 'descendant'>('descendant'); // Default to descendant as it's more common for root nodes
 
     useEffect(() => {
         if (!wrapperRef.current) return;
@@ -52,53 +55,43 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
 
         const radius = Math.min(width, height) / 2 - 20; // Margin
 
-        // --- Build Ancestor Hierarchy ---
-        // In this hierarchy, "children" are actually parents
+        // --- Build Hierarchy ---
         const buildAncestorTree = (nodeId: string, generation: number = 0): AncestorNode | null => {
             const node = data.nodes[nodeId];
             if (!node) return null;
-
-            // Limit generations if needed, e.g., 6-7
-            if (generation > 6) {
-                return { ...node, generation, children: undefined };
-            }
+            if (generation > 6) return { ...node, generation, children: undefined };
 
             const parents: AncestorNode[] = [];
             if (node.parentId) {
-                // Father (assuming parentId links to father usually, or we need to find both parents)
-                // In our data model, parentId points to ONE parent (likely father).
-                // We need to find the spouse of the father who is the mother.
-                // OR, if we have explicit mother/father fields. 
-                // Current model: parentId points to a parent node.
-
-                // Let's try to find both parents.
-                // 1. The linked parent
                 const parent1 = buildAncestorTree(node.parentId, generation + 1);
                 if (parent1) parents.push(parent1);
 
-                // 2. The spouse of the linked parent (Mother)
-                // We need to check if the parent has a spouse that is also a parent of this node?
-                // Actually, in our model, children are linked to ONE parent (usually father).
-                // The mother is the spouse of the father.
                 const parentNode = data.nodes[node.parentId];
                 if (parentNode && parentNode.spouseIds && parentNode.spouseIds.length > 0) {
-                    // Assuming the first spouse is the mother for simplicity, 
-                    // or we should check if we can identify the biological mother.
-                    // For now, take the first spouse.
                     const spouseId = parentNode.spouseIds[0];
                     const parent2 = buildAncestorTree(spouseId, generation + 1);
                     if (parent2) parents.push(parent2);
                 }
             }
-
-            return {
-                ...node,
-                generation,
-                children: parents.length > 0 ? parents : undefined
-            };
+            return { ...node, generation, children: parents.length > 0 ? parents : undefined };
         };
 
-        const rootData = buildAncestorTree(rootNodeId);
+        const buildDescendantTree = (nodeId: string, generation: number = 0): AncestorNode | null => {
+            const node = data.nodes[nodeId];
+            if (!node) return null;
+            if (generation > 6) return { ...node, generation, children: undefined };
+
+            const children: AncestorNode[] = [];
+            if (node.childrenIds) {
+                node.childrenIds.forEach(childId => {
+                    const child = buildDescendantTree(childId, generation + 1);
+                    if (child) children.push(child);
+                });
+            }
+            return { ...node, generation, children: children.length > 0 ? children : undefined };
+        };
+
+        const rootData = mode === 'ancestor' ? buildAncestorTree(rootNodeId) : buildDescendantTree(rootNodeId);
         if (!rootData) return;
 
         const hierarchy = d3.hierarchy(rootData);
@@ -123,11 +116,9 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
         // Draw arcs
         svg.append("g")
             .selectAll("path")
-            .data(root.descendants().filter(d => d.depth < 6)) // Limit depth for rendering
+            .data(root.descendants().filter(d => d.depth < 6))
             .join("path")
             .attr("fill", d => {
-                // Color by generation or lineage
-                // return color(d.depth.toString());
                 while (d.depth > 1 && d.parent) d = d.parent;
                 return color(d.data.name || "Unknown");
             })
@@ -149,7 +140,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             .attr("text-anchor", "middle")
             .style("user-select", "none")
             .selectAll("text")
-            .data(root.descendants().filter(d => d.depth < 6 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.05)) // Filter small arcs
+            .data(root.descendants().filter(d => d.depth < 6 && (d.y1 - d.y0) * (d.x1 - d.x0) > 0.05))
             .join("text")
             .attr("transform", function (d) {
                 const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;
@@ -158,13 +149,33 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             })
             .attr("dy", "0.35em")
             .text(d => d.data.name || "Unknown")
-            .style("font-size", d => Math.min(12, (d.x1 - d.x0) * 100) + "px") // Dynamic font size
+            .style("font-size", d => Math.min(12, (d.x1 - d.x0) * 100) + "px")
             .style("fill", "#333");
 
-    }, [data, rootNodeId, dimensions]);
+    }, [data, rootNodeId, dimensions, mode]);
 
     return (
-        <div ref={wrapperRef} style={{ width: '100%', height: '100vh', overflow: 'hidden', background: '#f9f9f9' }}>
+        <div ref={wrapperRef} style={{ width: '100%', height: '100vh', overflow: 'hidden', background: '#f9f9f9', position: 'relative' }}>
+            <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 100, background: 'rgba(255,255,255,0.8)', padding: '5px', borderRadius: '5px' }}>
+                <label style={{ marginRight: '10px' }}>
+                    <input
+                        type="radio"
+                        name="chartMode"
+                        value="descendant"
+                        checked={mode === 'descendant'}
+                        onChange={() => setMode('descendant')}
+                    /> Descendants
+                </label>
+                <label>
+                    <input
+                        type="radio"
+                        name="chartMode"
+                        value="ancestor"
+                        checked={mode === 'ancestor'}
+                        onChange={() => setMode('ancestor')}
+                    /> Ancestors
+                </label>
+            </div>
             <svg ref={svgRef}></svg>
         </div>
     );
