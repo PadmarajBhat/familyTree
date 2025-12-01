@@ -278,11 +278,24 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             }
 
             const group = d3.select(this);
-            // Use a radius slightly offset toward the outer edge for better visual centering
-            const r = d.y0 + (d.y1 - d.y0) * 0.5;
             const startAngle = d.x0;
             const endAngle = d.x1;
             const midAngle = (startAngle + endAngle) / 2;
+
+            // Adjust angle for rotation to determine visual position
+            const normalizedRotation = ((rotation % 360) + 360) % 360;
+            const rotationRad = normalizedRotation * Math.PI / 180;
+            const visualMidAngle = (midAngle + rotationRad) % (2 * Math.PI);
+
+            // Flip if in the bottom half visually
+            const needsFlip = visualMidAngle > Math.PI / 2 && visualMidAngle < 3 * Math.PI / 2;
+
+            // Adjust radius to avoid overlapping:
+            // Top text (not flipped): grows Out. Baseline at Inner side.
+            // Bottom text (flipped): grows In. Baseline at Outer side.
+            const r = needsFlip
+                ? d.y0 + (d.y1 - d.y0) * 0.8  // Bottom: closer to outer edge
+                : d.y0 + (d.y1 - d.y0) * 0.2; // Top: closer to inner edge
 
             // Arc length check
             const arcAngle = endAngle - startAngle;
@@ -301,9 +314,6 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                 if (maxChars < 3) return;
                 displayText = displayText.substring(0, maxChars - 1) + "…";
             }
-
-            // Always readable: reverse path on left side
-            const needsFlip = midAngle > Math.PI / 2 && midAngle < 3 * Math.PI / 2;
 
             const x0 = r * Math.sin(startAngle);
             const y0 = -r * Math.cos(startAngle);
