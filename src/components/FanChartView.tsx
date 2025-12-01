@@ -278,7 +278,8 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             }
 
             const group = d3.select(this);
-            const r = (d.y0 + d.y1) / 2;
+            // Use a radius slightly offset toward the outer edge for better visual centering
+            const r = d.y0 + (d.y1 - d.y0) * 0.5;
             const startAngle = d.x0;
             const endAngle = d.x1;
             const midAngle = (startAngle + endAngle) / 2;
