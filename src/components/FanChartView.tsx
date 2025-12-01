@@ -232,6 +232,32 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                     ? `M ${x1} ${y1} A ${r} ${r} 0 0 0 ${x0} ${y0}`
                     : `M ${x0} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y1}`;
 
+                // Add images
+                const imageSize = Math.min(arcLength, (d.y1 - d.y0)) * 0.7;
+                if (imageSize > 10) {
+                    const clipId = `clip-${d.data.nodeId}-${Math.random().toString(36).substr(2, 9)}`;
+
+                    group.append("clipPath")
+                        .attr("id", clipId)
+                        .append("circle")
+                        .attr("r", imageSize / 2)
+                        .attr("cx", 0)
+                        .attr("cy", 0);
+
+                    const centroid = arc.centroid(d as any);
+
+                    if (d.data.imageUrl) {
+                        group.append("image")
+                            .attr("xlink:href", d.data.imageUrl)
+                            .attr("width", imageSize)
+                            .attr("height", imageSize)
+                            .attr("x", centroid[0] - imageSize / 2)
+                            .attr("y", centroid[1] - imageSize / 2)
+                            .attr("clip-path", `url(#${clipId})`)
+                            .style("pointer-events", "none");
+                    }
+                }
+
                 const pathId = `textPath-${d.data.nodeId}-${Math.random().toString(36).substr(2, 9)}`;
                 group.append("path")
                     .attr("id", pathId)
@@ -249,7 +275,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                     .attr("xlink:href", `#${pathId}`)
                     .attr("startOffset", "50%")
                     .attr("text-anchor", "middle")
-                    .attr("dy", "0.35em")
+                    .attr("dy", "0.35em") // Adjust this if image pushes text too much, but for now keep it simple
                     .text(displayText);
             });
         };
@@ -268,29 +294,76 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
         // Manually render center text for Hourglass (only once, horizontally)
         // Add background to make it readable over the dividing line
         if (ancestorData || descendantData) {
-            const rootName = (ancestorData || descendantData)?.name || "Unknown";
+            const rootNode = ancestorData || descendantData;
+            if (!rootNode) return;
+
+            const rootName = rootNode.name || "Unknown";
+            const spouseName = rootNode.spouseName;
+
+            const displayText = spouseName ? `${rootName} & ${spouseName}` : rootName;
 
             // Add white background rectangle
-            const textWidth = rootName.length * 8; // Approximate width
+            const textWidth = displayText.length * 8; // Approximate width
+            const rectHeight = 50; // Increased height for images
+
             mainGroup.append("rect")
-                .attr("x", -textWidth / 2 - 5)
-                .attr("y", -10)
-                .attr("width", textWidth + 10)
-                .attr("height", 20)
+                .attr("x", -textWidth / 2 - 20)
+                .attr("y", -rectHeight / 2)
+                .attr("width", textWidth + 40)
+                .attr("height", rectHeight)
                 .attr("fill", "white")
-                .attr("rx", 5)
-                .style("opacity", 0.95);
+                .attr("rx", 10)
+                .style("opacity", 0.95)
+                .style("stroke", "#ccc")
+                .style("stroke-width", "1px");
+
+            // Images for center node
+            const centerImageSize = 30;
+
+            if (rootNode.imageUrl) {
+                mainGroup.append("clipPath")
+                    .attr("id", "center-clip-root")
+                    .append("circle")
+                    .attr("r", centerImageSize / 2)
+                    .attr("cx", spouseName ? -20 : 0)
+                    .attr("cy", -15);
+
+                mainGroup.append("image")
+                    .attr("xlink:href", rootNode.imageUrl)
+                    .attr("width", centerImageSize)
+                    .attr("height", centerImageSize)
+                    .attr("x", (spouseName ? -20 : 0) - centerImageSize / 2)
+                    .attr("y", -15 - centerImageSize / 2)
+                    .attr("clip-path", "url(#center-clip-root)");
+            }
+
+            if (spouseName && rootNode.spouseImageUrl) {
+                mainGroup.append("clipPath")
+                    .attr("id", "center-clip-spouse")
+                    .append("circle")
+                    .attr("r", centerImageSize / 2)
+                    .attr("cx", 20)
+                    .attr("cy", -15);
+
+                mainGroup.append("image")
+                    .attr("xlink:href", rootNode.spouseImageUrl)
+                    .attr("width", centerImageSize)
+                    .attr("height", centerImageSize)
+                    .attr("x", 20 - centerImageSize / 2)
+                    .attr("y", -15 - centerImageSize / 2)
+                    .attr("clip-path", "url(#center-clip-spouse)");
+            }
 
             // Add text on top of background
             mainGroup.append("text")
                 .attr("text-anchor", "middle")
-                .attr("dy", "0.35em")
+                .attr("dy", "1.2em") // Moved down to make room for images
                 .attr("transform", "rotate(0)") // Ensure horizontal text
                 .style("pointer-events", "none")
                 .style("font-size", "14px")
                 .style("font-weight", "bold")
                 .style("fill", "#333")
-                .text(rootName);
+                .text(displayText);
         }
 
     }, [data, rootNodeId, dimensions]);
