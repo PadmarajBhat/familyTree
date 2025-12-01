@@ -92,9 +92,13 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
         };
 
         const rootData = mode === 'ancestor' ? buildAncestorTree(rootNodeId) : buildDescendantTree(rootNodeId);
+        console.log("FanChart Debug:", { mode, rootNodeId, rootData, node: data.nodes[rootNodeId] });
+
         if (!rootData) return;
 
-        const hierarchy = d3.hierarchy(rootData);
+        const hierarchy = d3.hierarchy(rootData)
+            .sum(() => 1)
+            .sort((a, b) => (b.value || 0) - (a.value || 0));
 
         // Partition layout
         const partition = d3.partition<AncestorNode>()
