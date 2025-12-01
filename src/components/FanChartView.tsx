@@ -214,6 +214,32 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             const midAngle = (startAngle + endAngle) / 2;
             const flip = midAngle > Math.PI / 2 && midAngle < 3 * Math.PI / 2;
 
+            // Calculate arc length
+            const arcAngle = endAngle - startAngle;
+            const arcLength = r * arcAngle;
+
+            // Build display text
+            let displayText = d.data.spouseName
+                ? `${d.data.name} & ${d.data.spouseName}`
+                : d.data.name || "Unknown";
+
+            // Estimate text width (rough approximation: 6px per character at font-size 9px)
+            const estimatedTextWidth = displayText.length * 5.5;
+
+            // Only show text if arc is wide enough
+            if (arcLength < 20) {
+                // Arc too narrow, skip text entirely
+                return;
+            }
+
+            // Truncate if needed
+            if (estimatedTextWidth > arcLength * 0.9) {
+                // Truncate with ellipsis
+                const maxChars = Math.floor((arcLength * 0.9) / 5.5);
+                if (maxChars < 3) return; // Don't show anything if too small
+                displayText = displayText.substring(0, maxChars - 1) + "…";
+            }
+
             const x0 = r * Math.sin(startAngle);
             const y0 = -r * Math.cos(startAngle);
             const x1 = r * Math.sin(endAngle);
@@ -235,10 +261,6 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                 .style("font-size", "9px")
                 .style("font-weight", "bold")
                 .style("fill", "#333");
-
-            const displayText = d.data.spouseName
-                ? `${d.data.name} & ${d.data.spouseName}`
-                : d.data.name || "Unknown";
 
             text.append("textPath")
                 .attr("xlink:href", `#${pathId}`)
