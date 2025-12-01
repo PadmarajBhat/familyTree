@@ -9,6 +9,7 @@ import { MemberSearch } from './components/MemberSearch';
 import { CollaboratorList } from './components/CollaboratorList';
 import { FindRelation } from './components/FindRelation';
 import { VersionHistory } from './components/VersionHistory';
+import { FanChartView } from './components/FanChartView';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { canEdit } from './logic/accessControl';
 import { getISTTimestamp } from './logic/dateUtils';
@@ -27,6 +28,7 @@ function App() {
   const [editorMode, setEditorMode] = useState<'add' | 'edit' | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'user' | 'sample'>('user');
+  const [treeViewType, setTreeViewType] = useState<'standard' | 'fanchart'>('standard');
   const [showSearch, setShowSearch] = useState(false);
   const [showCollaborators, setShowCollaborators] = useState(false);
   const [showFindRelation, setShowFindRelation] = useState(false);
@@ -738,6 +740,17 @@ function App() {
                           <option value="7">7</option>
                         </select>
                       </div>
+                      <div className="menu-item">
+                        <label>View Type: </label>
+                        <select
+                          value={treeViewType}
+                          onChange={(e) => setTreeViewType(e.target.value as 'standard' | 'fanchart')}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <option value="standard">Standard Tree</option>
+                          <option value="fanchart">Fan Chart (Ancestors)</option>
+                        </select>
+                      </div>
                       <button
                         className="menu-item"
                         onClick={() => {
@@ -825,14 +838,33 @@ function App() {
           </div>
         )}
 
+        {!tree && !loading && !error && (
+          <div className="welcome-screen">
+            <h2>Welcome to Family Tree</h2>
+            <p>Please sign in to view your family tree or load a sample tree.</p>
+          </div>
+        )}
+
         {tree && !showSearch && !showFindRelation && !showVersionHistory && (
-          <div className="tree-container">
-            <TreeView
-              data={tree}
-              onNodeClick={handleNodeClick}
-              onNodeLongPress={handleNodeLongPress}
-              maxDepth={viewDepth}
-            />
+          <>
+            {treeViewType === 'standard' ? (
+              <div className="tree-container">
+                <TreeView
+                  data={tree}
+                  onNodeClick={handleNodeClick}
+                  onNodeLongPress={handleNodeLongPress}
+                  maxDepth={viewDepth}
+                />
+              </div>
+            ) : (
+              <div className="tree-container">
+                <FanChartView
+                  data={tree}
+                  rootNodeId={selectedNodeId || tree.rootNodeId}
+                  onNodeClick={handleNodeClick}
+                />
+              </div>
+            )}
             {isAuthorized && viewMode === 'user' && (
               <button
                 className="fab-add"
@@ -842,7 +874,7 @@ function App() {
                 +
               </button>
             )}
-          </div>
+          </>
         )}
 
         {showSearch && tree && (
