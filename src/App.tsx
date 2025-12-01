@@ -28,7 +28,7 @@ function App() {
   const [editorMode, setEditorMode] = useState<'add' | 'edit' | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'user' | 'sample'>('user');
-  const [treeViewType, setTreeViewType] = useState<'standard' | 'fanchart'>('standard');
+  const [treeViewType, setTreeViewType] = useState<'standard' | 'fanchart' | 'hourglass'>('standard');
   const [fanRootId, setFanRootId] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showCollaborators, setShowCollaborators] = useState(false);
@@ -188,7 +188,7 @@ function App() {
   };
 
   const handleNodeClick = (nodeId: string) => {
-    if (treeViewType === 'fanchart') {
+    if (treeViewType === 'fanchart' || treeViewType === 'hourglass') {
       // In Fan Chart, click means "Navigate/Re-center"
       // Unless it's the center node?
       // For now, let's just make it re-center.
@@ -854,6 +854,20 @@ function App() {
               >
                 Fan Chart
               </button>
+              <button
+                onClick={() => setTreeViewType('hourglass')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '15px',
+                  border: 'none',
+                  background: treeViewType === 'hourglass' ? '#2196f3' : 'transparent',
+                  color: treeViewType === 'hourglass' ? 'white' : '#666',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                Hourglass
+              </button>
             </div>
           </div>
         )}
@@ -893,12 +907,24 @@ function App() {
                   maxDepth={viewDepth}
                 />
               </div>
-            ) : (
+            ) : treeViewType === 'fanchart' ? (
               <div className="tree-container">
                 <FanChartView
+                  key="fanchart"
                   data={tree}
                   rootNodeId={fanRootId || selectedNodeId || tree.rootNodeId}
                   onNodeClick={handleNodeClick}
+                  initialMode="descendant"
+                />
+              </div>
+            ) : (
+              <div className="tree-container">
+                <FanChartView
+                  key="hourglass"
+                  data={tree}
+                  rootNodeId={fanRootId || selectedNodeId || tree.rootNodeId}
+                  onNodeClick={handleNodeClick}
+                  initialMode="hourglass"
                 />
               </div>
             )}

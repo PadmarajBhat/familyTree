@@ -6,6 +6,7 @@ interface FanChartViewProps {
     data: TreeDocument;
     rootNodeId: string;
     onNodeClick: (nodeId: string) => void;
+    initialMode?: 'ancestor' | 'descendant' | 'hourglass';
 }
 
 interface AncestorNode extends PersonNode {
@@ -16,11 +17,11 @@ interface AncestorNode extends PersonNode {
     spouseImageUrl?: string | null;
 }
 
-export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, onNodeClick }) => {
+export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, onNodeClick, initialMode = 'descendant' }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-    const [mode, setMode] = useState<'ancestor' | 'descendant'>('descendant');
+    const [mode, setMode] = useState<'ancestor' | 'descendant' | 'hourglass'>(initialMode);
     const [rotation, setRotation] = useState(0);
 
     useEffect(() => {
@@ -115,26 +116,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             return { ...node, generation, spouseName, spouseImageUrl, children: children.length > 0 ? children : undefined };
         };
 
-        const rootData = mode === 'ancestor' ? buildAncestorTree(rootNodeId) : buildDescendantTree(rootNodeId);
-        if (!rootData) return;
 
-        const hierarchy = d3.hierarchy(rootData)
-            .sum(() => 1)
-            .sort((a, b) => (b.value || 0) - (a.value || 0));
-
-        const partition = d3.partition<AncestorNode>()
-            .size([2 * Math.PI, radius]);
-
-        const root = partition(hierarchy);
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const arc = d3.arc<d3.HierarchyRectangularNode<AncestorNode>>()
-            .startAngle(d => d.x0)
-            .endAngle(d => d.x1)
-            .innerRadius(d => d.y0)
-            .outerRadius(d => d.y1);
-
-        const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, root.children ? root.children.length + 1 : 1));
 
         const mainGroup = svg.append("g")
             .attr("class", "main-group")
@@ -216,134 +198,182 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
         svgElement.addEventListener('touchmove', handleTouchMove, { passive: false });
         svgElement.addEventListener('touchend', handleTouchEnd);
 
-        const paths = mainGroup.selectAll("g")
-            .data(root.descendants().filter(d => d.depth < 6))
-            .join("g");
+        const renderTree = (rootData: AncestorNode, partitionSize: number, rotationOffset: number) => {
+            const hierarchy = d3.hierarchy(rootData)
+                .sum(() => 1)
+                .sort((a, b) => (b.value || 0) - (a.value || 0));
 
-        paths.append("path")
-            .attr("fill", d => {
-                let current = d;
-                while (current.depth > 1 && current.parent) current = current.parent;
-                return color(current.data.name || "Unknown");
-            })
-            .attr("fill-opacity", d => d.depth === 0 ? 0.8 : 0.6)
-            .attr("d", arc)
-            .style("cursor", "pointer")
-            .style("stroke", "white")
-            .style("stroke-width", "1px")
-            .on("click", (event, d) => {
-                event.stopPropagation();
-                onNodeClick(d.data.nodeId);
-            })
-            .append("title")
-            .text(d => `${d.data.name}\n${d.data.dob ? d.data.dob.split('-')[0] : ''} - ${d.data.dod ? d.data.dod.split('-')[0] : ''}`);
+            const partition = d3.partition<AncestorNode>()
+                .size([partitionSize, radius]);
 
-        paths.each(function (d) {
-            if (d.depth === 0) return;
-            const centroid = arc.centroid(d as any);
-            const group = d3.select(this);
+            const root = partition(hierarchy);
 
-            if (d.data.imageUrl) {
-                group.append("clipPath")
-                    .attr("id", `clip-${d.data.nodeId}`)
-                    .append("circle")
-                    .attr("cx", centroid[0])
-                    .attr("cy", centroid[1] - 15)
-                    .attr("r", 12);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const arc = d3.arc<d3.HierarchyRectangularNode<AncestorNode>>()
+                .startAngle(d => d.x0)
+                .endAngle(d => d.x1)
+                .innerRadius(d => d.y0)
+                .outerRadius(d => d.y1);
 
-                group.append("image")
-                    .attr("xlink:href", d.data.imageUrl)
-                    .attr("x", centroid[0] - 12)
-                    .attr("y", centroid[1] - 27)
-                    .attr("width", 24)
-                    .attr("height", 24)
-                    .attr("preserveAspectRatio", "xMidYMid slice")
-                    .attr("clip-path", `url(#clip-${d.data.nodeId})`)
-                    .style("pointer-events", "none");
-            }
-        });
+            const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, root.children ? root.children.length + 1 : 1));
 
-        // Curved text - always readable
-        paths.each(function (d) {
-            if (d.depth === 0) {
-                d3.select(this).append("text")
+            const group = mainGroup.append("g")
+                .attr("transform", `rotate(${rotationOffset})`);
+
+            const paths = group.selectAll("g")
+                .data(root.descendants().filter(d => d.depth < 6))
+                .join("g");
+
+            paths.append("path")
+                .attr("fill", d => {
+                    let current = d;
+                    while (current.depth > 1 && current.parent) current = current.parent;
+                    return color(current.data.name || "Unknown");
+                })
+                .attr("fill-opacity", d => d.depth === 0 ? 0.8 : 0.6)
+                .attr("d", arc)
+                .style("cursor", "pointer")
+                .style("stroke", "white")
+                .style("stroke-width", "1px")
+                .on("click", (event, d) => {
+                    event.stopPropagation();
+                    onNodeClick(d.data.nodeId);
+                })
+                .append("title")
+                .text(d => `${d.data.name}\n${d.data.dob ? d.data.dob.split('-')[0] : ''} - ${d.data.dod ? d.data.dod.split('-')[0] : ''}`);
+
+            paths.each(function (d) {
+                if (d.depth === 0) return;
+                const centroid = arc.centroid(d as any);
+                const group = d3.select(this);
+
+                if (d.data.imageUrl) {
+                    group.append("clipPath")
+                        .attr("id", `clip-${d.data.nodeId}-${Math.random().toString(36).substr(2, 9)}`) // Unique ID
+                        .append("circle")
+                        .attr("cx", centroid[0])
+                        .attr("cy", centroid[1] - 15)
+                        .attr("r", 12);
+
+                    const clipId = group.select("clipPath").attr("id");
+
+                    group.append("image")
+                        .attr("xlink:href", d.data.imageUrl)
+                        .attr("x", centroid[0] - 12)
+                        .attr("y", centroid[1] - 27)
+                        .attr("width", 24)
+                        .attr("height", 24)
+                        .attr("preserveAspectRatio", "xMidYMid slice")
+                        .attr("clip-path", `url(#${clipId})`)
+                        .style("pointer-events", "none");
+                }
+            });
+
+            // Curved text
+            paths.each(function (d) {
+                if (d.depth === 0) {
+                    // Only draw center text once, or if we are in split mode, maybe draw it in one of them?
+                    // If we draw it in both, they overlap, which is fine.
+                    d3.select(this).append("text")
+                        .attr("text-anchor", "middle")
+                        .attr("dy", "0.35em")
+                        .style("pointer-events", "none")
+                        .style("font-size", "12px")
+                        .style("font-weight", "bold")
+                        .style("fill", "#333")
+                        .text(d.data.name || "Unknown");
+                    return;
+                }
+
+                const group = d3.select(this);
+                const startAngle = d.x0;
+                const endAngle = d.x1;
+                const midAngle = (startAngle + endAngle) / 2;
+
+                // Adjust angle for rotation to determine visual position
+                // We need to account for the group rotationOffset AND the main rotation
+                const totalRotation = rotation + rotationOffset;
+                const normalizedRotation = ((totalRotation % 360) + 360) % 360;
+                const rotationRad = normalizedRotation * Math.PI / 180;
+                const visualMidAngle = (midAngle + rotationRad) % (2 * Math.PI);
+
+                // Flip if in the bottom half visually
+                const needsFlip = visualMidAngle > Math.PI / 2 && visualMidAngle < 3 * Math.PI / 2;
+
+                const r = needsFlip
+                    ? d.y0 + (d.y1 - d.y0) * 0.8
+                    : d.y0 + (d.y1 - d.y0) * 0.2;
+
+                const arcAngle = endAngle - startAngle;
+                const arcLength = r * arcAngle;
+
+                let displayText = d.data.spouseName
+                    ? `${d.data.name} & ${d.data.spouseName}`
+                    : d.data.name || "Unknown";
+
+                const estimatedTextWidth = displayText.length * 5.5;
+
+                if (arcLength < 20) return;
+
+                if (estimatedTextWidth > arcLength * 0.9) {
+                    const maxChars = Math.floor((arcLength * 0.9) / 5.5);
+                    if (maxChars < 3) return;
+                    displayText = displayText.substring(0, maxChars - 1) + "…";
+                }
+
+                const x0 = r * Math.sin(startAngle);
+                const y0 = -r * Math.cos(startAngle);
+                const x1 = r * Math.sin(endAngle);
+                const y1 = -r * Math.cos(endAngle);
+
+                const pathData = needsFlip
+                    ? `M ${x1} ${y1} A ${r} ${r} 0 0 0 ${x0} ${y0}`
+                    : `M ${x0} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y1}`;
+
+                const pathId = `textPath-${d.data.nodeId}-${Math.random().toString(36).substr(2, 9)}`;
+                group.append("path")
+                    .attr("id", pathId)
+                    .attr("d", pathData)
+                    .style("fill", "none")
+                    .style("stroke", "none");
+
+                const text = group.append("text")
+                    .style("pointer-events", "none")
+                    .style("font-size", "9px")
+                    .style("font-weight", "bold")
+                    .style("fill", "#333");
+
+                text.append("textPath")
+                    .attr("xlink:href", `#${pathId}`)
+                    .attr("startOffset", "50%")
                     .attr("text-anchor", "middle")
                     .attr("dy", "0.35em")
-                    .style("pointer-events", "none")
-                    .style("font-size", "12px")
-                    .style("font-weight", "bold")
-                    .style("fill", "#333")
-                    .text(d.data.name || "Unknown");
-                return;
+                    .text(displayText);
+            });
+        };
+
+        if (mode === 'hourglass') {
+            const ancestorData = buildAncestorTree(rootNodeId);
+            const descendantData = buildDescendantTree(rootNodeId);
+
+            if (ancestorData) {
+                // Ancestors on Top (rotate -90 so 0-180 becomes -90 to 90? No.)
+                // 0 is 12 o'clock. 0-PI is Right Half (12 to 6).
+                // Rotate -90: 12->9, 6->3. So 9 to 3 (Top Half).
+                renderTree(ancestorData, Math.PI, -90);
             }
-
-            const group = d3.select(this);
-            const startAngle = d.x0;
-            const endAngle = d.x1;
-            const midAngle = (startAngle + endAngle) / 2;
-
-            // Adjust angle for rotation to determine visual position
-            const normalizedRotation = ((rotation % 360) + 360) % 360;
-            const rotationRad = normalizedRotation * Math.PI / 180;
-            const visualMidAngle = (midAngle + rotationRad) % (2 * Math.PI);
-
-            // Flip if in the bottom half visually
-            const needsFlip = visualMidAngle > Math.PI / 2 && visualMidAngle < 3 * Math.PI / 2;
-
-            // Adjust radius to avoid overlapping:
-            // Top text (not flipped): grows Out. Baseline at Inner side.
-            // Bottom text (flipped): grows In. Baseline at Outer side.
-            const r = needsFlip
-                ? d.y0 + (d.y1 - d.y0) * 0.8  // Bottom: closer to outer edge
-                : d.y0 + (d.y1 - d.y0) * 0.2; // Top: closer to inner edge
-
-            // Arc length check
-            const arcAngle = endAngle - startAngle;
-            const arcLength = r * arcAngle;
-
-            let displayText = d.data.spouseName
-                ? `${d.data.name} & ${d.data.spouseName}`
-                : d.data.name || "Unknown";
-
-            const estimatedTextWidth = displayText.length * 5.5;
-
-            if (arcLength < 20) return;
-
-            if (estimatedTextWidth > arcLength * 0.9) {
-                const maxChars = Math.floor((arcLength * 0.9) / 5.5);
-                if (maxChars < 3) return;
-                displayText = displayText.substring(0, maxChars - 1) + "…";
+            if (descendantData) {
+                // Descendants on Bottom
+                // 0-PI is Right Half.
+                // Rotate 90: 12->3, 6->9. So 3 to 9 (Bottom Half).
+                renderTree(descendantData, Math.PI, 90);
             }
-
-            const x0 = r * Math.sin(startAngle);
-            const y0 = -r * Math.cos(startAngle);
-            const x1 = r * Math.sin(endAngle);
-            const y1 = -r * Math.cos(endAngle);
-
-            const pathData = needsFlip
-                ? `M ${x1} ${y1} A ${r} ${r} 0 0 0 ${x0} ${y0}`
-                : `M ${x0} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y1}`;
-
-            const pathId = `textPath-${d.data.nodeId}`;
-            group.append("path")
-                .attr("id", pathId)
-                .attr("d", pathData)
-                .style("fill", "none")
-                .style("stroke", "none");
-
-            const text = group.append("text")
-                .style("pointer-events", "none")
-                .style("font-size", "9px")
-                .style("font-weight", "bold")
-                .style("fill", "#333");
-
-            text.append("textPath")
-                .attr("xlink:href", `#${pathId}`)
-                .attr("startOffset", "50%")
-                .attr("text-anchor", "middle")
-                .attr("dy", "0.35em")
-                .text(displayText);
-        });
+        } else {
+            const rootData = mode === 'ancestor' ? buildAncestorTree(rootNodeId) : buildDescendantTree(rootNodeId);
+            if (rootData) {
+                renderTree(rootData, 2 * Math.PI, 0);
+            }
+        }
 
         // Cleanup
         return () => {
@@ -367,7 +397,8 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                             onChange={() => setMode('descendant')}
                         /> Descendants
                     </label>
-                    <label>
+
+                    <label style={{ marginRight: '10px' }}>
                         <input
                             type="radio"
                             name="chartMode"
@@ -376,12 +407,21 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                             onChange={() => setMode('ancestor')}
                         /> Ancestors
                     </label>
+                    <label>
+                        <input
+                            type="radio"
+                            name="chartMode"
+                            value="hourglass"
+                            checked={mode === 'hourglass'}
+                            onChange={() => setMode('hourglass')}
+                        /> Hourglass
+                    </label>
                     <div style={{ marginTop: '8px', fontSize: '11px', color: '#666' }}>
                         💡 Drag to rotate • Scroll/Pinch to zoom
                     </div>
                 </div>
             </div>
             <svg ref={svgRef}></svg>
-        </div>
+        </div >
     );
 };
