@@ -136,15 +136,41 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
         const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, root.children ? root.children.length + 1 : 1));
 
         const mainGroup = svg.append("g")
+            .attr("class", "main-group")
             .attr("transform", `translate(${width / 2},${height / 2}) rotate(${rotation})`);
+
+        // Gesture rotation + zoom
+        let startAngle = 0;
+        let currentRotation = rotation;
+
+        const dragRotate = d3.drag<SVGSVGElement, unknown>()
+            .on("start", function (event) {
+                const [x, y] = d3.pointer(event, this);
+                const cx = width / 2;
+                const cy = height / 2;
+                startAngle = Math.atan2(y - cy, x - cx) * 180 / Math.PI - currentRotation;
+            })
+            .on("drag", function (event) {
+                const [x, y] = d3.pointer(event, this);
+                const cx = width / 2;
+                const cy = height / 2;
+                const angle = Math.atan2(y - cy, x - cx) * 180 / Math.PI;
+                currentRotation = angle - startAngle;
+                setRotation(currentRotation);
+                mainGroup.attr("transform", `translate(${cx},${cy}) rotate(${currentRotation})`);
+            });
 
         const zoom = d3.zoom<SVGSVGElement, unknown>()
             .scaleExtent([0.1, 5])
             .on("zoom", (event) => {
-                mainGroup.attr("transform", `translate(${event.transform.x + width / 2},${event.transform.y + height / 2}) rotate(${rotation}) scale(${event.transform.k})`);
+                if (event.sourceEvent && event.sourceEvent.type === 'wheel') {
+                    mainGroup.attr("transform", `translate(${event.transform.x + width / 2},${event.transform.y + height / 2}) rotate(${currentRotation}) scale(${event.transform.k})`);
+                }
             });
 
-        d3.select(svgRef.current).call(zoom as any);
+        d3.select(svgRef.current)
+            .call(zoom as any)
+            .call(dragRotate as any);
 
         const paths = mainGroup.selectAll("g")
             .data(root.descendants().filter(d => d.depth < 6))
@@ -193,7 +219,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             }
         });
 
-        // Curved text along arcs
+        // Curved text - always readable
         paths.each(function (d) {
             if (d.depth === 0) {
                 d3.select(this).append("text")
@@ -212,40 +238,34 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             const startAngle = d.x0;
             const endAngle = d.x1;
             const midAngle = (startAngle + endAngle) / 2;
-            const flip = midAngle > Math.PI / 2 && midAngle < 3 * Math.PI / 2;
 
-            // Calculate arc length
+            // Arc length check
             const arcAngle = endAngle - startAngle;
             const arcLength = r * arcAngle;
 
-            // Build display text
             let displayText = d.data.spouseName
                 ? `${d.data.name} & ${d.data.spouseName}`
                 : d.data.name || "Unknown";
 
-            // Estimate text width (rough approximation: 6px per character at font-size 9px)
             const estimatedTextWidth = displayText.length * 5.5;
 
-            // Only show text if arc is wide enough
-            if (arcLength < 20) {
-                // Arc too narrow, skip text entirely
-                return;
-            }
+            if (arcLength < 20) return;
 
-            // Truncate if needed
             if (estimatedTextWidth > arcLength * 0.9) {
-                // Truncate with ellipsis
                 const maxChars = Math.floor((arcLength * 0.9) / 5.5);
-                if (maxChars < 3) return; // Don't show anything if too small
+                if (maxChars < 3) return;
                 displayText = displayText.substring(0, maxChars - 1) + "…";
             }
+
+            // Always readable: reverse path on left side
+            const needsFlip = midAngle > Math.PI / 2 && midAngle < 3 * Math.PI / 2;
 
             const x0 = r * Math.sin(startAngle);
             const y0 = -r * Math.cos(startAngle);
             const x1 = r * Math.sin(endAngle);
             const y1 = -r * Math.cos(endAngle);
 
-            const pathData = flip
+            const pathData = needsFlip
                 ? `M ${x1} ${y1} A ${r} ${r} 0 0 0 ${x0} ${y0}`
                 : `M ${x0} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y1}`;
 
@@ -274,7 +294,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
     return (
         <div ref={wrapperRef} style={{ width: '100%', height: '100vh', overflow: 'hidden', background: '#f9f9f9', position: 'relative' }}>
             <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 100, background: 'rgba(255,255,255,0.9)', padding: '10px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-                <div style={{ marginBottom: '10px' }}>
+                <div>
                     <strong>Mode</strong><br />
                     <label style={{ marginRight: '10px' }}>
                         <input
@@ -294,17 +314,9 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                             onChange={() => setMode('ancestor')}
                         /> Ancestors
                     </label>
-                </div>
-                <div>
-                    <strong>Rotation</strong><br />
-                    <input
-                        type="range"
-                        min="0"
-                        max="360"
-                        value={rotation}
-                        onChange={(e) => setRotation(Number(e.target.value))}
-                        style={{ width: '100%' }}
-                    />
+                    <div style={{ marginTop: '8px', fontSize: '11px', color: '#666' }}>
+                        💡 Drag to rotate • Scroll/Pinch to zoom
+                    </div>
                 </div>
             </div>
             <svg ref={svgRef}></svg>
