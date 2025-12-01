@@ -173,32 +173,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                 .append("title")
                 .text(d => `${d.data.name}\n${d.data.dob ? d.data.dob.split('-')[0] : ''} - ${d.data.dod ? d.data.dod.split('-')[0] : ''}`);
 
-            paths.each(function (d) {
-                if (d.depth === 0) return;
-                const centroid = arc.centroid(d as any);
-                const group = d3.select(this);
 
-                if (d.data.imageUrl) {
-                    group.append("clipPath")
-                        .attr("id", `clip-${d.data.nodeId}-${Math.random().toString(36).substr(2, 9)}`)
-                        .append("circle")
-                        .attr("cx", centroid[0])
-                        .attr("cy", centroid[1] - 15)
-                        .attr("r", 12);
-
-                    const clipId = group.select("clipPath").attr("id");
-
-                    group.append("image")
-                        .attr("xlink:href", d.data.imageUrl)
-                        .attr("x", centroid[0] - 12)
-                        .attr("y", centroid[1] - 27)
-                        .attr("width", 24)
-                        .attr("height", 24)
-                        .attr("preserveAspectRatio", "xMidYMid slice")
-                        .attr("clip-path", `url(#${clipId})`)
-                        .style("pointer-events", "none");
-                }
-            });
 
             // Curved text
             paths.each(function (d) {
@@ -220,10 +195,10 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                 const endAngle = d.x1;
                 const midAngle = (startAngle + endAngle) / 2;
 
-                // No rotation offset applied to text positioning
-                const visualMidAngle = midAngle;
-
-                const needsFlip = visualMidAngle > Math.PI / 2 && visualMidAngle < 3 * Math.PI / 2;
+                // Always orient text downward (readable)
+                // In the bottom half, text should read left-to-right
+                // In the top half, text should also read left-to-right but mirrored around the arc
+                const needsFlip = midAngle > Math.PI;
 
                 const r = needsFlip
                     ? d.y0 + (d.y1 - d.y0) * 0.8
@@ -288,14 +263,15 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             renderTree(descendantData, Math.PI, 90, true);
         }
 
-        // Manually render center text for Hourglass (only once)
+        // Manually render center text for Hourglass (only once, horizontally)
         if (ancestorData || descendantData) {
             const rootName = (ancestorData || descendantData)?.name || "Unknown";
             mainGroup.append("text")
                 .attr("text-anchor", "middle")
                 .attr("dy", "0.35em")
+                .attr("transform", "rotate(0)") // Ensure horizontal text
                 .style("pointer-events", "none")
-                .style("font-size", "12px")
+                .style("font-size", "14px")
                 .style("font-weight", "bold")
                 .style("fill", "#333")
                 .text(rootName);
