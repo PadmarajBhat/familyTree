@@ -51,7 +51,8 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
 
         const svg = d3.select(svgRef.current)
             .attr("width", width)
-            .attr("height", height);
+            .attr("height", height)
+            .attr("viewBox", `0 0 ${width} ${height}`);
 
         const radius = Math.min(width, height) / 2 - 20;
 
@@ -142,34 +143,41 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
         // Gesture rotation + zoom
         let startAngle = 0;
         let currentRotation = rotation;
+        let currentScale = 1;
+        let currentTranslate = { x: 0, y: 0 };
 
         const dragRotate = d3.drag<SVGSVGElement, unknown>()
             .on("start", function (event) {
-                const [x, y] = d3.pointer(event, this);
+                const [x, y] = d3.pointer(event, svgRef.current);
                 const cx = width / 2;
                 const cy = height / 2;
                 startAngle = Math.atan2(y - cy, x - cx) * 180 / Math.PI - currentRotation;
             })
             .on("drag", function (event) {
-                const [x, y] = d3.pointer(event, this);
+                const [x, y] = d3.pointer(event, svgRef.current);
                 const cx = width / 2;
                 const cy = height / 2;
                 const angle = Math.atan2(y - cy, x - cx) * 180 / Math.PI;
                 currentRotation = angle - startAngle;
                 setRotation(currentRotation);
-                mainGroup.attr("transform", `translate(${cx},${cy}) rotate(${currentRotation})`);
+                mainGroup.attr("transform",
+                    `translate(${cx + currentTranslate.x},${cy + currentTranslate.y}) rotate(${currentRotation}) scale(${currentScale})`);
             });
 
         const zoom = d3.zoom<SVGSVGElement, unknown>()
             .scaleExtent([0.1, 5])
             .on("zoom", (event) => {
-                if (event.sourceEvent && event.sourceEvent.type === 'wheel') {
-                    mainGroup.attr("transform", `translate(${event.transform.x + width / 2},${event.transform.y + height / 2}) rotate(${currentRotation}) scale(${event.transform.k})`);
-                }
+                currentScale = event.transform.k;
+                currentTranslate = { x: event.transform.x, y: event.transform.y };
+                const cx = width / 2;
+                const cy = height / 2;
+                mainGroup.attr("transform",
+                    `translate(${cx + currentTranslate.x},${cy + currentTranslate.y}) rotate(${currentRotation}) scale(${currentScale})`);
             });
 
         d3.select(svgRef.current)
             .call(zoom as any)
+            .on("mousedown.drag", null) // Clear default drag
             .call(dragRotate as any);
 
         const paths = mainGroup.selectAll("g")
