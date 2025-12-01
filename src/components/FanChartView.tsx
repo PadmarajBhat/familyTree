@@ -116,8 +116,6 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             return { ...node, generation, spouseName, spouseImageUrl, children: children.length > 0 ? children : undefined };
         };
 
-
-
         const mainGroup = svg.append("g")
             .attr("class", "main-group")
             .attr("transform", `translate(${width / 2},${height / 2}) rotate(${rotation})`);
@@ -159,7 +157,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
 
         d3.select(svgRef.current)
             .call(zoom as any)
-            .on("mousedown.drag", null) // Clear default drag
+            .on("mousedown.drag", null)
             .call(dragRotate as any);
 
         // Two-finger touch rotation support
@@ -198,7 +196,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
         svgElement.addEventListener('touchmove', handleTouchMove, { passive: false });
         svgElement.addEventListener('touchend', handleTouchEnd);
 
-        const renderTree = (rootData: AncestorNode, partitionSize: number, rotationOffset: number) => {
+        const renderTree = (rootData: AncestorNode, partitionSize: number, rotationOffset: number, skipCenterText: boolean = false) => {
             const hierarchy = d3.hierarchy(rootData)
                 .sum(() => 1)
                 .sort((a, b) => (b.value || 0) - (a.value || 0));
@@ -249,7 +247,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
 
                 if (d.data.imageUrl) {
                     group.append("clipPath")
-                        .attr("id", `clip-${d.data.nodeId}-${Math.random().toString(36).substr(2, 9)}`) // Unique ID
+                        .attr("id", `clip-${d.data.nodeId}-${Math.random().toString(36).substr(2, 9)}`)
                         .append("circle")
                         .attr("cx", centroid[0])
                         .attr("cy", centroid[1] - 15)
@@ -272,8 +270,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             // Curved text
             paths.each(function (d) {
                 if (d.depth === 0) {
-                    // Only draw center text once, or if we are in split mode, maybe draw it in one of them?
-                    // If we draw it in both, they overlap, which is fine.
+                    if (skipCenterText) return;
                     d3.select(this).append("text")
                         .attr("text-anchor", "middle")
                         .attr("dy", "0.35em")
@@ -290,14 +287,11 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                 const endAngle = d.x1;
                 const midAngle = (startAngle + endAngle) / 2;
 
-                // Adjust angle for rotation to determine visual position
-                // We need to account for the group rotationOffset AND the main rotation
                 const totalRotation = rotation + rotationOffset;
                 const normalizedRotation = ((totalRotation % 360) + 360) % 360;
                 const rotationRad = normalizedRotation * Math.PI / 180;
                 const visualMidAngle = (midAngle + rotationRad) % (2 * Math.PI);
 
-                // Flip if in the bottom half visually
                 const needsFlip = visualMidAngle > Math.PI / 2 && visualMidAngle < 3 * Math.PI / 2;
 
                 const r = needsFlip
@@ -357,21 +351,28 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             const descendantData = buildDescendantTree(rootNodeId);
 
             if (ancestorData) {
-                // Ancestors on Top (rotate -90 so 0-180 becomes -90 to 90? No.)
-                // 0 is 12 o'clock. 0-PI is Right Half (12 to 6).
-                // Rotate -90: 12->9, 6->3. So 9 to 3 (Top Half).
-                renderTree(ancestorData, Math.PI, -90);
+                renderTree(ancestorData, Math.PI, -90, true);
             }
             if (descendantData) {
-                // Descendants on Bottom
-                // 0-PI is Right Half.
-                // Rotate 90: 12->3, 6->9. So 3 to 9 (Bottom Half).
-                renderTree(descendantData, Math.PI, 90);
+                renderTree(descendantData, Math.PI, 90, true);
+            }
+
+            // Manually render center text for Hourglass (only once)
+            if (ancestorData || descendantData) {
+                const rootName = (ancestorData || descendantData)?.name || "Unknown";
+                mainGroup.append("text")
+                    .attr("text-anchor", "middle")
+                    .attr("dy", "0.35em")
+                    .style("pointer-events", "none")
+                    .style("font-size", "12px")
+                    .style("font-weight", "bold")
+                    .style("fill", "#333")
+                    .text(rootName);
             }
         } else {
             const rootData = mode === 'ancestor' ? buildAncestorTree(rootNodeId) : buildDescendantTree(rootNodeId);
             if (rootData) {
-                renderTree(rootData, 2 * Math.PI, 0);
+                renderTree(rootData, 2 * Math.PI, 0, false);
             }
         }
 
@@ -397,7 +398,6 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                             onChange={() => setMode('descendant')}
                         /> Descendants
                     </label>
-
                     <label style={{ marginRight: '10px' }}>
                         <input
                             type="radio"
@@ -422,6 +422,6 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                 </div>
             </div>
             <svg ref={svgRef}></svg>
-        </div >
+        </div>
     );
 };
