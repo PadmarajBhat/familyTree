@@ -17,12 +17,10 @@ interface AncestorNode extends PersonNode {
     spouseImageUrl?: string | null;
 }
 
-export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, onNodeClick, initialMode = 'descendant' }) => {
+export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, onNodeClick }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-    const [mode, setMode] = useState<'ancestor' | 'descendant' | 'hourglass'>(initialMode);
-    const [rotation, setRotation] = useState(0);
 
     useEffect(() => {
         if (!wrapperRef.current) return;
@@ -118,83 +116,18 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
 
         const mainGroup = svg.append("g")
             .attr("class", "main-group")
-            .attr("transform", `translate(${width / 2},${height / 2}) rotate(${rotation})`);
+            .attr("transform", `translate(${width / 2},${height / 2})`);
 
-        // Gesture rotation + zoom
-        let startAngle = 0;
-        let currentRotation = rotation;
-        let currentScale = 1;
-        let currentTranslate = { x: 0, y: 0 };
-
-        const dragRotate = d3.drag<SVGSVGElement, unknown>()
-            .on("start", function (event) {
-                const [x, y] = d3.pointer(event, svgRef.current);
-                const cx = width / 2;
-                const cy = height / 2;
-                startAngle = Math.atan2(y - cy, x - cx) * 180 / Math.PI - currentRotation;
-            })
-            .on("drag", function (event) {
-                const [x, y] = d3.pointer(event, svgRef.current);
-                const cx = width / 2;
-                const cy = height / 2;
-                const angle = Math.atan2(y - cy, x - cx) * 180 / Math.PI;
-                currentRotation = angle - startAngle;
-                setRotation(currentRotation);
-                mainGroup.attr("transform",
-                    `translate(${cx + currentTranslate.x},${cy + currentTranslate.y}) rotate(${currentRotation}) scale(${currentScale})`);
-            });
-
+        // Zoom only (no rotation)
         const zoom = d3.zoom<SVGSVGElement, unknown>()
-            .scaleExtent([0.1, 5])
+            .scaleExtent([0.5, 3])
             .on("zoom", (event) => {
-                currentScale = event.transform.k;
-                currentTranslate = { x: event.transform.x, y: event.transform.y };
-                const cx = width / 2;
-                const cy = height / 2;
                 mainGroup.attr("transform",
-                    `translate(${cx + currentTranslate.x},${cy + currentTranslate.y}) rotate(${currentRotation}) scale(${currentScale})`);
+                    `translate(${width / 2 + event.transform.x},${height / 2 + event.transform.y}) scale(${event.transform.k})`);
             });
 
         d3.select(svgRef.current)
-            .call(zoom as any)
-            .on("mousedown.drag", null)
-            .call(dragRotate as any);
-
-        // Two-finger touch rotation support
-        let lastTouchAngle = 0;
-
-        const handleTouchMove = (event: TouchEvent) => {
-            if (event.touches.length === 2) {
-                event.preventDefault();
-                const touch1 = event.touches[0];
-                const touch2 = event.touches[1];
-
-                const dx = touch2.clientX - touch1.clientX;
-                const dy = touch2.clientY - touch1.clientY;
-                const touchAngle = Math.atan2(dy, dx) * 180 / Math.PI;
-
-                if (lastTouchAngle !== 0) {
-                    const deltaAngle = touchAngle - lastTouchAngle;
-                    currentRotation += deltaAngle;
-                    setRotation(currentRotation);
-                    const cx = width / 2;
-                    const cy = height / 2;
-                    mainGroup.attr("transform",
-                        `translate(${cx + currentTranslate.x},${cy + currentTranslate.y}) rotate(${currentRotation}) scale(${currentScale})`);
-                }
-                lastTouchAngle = touchAngle;
-            } else {
-                lastTouchAngle = 0;
-            }
-        };
-
-        const handleTouchEnd = () => {
-            lastTouchAngle = 0;
-        };
-
-        const svgElement = svgRef.current;
-        svgElement.addEventListener('touchmove', handleTouchMove, { passive: false });
-        svgElement.addEventListener('touchend', handleTouchEnd);
+            .call(zoom as any);
 
         const renderTree = (rootData: AncestorNode, partitionSize: number, rotationOffset: number, skipCenterText: boolean = false) => {
             const hierarchy = d3.hierarchy(rootData)
@@ -287,10 +220,8 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                 const endAngle = d.x1;
                 const midAngle = (startAngle + endAngle) / 2;
 
-                const totalRotation = rotation + rotationOffset;
-                const normalizedRotation = ((totalRotation % 360) + 360) % 360;
-                const rotationRad = normalizedRotation * Math.PI / 180;
-                const visualMidAngle = (midAngle + rotationRad) % (2 * Math.PI);
+                // No rotation offset applied to text positioning
+                const visualMidAngle = midAngle;
 
                 const needsFlip = visualMidAngle > Math.PI / 2 && visualMidAngle < 3 * Math.PI / 2;
 
@@ -346,80 +277,36 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             });
         };
 
-        if (mode === 'hourglass') {
-            const ancestorData = buildAncestorTree(rootNodeId);
-            const descendantData = buildDescendantTree(rootNodeId);
+        // Always render in hourglass mode
+        const ancestorData = buildAncestorTree(rootNodeId);
+        const descendantData = buildDescendantTree(rootNodeId);
 
-            if (ancestorData) {
-                renderTree(ancestorData, Math.PI, -90, true);
-            }
-            if (descendantData) {
-                renderTree(descendantData, Math.PI, 90, true);
-            }
-
-            // Manually render center text for Hourglass (only once)
-            if (ancestorData || descendantData) {
-                const rootName = (ancestorData || descendantData)?.name || "Unknown";
-                mainGroup.append("text")
-                    .attr("text-anchor", "middle")
-                    .attr("dy", "0.35em")
-                    .style("pointer-events", "none")
-                    .style("font-size", "12px")
-                    .style("font-weight", "bold")
-                    .style("fill", "#333")
-                    .text(rootName);
-            }
-        } else {
-            const rootData = mode === 'ancestor' ? buildAncestorTree(rootNodeId) : buildDescendantTree(rootNodeId);
-            if (rootData) {
-                renderTree(rootData, 2 * Math.PI, 0, false);
-            }
+        if (ancestorData) {
+            renderTree(ancestorData, Math.PI, -90, true);
+        }
+        if (descendantData) {
+            renderTree(descendantData, Math.PI, 90, true);
         }
 
-        // Cleanup
-        return () => {
-            svgElement.removeEventListener('touchmove', handleTouchMove);
-            svgElement.removeEventListener('touchend', handleTouchEnd);
-        };
+        // Manually render center text for Hourglass (only once)
+        if (ancestorData || descendantData) {
+            const rootName = (ancestorData || descendantData)?.name || "Unknown";
+            mainGroup.append("text")
+                .attr("text-anchor", "middle")
+                .attr("dy", "0.35em")
+                .style("pointer-events", "none")
+                .style("font-size", "12px")
+                .style("font-weight", "bold")
+                .style("fill", "#333")
+                .text(rootName);
+        }
 
-    }, [data, rootNodeId, dimensions, mode, rotation]);
+    }, [data, rootNodeId, dimensions]);
 
     return (
         <div ref={wrapperRef} style={{ width: '100%', height: '100vh', overflow: 'hidden', background: '#f9f9f9', position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 100, background: 'rgba(255,255,255,0.9)', padding: '10px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-                <div>
-                    <strong>Mode</strong><br />
-                    <label style={{ marginRight: '10px' }}>
-                        <input
-                            type="radio"
-                            name="chartMode"
-                            value="descendant"
-                            checked={mode === 'descendant'}
-                            onChange={() => setMode('descendant')}
-                        /> Descendants
-                    </label>
-                    <label style={{ marginRight: '10px' }}>
-                        <input
-                            type="radio"
-                            name="chartMode"
-                            value="ancestor"
-                            checked={mode === 'ancestor'}
-                            onChange={() => setMode('ancestor')}
-                        /> Ancestors
-                    </label>
-                    <label>
-                        <input
-                            type="radio"
-                            name="chartMode"
-                            value="hourglass"
-                            checked={mode === 'hourglass'}
-                            onChange={() => setMode('hourglass')}
-                        /> Hourglass
-                    </label>
-                    <div style={{ marginTop: '8px', fontSize: '11px', color: '#666' }}>
-                        💡 Drag to rotate • Scroll/Pinch to zoom
-                    </div>
-                </div>
+            <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 100, background: 'rgba(255,255,255,0.9)', padding: '10px', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', fontSize: '11px', color: '#666' }}>
+                💡 Click nodes to view details • Scroll/Pinch to zoom
             </div>
             <svg ref={svgRef}></svg>
         </div>
