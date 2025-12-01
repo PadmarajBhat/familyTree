@@ -92,7 +92,6 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
         };
 
         const rootData = mode === 'ancestor' ? buildAncestorTree(rootNodeId) : buildDescendantTree(rootNodeId);
-        console.log("FanChart Debug:", { mode, rootNodeId, rootData, node: data.nodes[rootNodeId] });
 
         if (!rootData) return;
 
