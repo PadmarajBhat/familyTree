@@ -331,6 +331,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                 .attr("xlink:href", `#${pathId}`)
                 .attr("startOffset", "50%")
                 .attr("text-anchor", "middle")
+                .attr("dy", "0.35em")
                 .text(displayText);
         });
 
