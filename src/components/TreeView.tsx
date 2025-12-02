@@ -84,10 +84,14 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
                 .map(childId => buildHierarchy(childId, newPath))
                 .filter((n): n is HierarchyPersonNode => n !== null);
 
+            // Use actualChildrenCount if available (from PersonDetail filtering),
+            // otherwise use the calculated children count
+            const childCount = (node as any).actualChildrenCount ?? children.length;
+
             return {
                 ...node,
                 children: children.length > 0 ? children : undefined,
-                childrenCount: children.length
+                childrenCount: childCount
             };
         };
 

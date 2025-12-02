@@ -76,17 +76,19 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, onClose,
         const newNodes: Record<string, PersonNode> = {};
         relevantNodeIds.forEach(id => {
             if (tree.nodes[id]) {
-                // We need to clone the node to modify childrenIds if necessary
-                // But wait, if we include a node, we must include its children ONLY if they are in relevantNodeIds
-                // Otherwise the TreeView might try to render missing children or lines to nowhere.
-                // Actually, TreeView uses `childrenIds` to find children. If a child ID is in `childrenIds` but not in `nodes`, it handles it (returns null).
-                // However, for the "Single Line" requirement, we want to HIDE siblings of ancestors.
-
                 const originalNode = tree.nodes[id];
                 const newNode = { ...originalNode };
 
+                // Track the actual total children count before filtering
+                const actualChildrenCount = originalNode.childrenIds.length;
+
                 // Filter children: Only keep children that are in relevantNodeIds
+                // This creates the "single line" path for ancestors
                 newNode.childrenIds = originalNode.childrenIds.filter(childId => relevantNodeIds.has(childId));
+
+                // Preserve the original children count as a custom property
+                // This ensures TreeView displays the correct count
+                (newNode as any).actualChildrenCount = actualChildrenCount;
 
                 newNodes[id] = newNode;
             }
