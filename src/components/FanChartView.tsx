@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import type { TreeDocument, PersonNode } from '../logic/types';
+import { getPhotoUrl } from '../services/drive';
 
 interface FanChartViewProps {
     data: TreeDocument;
@@ -247,14 +248,17 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                     const centroid = arc.centroid(d as any);
 
                     if (d.data.imageUrl) {
-                        group.append("image")
-                            .attr("xlink:href", d.data.imageUrl)
-                            .attr("width", imageSize)
-                            .attr("height", imageSize)
-                            .attr("x", centroid[0] - imageSize / 2)
-                            .attr("y", centroid[1] - imageSize / 2)
-                            .attr("clip-path", `url(#${clipId})`)
-                            .style("pointer-events", "none");
+                        const imageUrl = getPhotoUrl(d.data.imageUrl);
+                        if (imageUrl) {
+                            group.append("image")
+                                .attr("xlink:href", imageUrl)
+                                .attr("width", imageSize)
+                                .attr("height", imageSize)
+                                .attr("x", centroid[0] - imageSize / 2)
+                                .attr("y", centroid[1] - imageSize / 2)
+                                .attr("clip-path", `url(#${clipId})`)
+                                .style("pointer-events", "none");
+                        }
                     }
                 }
 
@@ -275,7 +279,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                     .attr("xlink:href", `#${pathId}`)
                     .attr("startOffset", "50%")
                     .attr("text-anchor", "middle")
-                    .attr("dy", "0.35em") // Adjust this if image pushes text too much, but for now keep it simple
+                    .attr("dy", "0.35em")
                     .text(displayText);
             });
         };
@@ -321,37 +325,43 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             const centerImageSize = 30;
 
             if (rootNode.imageUrl) {
-                mainGroup.append("clipPath")
-                    .attr("id", "center-clip-root")
-                    .append("circle")
-                    .attr("r", centerImageSize / 2)
-                    .attr("cx", spouseName ? -20 : 0)
-                    .attr("cy", -15);
+                const rootImageUrl = getPhotoUrl(rootNode.imageUrl);
+                if (rootImageUrl) {
+                    mainGroup.append("clipPath")
+                        .attr("id", "center-clip-root")
+                        .append("circle")
+                        .attr("r", centerImageSize / 2)
+                        .attr("cx", spouseName ? -20 : 0)
+                        .attr("cy", -15);
 
-                mainGroup.append("image")
-                    .attr("xlink:href", rootNode.imageUrl)
-                    .attr("width", centerImageSize)
-                    .attr("height", centerImageSize)
-                    .attr("x", (spouseName ? -20 : 0) - centerImageSize / 2)
-                    .attr("y", -15 - centerImageSize / 2)
-                    .attr("clip-path", "url(#center-clip-root)");
+                    mainGroup.append("image")
+                        .attr("xlink:href", rootImageUrl)
+                        .attr("width", centerImageSize)
+                        .attr("height", centerImageSize)
+                        .attr("x", (spouseName ? -20 : 0) - centerImageSize / 2)
+                        .attr("y", -15 - centerImageSize / 2)
+                        .attr("clip-path", "url(#center-clip-root)");
+                }
             }
 
             if (spouseName && rootNode.spouseImageUrl) {
-                mainGroup.append("clipPath")
-                    .attr("id", "center-clip-spouse")
-                    .append("circle")
-                    .attr("r", centerImageSize / 2)
-                    .attr("cx", 20)
-                    .attr("cy", -15);
+                const spouseImageUrl = getPhotoUrl(rootNode.spouseImageUrl);
+                if (spouseImageUrl) {
+                    mainGroup.append("clipPath")
+                        .attr("id", "center-clip-spouse")
+                        .append("circle")
+                        .attr("r", centerImageSize / 2)
+                        .attr("cx", 20)
+                        .attr("cy", -15);
 
-                mainGroup.append("image")
-                    .attr("xlink:href", rootNode.spouseImageUrl)
-                    .attr("width", centerImageSize)
-                    .attr("height", centerImageSize)
-                    .attr("x", 20 - centerImageSize / 2)
-                    .attr("y", -15 - centerImageSize / 2)
-                    .attr("clip-path", "url(#center-clip-spouse)");
+                    mainGroup.append("image")
+                        .attr("xlink:href", spouseImageUrl)
+                        .attr("width", centerImageSize)
+                        .attr("height", centerImageSize)
+                        .attr("x", 20 - centerImageSize / 2)
+                        .attr("y", -15 - centerImageSize / 2)
+                        .attr("clip-path", "url(#center-clip-spouse)");
+                }
             }
 
             // Add text on top of background
