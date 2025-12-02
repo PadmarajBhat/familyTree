@@ -9,6 +9,7 @@ interface FanChartViewProps {
     rootNodeId: string;
     onNodeClick: (nodeId: string) => void;
     initialMode?: 'ancestor' | 'descendant' | 'hourglass';
+    onResetRoot?: () => void;
 }
 
 interface AncestorNode extends PersonNode {
@@ -19,7 +20,7 @@ interface AncestorNode extends PersonNode {
     spouseImageUrl?: string | null;
 }
 
-export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, onNodeClick }) => {
+export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, onNodeClick, onResetRoot }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -41,6 +42,9 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
     }, []);
 
     const handleReset = () => {
+        if (onResetRoot) {
+            onResetRoot();
+        }
         if (svgRef.current && zoomBehavior.current) {
             d3.select(svgRef.current)
                 .transition()

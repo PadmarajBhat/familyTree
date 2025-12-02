@@ -671,7 +671,7 @@ function App() {
     }
   };
 
-  const handleToggleEditor = async (nodeId: string, newStatus: boolean) => {
+  const handleToggleEditor = async (nodeId: string, newStatus: boolean, updates?: { email?: string; phone?: string }) => {
     if (viewMode === 'sample') {
       alert("Editing is disabled in Sample Mode.");
       return;
@@ -703,6 +703,12 @@ function App() {
     targetNode.editedBy = currentUser.email;
     targetNode.editedTime = getISTTimestamp();
 
+    // Apply updates if provided
+    if (updates) {
+      if (updates.email) targetNode.email = updates.email;
+      if (updates.phone) targetNode.phone = updates.phone;
+    }
+
     // Increment version
     updatedTree.versionIndex++;
     updatedTree.timestamp = getISTTimestamp();
@@ -718,6 +724,12 @@ function App() {
       alert("Failed to save changes to Google Drive.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetRoot = () => {
+    if (tree) {
+      setFanRootId(tree.rootNodeId);
     }
   };
 
@@ -901,6 +913,7 @@ function App() {
                   rootNodeId={fanRootId || selectedNodeId || tree.rootNodeId}
                   onNodeClick={handleNodeClick}
                   initialMode="hourglass"
+                  onResetRoot={handleResetRoot}
                 />
               </div>
             )}
