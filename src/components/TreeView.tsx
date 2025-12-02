@@ -8,6 +8,7 @@ interface TreeViewProps {
     onNodeClick: (nodeId: string) => void;
     onNodeLongPress: (nodeId: string) => void;
     maxDepth?: number | null;
+    isExporting?: boolean;
 }
 
 interface HierarchyPersonNode extends PersonNode {
@@ -21,7 +22,7 @@ interface ExtendedHierarchyNode extends d3.HierarchyNode<HierarchyPersonNode> {
     y0?: number;
 }
 
-export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth }) => {
+export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth, isExporting }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -48,9 +49,10 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
     useEffect(() => {
         if (!data || !svgRef.current || !wrapperRef.current) return;
 
-        const { width, height } = dimensions.width > 0 ? dimensions : {
-            width: wrapperRef.current.clientWidth,
-            height: wrapperRef.current.clientHeight
+        // If exporting, we don't constrain by container dimensions initially
+        const { width, height } = (dimensions.width > 0 && !isExporting) ? dimensions : {
+            width: wrapperRef.current.clientWidth || 1000, // Fallback width
+            height: wrapperRef.current.clientHeight || 800
         };
 
         if (width === 0 || height === 0) return;
@@ -68,8 +70,11 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
             g.attr("transform", event.transform);
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        svg.call(zoom as any);
+        // Only enable zoom if not exporting
+        if (!isExporting) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            svg.call(zoom as any);
+        }
 
         // --- Build Hierarchy with Direct Children Count ---
         const buildHierarchy = (nodeId: string, path: Set<string> = new Set()): HierarchyPersonNode | null => {
@@ -415,32 +420,63 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth 
         });
 
         const padding = 50;
-        const treeWidth = maxX - minX;
-        // const treeHeight = maxY - minY; // Not strictly needed for vertical if we just want to fit width or scale reasonably
 
-        // Calculate scale to fit width (with some limits)
-        const availableWidth = width - padding * 2;
-        const scaleX = availableWidth / (treeWidth || 1);
+        if (isExporting) {
+            // --- EXPORT MODE: Fit to content ---
+            const treeWidth = (maxX - minX) + padding * 2;
+            const treeHeight = (maxY - minY) + padding * 2;
 
-        // Limit scale to be reasonable (e.g., not too zoomed in, not too zoomed out)
-        const scale = Math.min(Math.max(scaleX, 0.2), 1.2);
+            // Resize SVG to fit the entire tree
+            svg.attr("width", treeWidth)
+                .attr("height", treeHeight);
 
-        // Center horizontally based on the tree's center
-        const centerX = (minX + maxX) / 2;
-        const translateX = width / 2 - centerX * scale;
-        const translateY = 50; // Fixed top padding
+            // Center the tree within the new dimensions
+            // We shift by -minX to align left edge to 0, then add padding
+            const translateX = -minX + padding;
+            const translateY = -minY + padding;
 
-        const initialTransform = d3.zoomIdentity
-            .translate(translateX, translateY)
-            .scale(scale);
+            const exportTransform = d3.zoomIdentity
+                .translate(translateX, translateY)
+                .scale(1);
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        svg.call(zoom.transform as any, initialTransform);
+            // Apply transform directly
+            g.attr("transform", exportTransform.toString());
 
-    }, [data, maxDepth, dimensions]);
+        } else {
+            // --- NORMAL MODE: Fit to screen ---
+            const treeWidth = maxX - minX;
+            // const treeHeight = maxY - minY; 
+
+            // Calculate scale to fit width (with some limits)
+            const availableWidth = width - padding * 2;
+            const scaleX = availableWidth / (treeWidth || 1);
+
+            // Limit scale to be reasonable
+            const scale = Math.min(Math.max(scaleX, 0.2), 1.2);
+
+            // Center horizontally based on the tree's center
+            const centerX = (minX + maxX) / 2;
+            const translateX = width / 2 - centerX * scale;
+            const translateY = 50; // Fixed top padding
+
+            const initialTransform = d3.zoomIdentity
+                .translate(translateX, translateY)
+                .scale(scale);
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            svg.call(zoom.transform as any, initialTransform);
+        }
+
+    }, [data, maxDepth, dimensions, isExporting]);
 
     return (
-        <div ref={wrapperRef} style={{ width: '100%', height: '100vh', overflow: 'hidden', background: '#f9f9f9' }}>
+        <div ref={wrapperRef} style={{
+            width: isExporting ? 'auto' : '100%',
+            height: isExporting ? 'auto' : '100vh',
+            overflow: isExporting ? 'visible' : 'hidden',
+            background: '#f9f9f9',
+            minHeight: isExporting ? '100px' : undefined // Ensure some height
+        }}>
             <svg ref={svgRef}></svg>
         </div>
     );

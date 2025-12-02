@@ -30,6 +30,9 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, onClose,
 
     const handleExportPdf = async () => {
         setIsExportingPdf(true);
+        // Wait for re-render to apply "isExporting" styles to TreeView
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         try {
             await exportPersonDetailToPdf(node, 'person-detail-tree');
         } catch (error) {
@@ -178,6 +181,7 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, onClose,
                         data={filteredTreeData}
                         onNodeClick={onNodeClick}
                         onNodeLongPress={() => { }}
+                        isExporting={isExportingPdf}
                     // No maxDepth for this view, or maybe we want to show all?
                     // The user said "show all descendents", so no limit.
                     />
