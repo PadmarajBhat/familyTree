@@ -72,7 +72,7 @@ export const MemberSearch: React.FC<MemberSearchProps> = ({ nodes, onMemberClick
                             <div className="member-info">
                                 <div className="member-name">
                                     {member.name || "Unknown"}
-                                    {!member.parentId && (!member.childrenIds || member.childrenIds.length === 0) && <span className="orphan-badge" title="No parent or children linked">Orphan</span>}
+                                    {!member.parentId && (!member.childrenIds || member.childrenIds.length === 0) && (!member.spouseIds || member.spouseIds.length === 0) && <span className="orphan-badge" title="No parent, children, or spouse linked">Orphan</span>}
                                 </div>
                                 <div className="member-details">
                                     <span>
