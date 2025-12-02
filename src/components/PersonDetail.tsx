@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { PersonNode, TreeDocument } from '../logic/types';
 import { CloseButton } from './CloseButton';
 import { getPhotoUrl } from '../services/drive';
 import { TreeView } from './TreeView';
+import { exportPersonDetailToPdf } from '../utils/exportPdf';
 import './PersonDetail.css';
 
 interface PersonDetailProps {
@@ -16,15 +17,28 @@ interface PersonDetailProps {
 
 export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, onClose, onEdit, onDelete, onNodeClick }) => {
     const isOrphan = !node.parentId && node.childrenIds.length === 0 && node.spouseIds.length === 0;
+    const [isExportingPdf, setIsExportingPdf] = useState(false);
 
-    // Filter fields to show only non-empty ones
+    // Show ALL fields including empty ones
     const fields = [
-        { label: 'Born', value: node.dob },
-        { label: 'Died', value: node.dod },
-        { label: 'Phone', value: node.phone },
-        { label: 'Email', value: node.email },
-        { label: 'Address', value: node.address.freeform },
-    ].filter(field => field.value && field.value.trim() !== '');
+        { label: 'Born', value: node.dob || '—' },
+        { label: 'Died', value: node.dod || '—' },
+        { label: 'Phone', value: node.phone || '—' },
+        { label: 'Email', value: node.email || '—' },
+        { label: 'Address', value: node.address.freeform || '—' },
+    ];
+
+    const handleExportPdf = async () => {
+        setIsExportingPdf(true);
+        try {
+            await exportPersonDetailToPdf(node, 'person-detail-tree');
+        } catch (error) {
+            alert('Failed to export PDF. Please try again.');
+            console.error(error);
+        } finally {
+            setIsExportingPdf(false);
+        }
+    };
 
     // Logic to build the filtered tree data
     // 1. Path from root to current node (single line)
@@ -132,6 +146,13 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, onClose,
 
                         <div className="detail-actions">
                             <button onClick={onEdit}>Edit Details</button>
+                            <button
+                                onClick={handleExportPdf}
+                                disabled={isExportingPdf}
+                                className="export-pdf-button"
+                            >
+                                {isExportingPdf ? 'Generating PDF...' : 'Export PDF'}
+                            </button>
                             {isOrphan && (
                                 <button
                                     onClick={() => {
@@ -149,7 +170,7 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, onClose,
                 </div>
             </div>
 
-            <div className="person-detail-tree">
+            <div id="person-detail-tree" className="person-detail-tree">
                 {filteredTreeData && (
                     <TreeView
                         data={filteredTreeData}
