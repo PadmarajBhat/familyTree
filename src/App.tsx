@@ -151,6 +151,27 @@ function App() {
 
         const treeDoc = content as TreeDocument;
 
+        // Validation and Fix Logic: Ensure rootNodeId points to a valid node
+        if (treeDoc.rootNodeId && !treeDoc.nodes[treeDoc.rootNodeId]) {
+          console.warn(`Root node ${treeDoc.rootNodeId} not found in nodes! Attempting to fix...`);
+          const nodeIds = Object.keys(treeDoc.nodes);
+          if (nodeIds.length > 0) {
+            // Find a node with no parent (potential root)
+            const newRoot = Object.values(treeDoc.nodes).find(n => !n.parentId);
+            if (newRoot) {
+              treeDoc.rootNodeId = newRoot.nodeId;
+              console.log("Fixed root node to:", newRoot.name, newRoot.nodeId);
+            } else {
+              // If all nodes have parents (cycle?) or no orphans, pick the first one
+              treeDoc.rootNodeId = nodeIds[0];
+              console.log("Could not find orphan, picking first node as root:", treeDoc.nodes[nodeIds[0]].name);
+            }
+          } else {
+            console.warn("Tree has no nodes.");
+            treeDoc.rootNodeId = "";
+          }
+        }
+
         // Access Control Check
         if (currentUser && currentUser.email) {
           const userEmail = currentUser.email.toLowerCase();
