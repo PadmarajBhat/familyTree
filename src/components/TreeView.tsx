@@ -49,6 +49,13 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
     useEffect(() => {
         if (!data || !svgRef.current || !wrapperRef.current) return;
 
+        console.log('TreeView rendering with data:', {
+            rootNodeId: data.rootNodeId,
+            nodeCount: Object.keys(data.nodes).length,
+            rootNode: data.nodes[data.rootNodeId],
+            allNodeIds: Object.keys(data.nodes)
+        });
+
         // If exporting, we don't constrain by container dimensions initially
         const { width, height } = (dimensions.width > 0 && !isExporting) ? dimensions : {
             width: wrapperRef.current.clientWidth || 1000, // Fallback width
@@ -79,11 +86,17 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
         // --- Build Hierarchy with Direct Children Count ---
         const buildHierarchy = (nodeId: string, path: Set<string> = new Set()): HierarchyPersonNode | null => {
             // Cycle detection
-            if (path.has(nodeId)) return null;
+            if (path.has(nodeId)) {
+                console.error(`Cycle detected at node ${nodeId}. Path:`, Array.from(path));
+                return null;
+            }
             const newPath = new Set(path).add(nodeId);
 
             const node = data.nodes[nodeId];
-            if (!node) return null;
+            if (!node) {
+                console.error(`Node ${nodeId} not found in data.nodes`);
+                return null;
+            }
 
             const children = node.childrenIds
                 .map(childId => buildHierarchy(childId, newPath))
@@ -100,8 +113,13 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
             };
         };
 
+        console.log('Building tree hierarchy from rootNodeId:', data.rootNodeId);
         const hierarchyData = buildHierarchy(data.rootNodeId);
-        if (!hierarchyData) return;
+        if (!hierarchyData) {
+            console.error('Failed to build hierarchy! Check logs above for cycle or missing node errors.');
+            return;
+        }
+        console.log('Hierarchy built successfully:', hierarchyData);
 
         const root = d3.hierarchy(hierarchyData) as ExtendedHierarchyNode;
         root.x0 = width / 2;
