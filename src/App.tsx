@@ -403,9 +403,7 @@ function App() {
       }
 
       // Handle Reparenting / Linking
-      console.log('[DEBUG] Parent change detection:', { oldParentId, newParentId, areEqual: newParentId === oldParentId });
       if (newParentId !== oldParentId) {
-        console.log('[DEBUG] Parent change detected! Processing reparenting...');
         // Remove from old parent
         if (oldParentId && updatedTree.nodes[oldParentId]) {
           updatedTree.nodes[oldParentId].childrenIds = updatedTree.nodes[oldParentId].childrenIds.filter(id => id !== personData.nodeId);
@@ -434,8 +432,6 @@ function App() {
           before: { parentId: oldParentId },
           after: { parentId: newParentId }
         });
-      } else {
-        console.log('[DEBUG] No parent change detected');
       }
 
       // Handle Children Updates
@@ -616,12 +612,8 @@ function App() {
       }
 
       const summaryText = changes.join('; ');
-      console.log('[DEBUG] Final changes array:', changes);
-      console.log('[DEBUG] Summary text:', summaryText);
-      console.log('[DEBUG] Editor mode:', editorMode);
       if (!summaryText && editorMode === 'edit') {
         // No changes detected
-        console.log('[DEBUG] No changes detected - showing alert');
         setEditorMode(null);
         setEditingNodeId(null);
         alert("No changes detected.");

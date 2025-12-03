@@ -321,9 +321,9 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                 ageProvided: age ? parseInt(age) : null,
                 dobInferred: dobInferred,
                 address: { freeform: address || null },
-                spouseIds: initialData?.spouseIds || [],
-                parentId: parentId, // Updated parent ID
-                childrenIds: initialData?.childrenIds || [],
+                spouseIds: initialData?.spouseIds || [], // Use original spouseIds, changes passed separately
+                parentId: initialData?.parentId || null, // Use original parentId, changes passed separately
+                childrenIds: initialData?.childrenIds || [], // Use original childrenIds, changes passed separately
                 isEditor: initialData?.isEditor || false,
                 editorSince: initialData?.editorSince || null,
                 editedBy: currentUserEmail,
