@@ -16,79 +16,74 @@
     padding: 0 20px 20px 20px;
 }
 
-.version-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
 }
 
-.version-table th,
-.version-table td {
-    padding: 12px;
-    text-align: left;
-    border-bottom: 1px solid #eee;
-    vertical-align: top;
+.history-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
-.version-table th {
-    background-color: #f8f9fa;
+.group-header {
+    font-size: 1.1rem;
     font-weight: 600;
-    color: #444;
-    position: sticky;
-    top: 0;
-    z-index: 1;
-}
-
-.sr-col {
-    width: 60px;
-}
-
-.root-col {
-    width: 150px;
-}
-
-.summary-col {
-    /* Takes remaining space */
-}
-
-.sr-cell {
-    color: #666;
-    font-family: monospace;
-}
-
-.root-cell {
-    font-weight: 500;
-}
-
-.changes-text {
-    font-size: 14px;
-    color: #333;
-    margin-bottom: 4px;
-}
-
-.changes-meta {
-    font-size: 12px;
     color: #888;
+    margin: 0 0 8px 0;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 4px;
+}
+
+.author-group {
+    background: #f9f9f9;
+    border-radius: 8px;
+    padding: 12px;
+    border: 1px solid #eee;
+}
+
+.author-header {
+    font-weight: 600;
+    color: #333;
     margin-bottom: 8px;
+    font-size: 0.95rem;
 }
 
-.changes-details {
-    margin-top: 4px;
+.author-logs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.changes-details summary {
-    cursor: pointer;
-    color: #0066cc;
-    font-size: 12px;
+.log-entry {
+    display: flex;
+    gap: 12px;
+    font-size: 0.9rem;
+    padding: 4px 0;
 }
 
-.changes-details pre {
-    background: #f5f5f5;
-    padding: 8px;
-    border-radius: 4px;
-    overflow-x: auto;
-    font-size: 11px;
-    margin-top: 4px;
+.log-time {
+    color: #888;
+    font-size: 0.85rem;
+    min-width: 60px;
+    padding-top: 2px;
+}
+
+.log-content {
+    flex: 1;
+}
+
+.log-changes {
+    color: #444;
+    line-height: 1.4;
+}
+
+.log-root {
+    font-size: 0.8rem;
+    color: #999;
+    margin-top: 2px;
 }
 
 .empty-state {
@@ -99,18 +94,16 @@
 
 /* Mobile responsive */
 @media (max-width: 768px) {
-
-    .version-table th,
-    .version-table td {
-        padding: 8px;
-        font-size: 13px;
+    .version-table-wrapper {
+        padding: 0 10px 10px 10px;
     }
 
-    .sr-col {
-        width: 40px;
+    .log-entry {
+        flex-direction: column;
+        gap: 4px;
     }
 
-    .root-col {
-        width: 100px;
+    .log-time {
+        font-size: 0.75rem;
     }
 }

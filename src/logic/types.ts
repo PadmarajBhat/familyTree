@@ -34,7 +34,7 @@ export interface ChangeLog {
   editedTime: string;
   changes: string;
   rootNodeName?: string;
-  structured: StructuredChange[];
+  structured?: StructuredChange[];
 }
 
 export interface StructuredChange {
