@@ -145,6 +145,13 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
 
         const treeLayout = d3.tree<HierarchyPersonNode>().nodeSize([160, 200]); // Increased spacing
 
+        // Safe link generator to handle NaN coordinates
+        const safeLink = d3.linkVertical()
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .x((d: any) => (d.x === undefined || isNaN(d.x)) ? 0 : d.x)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .y((d: any) => (d.y === undefined || isNaN(d.y)) ? 0 : d.y) as any;
+
         const update = (source: ExtendedHierarchyNode) => {
             const treeData = treeLayout(root);
             const nodes = treeData.descendants() as ExtendedHierarchyNode[];
@@ -382,8 +389,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
                 .attr("class", "link")
                 .attr("d", () => {
                     const o = { x: source.x0 || 0, y: source.y0 || 0 };
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    return d3.linkVertical()({ source: o, target: o } as any);
+                    return safeLink({ source: o, target: o });
                 })
                 .style("fill", "none")
                 .style("stroke", "#ccc")
@@ -393,19 +399,13 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
 
             linkUpdate.transition()
                 .duration(200)
-                .attr("d", d3.linkVertical()
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    .x((d: any) => (d.x === undefined || isNaN(d.x)) ? 0 : d.x)
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    .y((d: any) => (d.y === undefined || isNaN(d.y)) ? 0 : d.y) as any
-                );
+                .attr("d", safeLink);
 
             link.exit().transition()
                 .duration(200)
                 .attr("d", () => {
                     const o = { x: source.x || 0, y: source.y || 0 };
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    return d3.linkVertical()({ source: o, target: o } as any);
+                    return safeLink({ source: o, target: o });
                 })
                 .remove();
 

@@ -10,9 +10,12 @@ interface VersionHistoryProps {
 
 interface GroupedLog {
     dateCategory: string;
-    authorGroups: {
-        author: string;
-        logs: ChangeLog[];
+    dateGroups: {
+        date: string;
+        authorGroups: {
+            author: string;
+            logs: ChangeLog[];
+        }[];
     }[];
 }
 
@@ -55,24 +58,52 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, onClose
         categories.forEach(category => {
             const logs = groups[category];
             if (logs.length > 0) {
-                // Group by author within this category
-                const authorMap: Record<string, ChangeLog[]> = {};
+                // Group by date within this category
+                const dateMap: Record<string, ChangeLog[]> = {};
+
                 logs.forEach(log => {
-                    const author = log.editedBy || 'Unknown';
-                    if (!authorMap[author]) {
-                        authorMap[author] = [];
+                    const dateStr = new Date(log.editedTime).toLocaleDateString('en-IN', {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                    });
+                    if (!dateMap[dateStr]) {
+                        dateMap[dateStr] = [];
                     }
-                    authorMap[author].push(log);
+                    dateMap[dateStr].push(log);
                 });
 
-                const authorGroups = Object.keys(authorMap).map(author => ({
-                    author,
-                    logs: authorMap[author]
-                }));
+                // Sort dates descending (newest first) - simplistic approach by finding max time in group
+                const dateGroups = Object.keys(dateMap).map(date => {
+                    const dateLogs = dateMap[date];
+
+                    // Group by author within this date
+                    const authorMap: Record<string, ChangeLog[]> = {};
+                    dateLogs.forEach(log => {
+                        const author = log.editedBy || 'Unknown';
+                        if (!authorMap[author]) {
+                            authorMap[author] = [];
+                        }
+                        authorMap[author].push(log);
+                    });
+
+                    const authorGroups = Object.keys(authorMap).map(author => ({
+                        author,
+                        logs: authorMap[author]
+                    }));
+
+                    return {
+                        date,
+                        authorGroups,
+                        // Keep a reference time for sorting
+                        timestamp: dateLogs[0] ? new Date(dateLogs[0].editedTime).getTime() : 0
+                    };
+                }).sort((a, b) => b.timestamp - a.timestamp);
 
                 result.push({
                     dateCategory: category,
-                    authorGroups
+                    dateGroups
                 });
             }
         });
@@ -93,26 +124,31 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, onClose
                 ) : (
                     <div className="history-list">
                         {groupedLogs.map((group) => (
-                            <div key={group.dateCategory} className="history-group">
-                                <h3 className="group-header">{group.dateCategory}</h3>
-                                {group.authorGroups.map((authorGroup) => (
-                                    <div key={authorGroup.author} className="author-group">
-                                        <div className="author-header">
-                                            <span className="author-name">{authorGroup.author}</span>
-                                        </div>
-                                        <div className="author-logs">
-                                            {authorGroup.logs.map((log, idx) => (
-                                                <div key={idx} className="log-entry">
-                                                    <div className="log-time">
-                                                        {new Date(log.editedTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                                                    </div>
-                                                    <div className="log-content">
-                                                        <div className="log-changes">{log.changes}</div>
-                                                        {log.rootNodeName && <div className="log-root">Root: {log.rootNodeName}</div>}
-                                                    </div>
+                            <div key={group.dateCategory} className="history-category">
+                                <h3 className="category-header">{group.dateCategory}</h3>
+                                {group.dateGroups.map((dateGroup) => (
+                                    <div key={dateGroup.date} className="date-group">
+                                        <div className="date-header">{dateGroup.date}</div>
+                                        {dateGroup.authorGroups.map((authorGroup) => (
+                                            <div key={authorGroup.author} className="author-group">
+                                                <div className="author-header">
+                                                    <span className="author-name">{authorGroup.author}</span>
                                                 </div>
-                                            ))}
-                                        </div>
+                                                <div className="author-logs">
+                                                    {authorGroup.logs.map((log, idx) => (
+                                                        <div key={idx} className="log-entry">
+                                                            <div className="log-time">
+                                                                {new Date(log.editedTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                                            </div>
+                                                            <div className="log-content">
+                                                                <div className="log-changes">{log.changes}</div>
+                                                                {log.rootNodeName && <div className="log-root">Root: {log.rootNodeName}</div>}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 ))}
                             </div>

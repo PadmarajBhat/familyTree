@@ -22,19 +22,33 @@
     gap: 24px;
 }
 
-.history-group {
+.history-category {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.category-header {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #666;
+    margin: 0 0 8px 0;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 6px;
+}
+
+.date-group {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding-left: 8px;
 }
 
-.group-header {
-    font-size: 1.1rem;
+.date-header {
+    font-size: 1rem;
     font-weight: 600;
     color: #888;
-    margin: 0 0 8px 0;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 4px;
+    margin-bottom: 4px;
 }
 
 .author-group {
