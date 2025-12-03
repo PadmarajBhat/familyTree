@@ -152,8 +152,8 @@ function App() {
         const treeDoc = content as TreeDocument;
 
         // Validation and Fix Logic: Ensure rootNodeId points to a valid node
-        if (treeDoc.rootNodeId && !treeDoc.nodes[treeDoc.rootNodeId]) {
-          console.warn(`Root node ${treeDoc.rootNodeId} not found in nodes! Attempting to fix...`);
+        if (!treeDoc.rootNodeId || !treeDoc.nodes[treeDoc.rootNodeId]) {
+          console.warn(`Root node "${treeDoc.rootNodeId}" is invalid or not found in nodes! Attempting to fix...`);
           const nodeIds = Object.keys(treeDoc.nodes);
           if (nodeIds.length > 0) {
             // Find a node with no parent (potential root)
@@ -635,6 +635,28 @@ function App() {
           changes: summaryText,
           rootNodeName: updatedTree.nodes[updatedTree.rootNodeId]?.name || 'Unknown'
         });
+      }
+
+      // Final validation: Ensure rootNodeId is valid before saving
+      if (!updatedTree.rootNodeId || !updatedTree.nodes[updatedTree.rootNodeId]) {
+        console.warn('Invalid rootNodeId detected before save! Attempting to fix...');
+        const nodeIds = Object.keys(updatedTree.nodes);
+        if (nodeIds.length > 0) {
+          // Find a node with no parent (potential root)
+          const newRoot = Object.values(updatedTree.nodes).find(n => !n.parentId);
+          if (newRoot) {
+            updatedTree.rootNodeId = newRoot.nodeId;
+            console.log('Fixed rootNodeId to node without parent:', newRoot.name);
+          } else {
+            // If all nodes have parents, pick the first one
+            updatedTree.rootNodeId = nodeIds[0];
+            console.log('No orphan found, using first node as root:', updatedTree.nodes[nodeIds[0]].name);
+          }
+        } else {
+          console.error('Cannot save tree with no nodes!');
+          alert('Error: Tree has no nodes. Cannot save.');
+          return;
+        }
       }
 
       try {
