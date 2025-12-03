@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile } from './services/drive';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock } from './services/drive';
 import type { TreeDocument, PersonNode } from './logic/types';
 import { mergeTrees } from './logic/merge';
 import { TreeView } from './components/TreeView';
@@ -21,6 +21,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState<{ email: string; name: string } | null>(null);
   const [tree, setTree] = useState<TreeDocument | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Loading...");
   const [error, setError] = useState<string | null>(null);
 
   const [isGapiReady, setIsGapiReady] = useState(false);
@@ -128,8 +129,8 @@ function App() {
     }
   }, [isSignedIn, isGapiReady, viewMode, currentUser]);
 
-  const loadTree = async () => {
-    setLoading(true);
+  const loadTree = async (returnOnly = false): Promise<TreeDocument | null> => {
+    if (!returnOnly) setLoading(true);
     setError(null);
     try {
       const files = await listTreeFiles();
@@ -164,16 +165,18 @@ function App() {
             setIsSignedIn(false);
             setCurrentUser(null);
             setTree(null);
-            return;
+            return null;
           }
         }
 
         setTree(treeDoc);
+        return treeDoc;
       } else {
         if (isSignedIn) {
           console.log("No tree found.");
           setTree(null); // Ensure tree is null if no file found
         }
+        return null;
       }
     } catch (err) {
       console.error("Failed to load tree", err);
@@ -182,8 +185,47 @@ function App() {
       } else {
         setError("Failed to load family tree.");
       }
+      return null;
     } finally {
+      if (!returnOnly) setLoading(false);
+    }
+  };
+
+  const executeWithLock = async (action: (latestTree: TreeDocument | null) => Promise<void>) => {
+    setLoading(true);
+    setLoadingMessage("Acquiring lock...");
+
+    let lockId = await acquireLock(currentUser?.email || 'unknown');
+
+    while (!lockId) {
+      const lockInfo = await checkLock();
+      if (lockInfo) {
+        setLoadingMessage(`Waiting for lock release... (Locked by ${lockInfo.lockedBy})`);
+      } else {
+        setLoadingMessage("Acquiring lock...");
+        lockId = await acquireLock(currentUser?.email || 'unknown');
+      }
+
+      if (!lockId) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+
+    try {
+      setLoadingMessage("Refreshing data...");
+      const latestTree = await loadTree(true);
+
+      setLoadingMessage("Saving changes...");
+      await action(latestTree);
+    } catch (e) {
+      console.error("Error during locked operation", e);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      alert("An error occurred: " + (e as any).message);
+    } finally {
+      setLoadingMessage("Releasing lock...");
+      await releaseLock(lockId);
       setLoading(false);
+      setLoadingMessage("Loading...");
     }
   };
 
@@ -261,324 +303,326 @@ function App() {
   const handleSaveMember = async (personData: PersonNode, newParentId: string | null, newChildrenIds: string[], newSpouseIds: string[], newSiblingIds: string[]) => {
     if (viewMode === 'sample') return; // Double check
 
-    // Initialize tree if it doesn't exist
-    const currentTree: TreeDocument = tree ? JSON.parse(JSON.stringify(tree)) : {
-      schemaVersion: 1,
-      treeId: crypto.randomUUID(),
-      treeName: "Family Tree",
-      versionIndex: 0,
-      timestamp: getISTTimestamp(),
-      rootNodeId: "",
-      nodes: {},
-      marriages: [],
-      summary: [],
-      meta: {
-        createdBy: currentUser?.email || "unknown",
-        createdTime: getISTTimestamp(),
-        nodeCount: 0
-      }
-    };
+    await executeWithLock(async (latestTree) => {
+      // Initialize tree if it doesn't exist
+      const currentTree: TreeDocument = latestTree ? JSON.parse(JSON.stringify(latestTree)) : {
+        schemaVersion: 1,
+        treeId: crypto.randomUUID(),
+        treeName: "Family Tree",
+        versionIndex: 0,
+        timestamp: getISTTimestamp(),
+        rootNodeId: "",
+        nodes: {},
+        marriages: [],
+        summary: [],
+        meta: {
+          createdBy: currentUser?.email || "unknown",
+          createdTime: getISTTimestamp(),
+          nodeCount: 0
+        }
+      };
 
-    const updatedTree: TreeDocument = currentTree;
-    const oldNode = editorMode === 'edit' ? updatedTree.nodes[personData.nodeId] : null;
-    const oldParentId = oldNode?.parentId || null;
+      const updatedTree: TreeDocument = currentTree;
+      const oldNode = editorMode === 'edit' ? updatedTree.nodes[personData.nodeId] : null;
+      const oldParentId = oldNode?.parentId || null;
 
-    // Helper to update edited metadata for any node we touch
-    const touchNode = (nodeId: string) => {
-      if (updatedTree.nodes[nodeId]) {
-        updatedTree.nodes[nodeId].editedBy = currentUser?.email || 'unknown';
-        updatedTree.nodes[nodeId].editedTime = getISTTimestamp();
-      }
-    };
+      // Helper to update edited metadata for any node we touch
+      const touchNode = (nodeId: string) => {
+        if (updatedTree.nodes[nodeId]) {
+          updatedTree.nodes[nodeId].editedBy = currentUser?.email || 'unknown';
+          updatedTree.nodes[nodeId].editedTime = getISTTimestamp();
+        }
+      };
 
-    // Update the main node's metadata
-    personData.editedBy = currentUser?.email || 'unknown';
-    personData.editedTime = getISTTimestamp();
+      // Update the main node's metadata
+      personData.editedBy = currentUser?.email || 'unknown';
+      personData.editedTime = getISTTimestamp();
 
-    // Generate Summary
-    const changes: string[] = [];
-    const structuredChanges: { type: 'ADD' | 'EDIT' | 'DELETE' | 'REPARENT'; nodeId: string | null; fieldsChanged: string[]; before: Partial<PersonNode>; after: Partial<PersonNode>; }[] = [];
+      // Generate Summary
+      const changes: string[] = [];
+      const structuredChanges: { type: 'ADD' | 'EDIT' | 'DELETE' | 'REPARENT'; nodeId: string | null; fieldsChanged: string[]; before: Partial<PersonNode>; after: Partial<PersonNode>; }[] = [];
 
-    if (editorMode === 'add') {
-      changes.push(`Added ${personData.name}`);
-      structuredChanges.push({
-        type: 'ADD',
-        nodeId: personData.nodeId,
-        fieldsChanged: Object.keys(personData),
-        before: {},
-        after: personData
-      });
-    } else {
-      // Edit mode - diff fields
-      const fieldsChanged: string[] = [];
-      const before: Partial<PersonNode> = {};
-      const after: Partial<PersonNode> = {};
-
-      if (oldNode) {
-        (Object.keys(personData) as (keyof PersonNode)[]).forEach(key => {
-          if (JSON.stringify(personData[key]) !== JSON.stringify(oldNode[key])) {
-            fieldsChanged.push(key);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (before as any)[key] = oldNode[key];
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (after as any)[key] = personData[key];
-          }
-        });
-      }
-
-      if (fieldsChanged.length > 0) {
-        changes.push(`Edited ${personData.name} with ${fieldsChanged.join(', ')}`);
+      if (editorMode === 'add') {
+        changes.push(`Added ${personData.name}`);
         structuredChanges.push({
-          type: 'EDIT',
+          type: 'ADD',
           nodeId: personData.nodeId,
-          fieldsChanged,
-          before,
-          after
+          fieldsChanged: Object.keys(personData),
+          before: {},
+          after: personData
         });
-      }
-    }
-
-    // Handle Reparenting / Linking
-    if (newParentId !== oldParentId) {
-      // Remove from old parent
-      if (oldParentId && updatedTree.nodes[oldParentId]) {
-        updatedTree.nodes[oldParentId].childrenIds = updatedTree.nodes[oldParentId].childrenIds.filter(id => id !== personData.nodeId);
-        touchNode(oldParentId);
-      }
-      // Add to new parent
-      if (newParentId && updatedTree.nodes[newParentId]) {
-        if (!updatedTree.nodes[newParentId].childrenIds.includes(personData.nodeId)) {
-          updatedTree.nodes[newParentId].childrenIds.push(personData.nodeId);
-          touchNode(newParentId);
-        }
-      }
-
-      if (!oldParentId && newParentId) {
-        changes.push(`Linked ${personData.name} to parent ${updatedTree.nodes[newParentId]?.name || newParentId}`);
-      } else if (oldParentId && !newParentId) {
-        changes.push(`Removed parent link for ${personData.name}`);
       } else {
-        changes.push(`Changed parent of ${personData.name} from ${updatedTree.nodes[oldParentId!]?.name || oldParentId} to ${updatedTree.nodes[newParentId!]?.name || newParentId}`);
+        // Edit mode - diff fields
+        const fieldsChanged: string[] = [];
+        const before: Partial<PersonNode> = {};
+        const after: Partial<PersonNode> = {};
+
+        if (oldNode) {
+          (Object.keys(personData) as (keyof PersonNode)[]).forEach(key => {
+            if (JSON.stringify(personData[key]) !== JSON.stringify(oldNode[key])) {
+              fieldsChanged.push(key);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (before as any)[key] = oldNode[key];
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (after as any)[key] = personData[key];
+            }
+          });
+        }
+
+        if (fieldsChanged.length > 0) {
+          changes.push(`Edited ${personData.name} with ${fieldsChanged.join(', ')}`);
+          structuredChanges.push({
+            type: 'EDIT',
+            nodeId: personData.nodeId,
+            fieldsChanged,
+            before,
+            after
+          });
+        }
       }
 
-      structuredChanges.push({
-        type: 'REPARENT',
-        nodeId: personData.nodeId,
-        fieldsChanged: ['parentId'],
-        before: { parentId: oldParentId },
-        after: { parentId: newParentId }
+      // Handle Reparenting / Linking
+      if (newParentId !== oldParentId) {
+        // Remove from old parent
+        if (oldParentId && updatedTree.nodes[oldParentId]) {
+          updatedTree.nodes[oldParentId].childrenIds = updatedTree.nodes[oldParentId].childrenIds.filter(id => id !== personData.nodeId);
+          touchNode(oldParentId);
+        }
+        // Add to new parent
+        if (newParentId && updatedTree.nodes[newParentId]) {
+          if (!updatedTree.nodes[newParentId].childrenIds.includes(personData.nodeId)) {
+            updatedTree.nodes[newParentId].childrenIds.push(personData.nodeId);
+            touchNode(newParentId);
+          }
+        }
+
+        if (!oldParentId && newParentId) {
+          changes.push(`Linked ${personData.name} to parent ${updatedTree.nodes[newParentId]?.name || newParentId}`);
+        } else if (oldParentId && !newParentId) {
+          changes.push(`Removed parent link for ${personData.name}`);
+        } else {
+          changes.push(`Changed parent of ${personData.name} from ${updatedTree.nodes[oldParentId!]?.name || oldParentId} to ${updatedTree.nodes[newParentId!]?.name || newParentId}`);
+        }
+
+        structuredChanges.push({
+          type: 'REPARENT',
+          nodeId: personData.nodeId,
+          fieldsChanged: ['parentId'],
+          before: { parentId: oldParentId },
+          after: { parentId: newParentId }
+        });
+      }
+
+      // Handle Children Updates
+      // We need to update the parentId of all children in the list
+      // 1. Identify added children
+      const addedChildren = newChildrenIds.filter(id => !oldNode?.childrenIds.includes(id));
+      // 2. Identify removed children
+      const removedChildren = oldNode ? oldNode.childrenIds.filter(id => !newChildrenIds.includes(id)) : [];
+
+      // Process Added Children
+      addedChildren.forEach(childId => {
+        const childNode = updatedTree.nodes[childId];
+        if (childNode) {
+          const oldChildParentId = childNode.parentId;
+          // Remove from old parent's children list if exists
+          if (oldChildParentId && updatedTree.nodes[oldChildParentId]) {
+            updatedTree.nodes[oldChildParentId].childrenIds = updatedTree.nodes[oldChildParentId].childrenIds.filter(id => id !== childId);
+            touchNode(oldChildParentId);
+          }
+
+          // Set new parent
+          childNode.parentId = personData.nodeId;
+          touchNode(childId);
+
+          changes.push(`Added child ${childNode.name} to ${personData.name}`);
+          structuredChanges.push({
+            type: 'REPARENT',
+            nodeId: childId,
+            fieldsChanged: ['parentId'],
+            before: { parentId: oldChildParentId },
+            after: { parentId: personData.nodeId }
+          });
+        }
       });
-    }
 
-    // Handle Children Updates
-    // We need to update the parentId of all children in the list
-    // 1. Identify added children
-    const addedChildren = newChildrenIds.filter(id => !oldNode?.childrenIds.includes(id));
-    // 2. Identify removed children
-    const removedChildren = oldNode ? oldNode.childrenIds.filter(id => !newChildrenIds.includes(id)) : [];
-
-    // Process Added Children
-    addedChildren.forEach(childId => {
-      const childNode = updatedTree.nodes[childId];
-      if (childNode) {
-        const oldChildParentId = childNode.parentId;
-        // Remove from old parent's children list if exists
-        if (oldChildParentId && updatedTree.nodes[oldChildParentId]) {
-          updatedTree.nodes[oldChildParentId].childrenIds = updatedTree.nodes[oldChildParentId].childrenIds.filter(id => id !== childId);
-          touchNode(oldChildParentId);
+      // Check if any of the added children was the root node
+      // If so, we need to update the root to point to the ultimate ancestor
+      const rootWasReparented = addedChildren.some(childId => childId === updatedTree.rootNodeId);
+      if (rootWasReparented) {
+        // The old root now has a parent, so we need to find the new root
+        let newRootId = personData.nodeId;
+        // Traverse up to find the ultimate root
+        const visited = new Set<string>();
+        while (updatedTree.nodes[newRootId] && updatedTree.nodes[newRootId].parentId) {
+          if (visited.has(newRootId)) {
+            console.error("Cycle detected while finding new root!");
+            break;
+          }
+          visited.add(newRootId);
+          newRootId = updatedTree.nodes[newRootId].parentId!;
         }
-
-        // Set new parent
-        childNode.parentId = personData.nodeId;
-        touchNode(childId);
-
-        changes.push(`Added child ${childNode.name} to ${personData.name}`);
-        structuredChanges.push({
-          type: 'REPARENT',
-          nodeId: childId,
-          fieldsChanged: ['parentId'],
-          before: { parentId: oldChildParentId },
-          after: { parentId: personData.nodeId }
-        });
+        console.log(`Root node updated from ${updatedTree.rootNodeId} to ${newRootId} (old root became a child)`);
+        updatedTree.rootNodeId = newRootId;
       }
-    });
 
-    // Check if any of the added children was the root node
-    // If so, we need to update the root to point to the ultimate ancestor
-    const rootWasReparented = addedChildren.some(childId => childId === updatedTree.rootNodeId);
-    if (rootWasReparented) {
-      // The old root now has a parent, so we need to find the new root
-      let newRootId = personData.nodeId;
-      // Traverse up to find the ultimate root
-      const visited = new Set<string>();
-      while (updatedTree.nodes[newRootId] && updatedTree.nodes[newRootId].parentId) {
-        if (visited.has(newRootId)) {
-          console.error("Cycle detected while finding new root!");
-          break;
+      // Process Removed Children
+      removedChildren.forEach(childId => {
+        const childNode = updatedTree.nodes[childId];
+        if (childNode) {
+          const oldChildParentId = childNode.parentId; // Should be personData.nodeId
+
+          // Set parent to null (unlink)
+          childNode.parentId = null;
+          touchNode(childId);
+
+          changes.push(`Removed child ${childNode.name} from ${personData.name}`);
+          structuredChanges.push({
+            type: 'REPARENT',
+            nodeId: childId,
+            fieldsChanged: ['parentId'],
+            before: { parentId: oldChildParentId },
+            after: { parentId: null }
+          });
         }
-        visited.add(newRootId);
-        newRootId = updatedTree.nodes[newRootId].parentId!;
-      }
-      console.log(`Root node updated from ${updatedTree.rootNodeId} to ${newRootId} (old root became a child)`);
-      updatedTree.rootNodeId = newRootId;
-    }
+      });
 
-    // Process Removed Children
-    removedChildren.forEach(childId => {
-      const childNode = updatedTree.nodes[childId];
-      if (childNode) {
-        const oldChildParentId = childNode.parentId; // Should be personData.nodeId
+      // Update the current node's childrenIds
+      personData.childrenIds = newChildrenIds;
 
-        // Set parent to null (unlink)
-        childNode.parentId = null;
-        touchNode(childId);
+      // Handle Spouse Updates (Bidirectional)
+      // 1. Identify added spouses
+      const addedSpouses = newSpouseIds.filter(id => !oldNode?.spouseIds.includes(id));
+      // 2. Identify removed spouses
+      const removedSpouses = oldNode ? oldNode.spouseIds.filter(id => !newSpouseIds.includes(id)) : [];
 
-        changes.push(`Removed child ${childNode.name} from ${personData.name}`);
-        structuredChanges.push({
-          type: 'REPARENT',
-          nodeId: childId,
-          fieldsChanged: ['parentId'],
-          before: { parentId: oldChildParentId },
-          after: { parentId: null }
-        });
-      }
-    });
+      // Process Added Spouses
+      addedSpouses.forEach(spouseId => {
+        const spouseNode = updatedTree.nodes[spouseId];
+        if (spouseNode) {
+          if (!spouseNode.spouseIds.includes(personData.nodeId)) {
+            spouseNode.spouseIds.push(personData.nodeId);
+            touchNode(spouseId);
+            changes.push(`Added spouse link between ${personData.name} and ${spouseNode.name}`);
+          }
+        }
+      });
 
-    // Update the current node's childrenIds
-    personData.childrenIds = newChildrenIds;
-
-    // Handle Spouse Updates (Bidirectional)
-    // 1. Identify added spouses
-    const addedSpouses = newSpouseIds.filter(id => !oldNode?.spouseIds.includes(id));
-    // 2. Identify removed spouses
-    const removedSpouses = oldNode ? oldNode.spouseIds.filter(id => !newSpouseIds.includes(id)) : [];
-
-    // Process Added Spouses
-    addedSpouses.forEach(spouseId => {
-      const spouseNode = updatedTree.nodes[spouseId];
-      if (spouseNode) {
-        if (!spouseNode.spouseIds.includes(personData.nodeId)) {
-          spouseNode.spouseIds.push(personData.nodeId);
+      // Process Removed Spouses
+      removedSpouses.forEach(spouseId => {
+        const spouseNode = updatedTree.nodes[spouseId];
+        if (spouseNode) {
+          spouseNode.spouseIds = spouseNode.spouseIds.filter(id => id !== personData.nodeId);
           touchNode(spouseId);
-          changes.push(`Added spouse link between ${personData.name} and ${spouseNode.name}`);
-        }
-      }
-    });
-
-    // Process Removed Spouses
-    removedSpouses.forEach(spouseId => {
-      const spouseNode = updatedTree.nodes[spouseId];
-      if (spouseNode) {
-        spouseNode.spouseIds = spouseNode.spouseIds.filter(id => id !== personData.nodeId);
-        touchNode(spouseId);
-        changes.push(`Removed spouse link between ${personData.name} and ${spouseNode.name}`);
-      }
-    });
-    personData.spouseIds = newSpouseIds;
-
-    // Handle Sibling Updates (Shared Parent)
-    if (personData.parentId) {
-      const parentId = personData.parentId;
-
-      newSiblingIds.forEach(sibId => {
-        const sibNode = updatedTree.nodes[sibId];
-        if (sibNode && sibNode.parentId !== parentId) {
-          // Link to parent
-          const oldSibParent = sibNode.parentId;
-          if (oldSibParent && updatedTree.nodes[oldSibParent]) {
-            updatedTree.nodes[oldSibParent].childrenIds = updatedTree.nodes[oldSibParent].childrenIds.filter(id => id !== sibId);
-            touchNode(oldSibParent);
-          }
-          sibNode.parentId = parentId;
-          touchNode(sibId);
-
-          if (updatedTree.nodes[parentId] && !updatedTree.nodes[parentId].childrenIds.includes(sibId)) {
-            updatedTree.nodes[parentId].childrenIds.push(sibId);
-            touchNode(parentId);
-          }
-
-          changes.push(`Linked sibling ${sibNode.name} to parent ${updatedTree.nodes[parentId].name}`);
+          changes.push(`Removed spouse link between ${personData.name} and ${spouseNode.name}`);
         }
       });
+      personData.spouseIds = newSpouseIds;
 
-      // What about removed siblings?
-      if (updatedTree.nodes[parentId]) {
-        const currentSiblings = updatedTree.nodes[parentId].childrenIds.filter(id => id !== personData.nodeId);
-        const removedSiblings = currentSiblings.filter(id => !newSiblingIds.includes(id));
+      // Handle Sibling Updates (Shared Parent)
+      if (personData.parentId) {
+        const parentId = personData.parentId;
 
-        removedSiblings.forEach(sibId => {
+        newSiblingIds.forEach(sibId => {
           const sibNode = updatedTree.nodes[sibId];
-          if (sibNode) {
-            sibNode.parentId = null;
+          if (sibNode && sibNode.parentId !== parentId) {
+            // Link to parent
+            const oldSibParent = sibNode.parentId;
+            if (oldSibParent && updatedTree.nodes[oldSibParent]) {
+              updatedTree.nodes[oldSibParent].childrenIds = updatedTree.nodes[oldSibParent].childrenIds.filter(id => id !== sibId);
+              touchNode(oldSibParent);
+            }
+            sibNode.parentId = parentId;
             touchNode(sibId);
-            updatedTree.nodes[parentId].childrenIds = updatedTree.nodes[parentId].childrenIds.filter(id => id !== sibId);
-            touchNode(parentId);
-            changes.push(`Unlinked sibling ${sibNode.name} from parent ${updatedTree.nodes[parentId].name}`);
+
+            if (updatedTree.nodes[parentId] && !updatedTree.nodes[parentId].childrenIds.includes(sibId)) {
+              updatedTree.nodes[parentId].childrenIds.push(sibId);
+              touchNode(parentId);
+            }
+
+            changes.push(`Linked sibling ${sibNode.name} to parent ${updatedTree.nodes[parentId].name}`);
           }
         });
-      }
-    }
 
-    // Update/Add Node
-    updatedTree.nodes[personData.nodeId] = personData;
-    updatedTree.timestamp = getISTTimestamp();
+        // What about removed siblings?
+        if (updatedTree.nodes[parentId]) {
+          const currentSiblings = updatedTree.nodes[parentId].childrenIds.filter(id => id !== personData.nodeId);
+          const removedSiblings = currentSiblings.filter(id => !newSiblingIds.includes(id));
 
-    if (editorMode === 'add') {
-      updatedTree.meta.nodeCount++;
-      if (!updatedTree.rootNodeId) {
-        updatedTree.rootNodeId = personData.nodeId;
-      }
-    }
-
-    // Check if we need to update the root node (if the current root got a parent)
-    if (personData.nodeId === updatedTree.rootNodeId && personData.parentId) {
-      let newRootId = personData.parentId;
-      // Traverse up to find the ultimate root
-      const visited = new Set<string>();
-      while (updatedTree.nodes[newRootId] && updatedTree.nodes[newRootId].parentId) {
-        if (visited.has(newRootId)) {
-          console.error("Cycle detected while finding new root!");
-          break;
+          removedSiblings.forEach(sibId => {
+            const sibNode = updatedTree.nodes[sibId];
+            if (sibNode) {
+              sibNode.parentId = null;
+              touchNode(sibId);
+              updatedTree.nodes[parentId].childrenIds = updatedTree.nodes[parentId].childrenIds.filter(id => id !== sibId);
+              touchNode(parentId);
+              changes.push(`Unlinked sibling ${sibNode.name} from parent ${updatedTree.nodes[parentId].name}`);
+            }
+          });
         }
-        visited.add(newRootId);
-        newRootId = updatedTree.nodes[newRootId].parentId!;
       }
-      updatedTree.rootNodeId = newRootId;
-      console.log(`Root node updated from ${personData.nodeId} to ${newRootId}`);
-    }
 
-    const summaryText = changes.join('; ');
-    if (!summaryText && editorMode === 'edit') {
-      // No changes detected
-      setEditorMode(null);
-      setEditingNodeId(null);
-      alert("No changes detected.");
-      return;
-    }
+      // Update/Add Node
+      updatedTree.nodes[personData.nodeId] = personData;
+      updatedTree.timestamp = getISTTimestamp();
 
-    if (summaryText) {
-      updatedTree.summary.unshift({
-        editedBy: currentUser?.email || 'unknown',
-        editedTime: getISTTimestamp(),
-        changes: summaryText,
-        rootNodeName: updatedTree.nodes[updatedTree.rootNodeId]?.name || 'Unknown'
-      });
-    }
+      if (editorMode === 'add') {
+        updatedTree.meta.nodeCount++;
+        if (!updatedTree.rootNodeId) {
+          updatedTree.rootNodeId = personData.nodeId;
+        }
+      }
 
-    try {
-      setLoading(true);
-      const savedTree = await saveWithMerge(updatedTree, summaryText);
+      // Check if we need to update the root node (if the current root got a parent)
+      if (personData.nodeId === updatedTree.rootNodeId && personData.parentId) {
+        let newRootId = personData.parentId;
+        // Traverse up to find the ultimate root
+        const visited = new Set<string>();
+        while (updatedTree.nodes[newRootId] && updatedTree.nodes[newRootId].parentId) {
+          if (visited.has(newRootId)) {
+            console.error("Cycle detected while finding new root!");
+            break;
+          }
+          visited.add(newRootId);
+          newRootId = updatedTree.nodes[newRootId].parentId!;
+        }
+        updatedTree.rootNodeId = newRootId;
+        console.log(`Root node updated from ${personData.nodeId} to ${newRootId}`);
+      }
 
-      setTree(savedTree);
-      setEditorMode(null);
-      setEditingNodeId(null);
-      alert("Member saved successfully!");
-    } catch (err) {
-      console.error("Failed to save tree:", err);
-      alert("Failed to save changes to Google Drive.");
-    } finally {
-      setLoading(false);
-    }
+      const summaryText = changes.join('; ');
+      if (!summaryText && editorMode === 'edit') {
+        // No changes detected
+        setEditorMode(null);
+        setEditingNodeId(null);
+        alert("No changes detected.");
+        return;
+      }
+
+      if (summaryText) {
+        updatedTree.summary.unshift({
+          editedBy: currentUser?.email || 'unknown',
+          editedTime: getISTTimestamp(),
+          changes: summaryText,
+          rootNodeName: updatedTree.nodes[updatedTree.rootNodeId]?.name || 'Unknown'
+        });
+      }
+
+      try {
+        setLoading(true); // executeWithLock handles loading, but saveWithMerge might not? executeWithLock handles it.
+        // Actually executeWithLock sets loading=true.
+        const savedTree = await saveWithMerge(updatedTree, summaryText);
+
+        setTree(savedTree);
+        setEditorMode(null);
+        setEditingNodeId(null);
+        alert("Member saved successfully!");
+      } catch (err) {
+        console.error("Failed to save tree:", err);
+        alert("Failed to save changes to Google Drive.");
+      }
+      // finally block removed because executeWithLock handles loading=false
+    });
   };
 
   const handleLoadSampleTree = async () => {
@@ -612,55 +656,56 @@ function App() {
     }
     if (!tree) return;
 
-    const node = tree.nodes[nodeId];
-    if (!node) return;
+    await executeWithLock(async (latestTree) => {
+      if (!latestTree) return;
+      const node = latestTree.nodes[nodeId];
+      if (!node) return;
 
-    // Strict Orphan Check
-    const isOrphan = !node.parentId && node.childrenIds.length === 0 && node.spouseIds.length === 0;
-    if (!isOrphan) {
-      alert("Cannot delete member. Member must be an orphan (no parents, children, or spouses). Please unlink relationships first.");
-      return;
-    }
-
-    const updatedTree: TreeDocument = JSON.parse(JSON.stringify(tree));
-
-    // Remove node
-    delete updatedTree.nodes[nodeId];
-    updatedTree.meta.nodeCount--;
-    updatedTree.timestamp = getISTTimestamp();
-
-    // If root was deleted, clear rootNodeId
-    if (updatedTree.rootNodeId === nodeId) {
-      updatedTree.rootNodeId = "";
-      // If there are other nodes, we might want to pick a new root, but for now let's leave it empty
-      // or pick the first available node?
-      const remainingIds = Object.keys(updatedTree.nodes);
-      if (remainingIds.length > 0) {
-        updatedTree.rootNodeId = remainingIds[0];
+      // Strict Orphan Check
+      const isOrphan = !node.parentId && node.childrenIds.length === 0 && node.spouseIds.length === 0;
+      if (!isOrphan) {
+        alert("Cannot delete member. Member must be an orphan (no parents, children, or spouses). Please unlink relationships first.");
+        return;
       }
-    }
 
-    // Add Change Log
-    updatedTree.summary.unshift({
-      editedBy: currentUser?.email || 'unknown',
-      editedTime: getISTTimestamp(),
-      changes: `Deleted ${node.name}`,
-      rootNodeName: updatedTree.nodes[updatedTree.rootNodeId]?.name || 'Unknown'
+      const updatedTree: TreeDocument = JSON.parse(JSON.stringify(latestTree));
+
+      // Remove node
+      delete updatedTree.nodes[nodeId];
+      updatedTree.meta.nodeCount--;
+      updatedTree.timestamp = getISTTimestamp();
+
+      // If root was deleted, clear rootNodeId
+      if (updatedTree.rootNodeId === nodeId) {
+        updatedTree.rootNodeId = "";
+        // If there are other nodes, we might want to pick a new root, but for now let's leave it empty
+        // or pick the first available node?
+        const remainingIds = Object.keys(updatedTree.nodes);
+        if (remainingIds.length > 0) {
+          updatedTree.rootNodeId = remainingIds[0];
+        }
+      }
+
+      // Add Change Log
+      updatedTree.summary.unshift({
+        editedBy: currentUser?.email || 'unknown',
+        editedTime: getISTTimestamp(),
+        changes: `Deleted ${node.name}`,
+        rootNodeName: updatedTree.nodes[updatedTree.rootNodeId]?.name || 'Unknown'
+      });
+
+      try {
+        setLoading(true);
+        const savedTree = await saveWithMerge(updatedTree, updatedTree.summary[0]?.changes || "Deleted member");
+
+        setTree(savedTree);
+        setSelectedNodeId(null); // Close detail view
+        alert("Member deleted successfully.");
+      } catch (err) {
+        console.error("Failed to delete member:", err);
+        alert("Failed to save changes to Google Drive.");
+      }
     });
-
-    try {
-      setLoading(true);
-      const savedTree = await saveWithMerge(updatedTree, updatedTree.summary[0]?.changes || "Deleted member");
-
-      setTree(savedTree);
-      setSelectedNodeId(null); // Close detail view
-      alert("Member deleted successfully.");
-    } catch (err) {
-      console.error("Failed to delete member:", err);
-      alert("Failed to save changes to Google Drive.");
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleToggleEditor = async (nodeId: string, newStatus: boolean, updates?: { email?: string; phone?: string }) => {
@@ -671,52 +716,54 @@ function App() {
 
     if (!currentUser || !tree) return;
 
-    // Check if current user is an editor
-    const currentUserNode = Object.values(tree.nodes).find(n => n.email?.toLowerCase() === currentUser.email.toLowerCase());
-    const isCreator = tree.meta.createdBy?.toLowerCase() === currentUser.email.toLowerCase();
-    const canModify = currentUserNode?.isEditor || isCreator;
+    await executeWithLock(async (latestTree) => {
+      if (!latestTree) return;
 
-    if (!canModify) {
-      alert("Only editors can modify permissions.");
-      return;
-    }
+      // Check if current user is an editor
+      const currentUserNode = Object.values(latestTree.nodes).find(n => n.email?.toLowerCase() === currentUser.email.toLowerCase());
+      const isCreator = latestTree.meta.createdBy?.toLowerCase() === currentUser.email.toLowerCase();
+      const canModify = currentUserNode?.isEditor || isCreator;
 
-    const updatedTree: TreeDocument = JSON.parse(JSON.stringify(tree));
-    const targetNode = updatedTree.nodes[nodeId];
+      if (!canModify) {
+        alert("Only editors can modify permissions.");
+        return;
+      }
 
-    if (!targetNode) {
-      alert("Member not found.");
-      return;
-    }
+      const updatedTree: TreeDocument = JSON.parse(JSON.stringify(latestTree));
+      const targetNode = updatedTree.nodes[nodeId];
 
-    // Update editor status
-    targetNode.isEditor = newStatus;
-    targetNode.editorSince = newStatus ? getISTTimestamp() : null;
-    targetNode.editedBy = currentUser.email;
-    targetNode.editedTime = getISTTimestamp();
+      if (!targetNode) {
+        alert("Member not found.");
+        return;
+      }
 
-    // Apply updates if provided
-    if (updates) {
-      if (updates.email) targetNode.email = updates.email;
-      if (updates.phone) targetNode.phone = updates.phone;
-    }
+      // Update editor status
+      targetNode.isEditor = newStatus;
+      targetNode.editorSince = newStatus ? getISTTimestamp() : null;
+      targetNode.editedBy = currentUser.email;
+      targetNode.editedTime = getISTTimestamp();
 
-    // Increment version
-    updatedTree.versionIndex++;
-    updatedTree.timestamp = getISTTimestamp();
+      // Apply updates if provided
+      if (updates) {
+        if (updates.email) targetNode.email = updates.email;
+        if (updates.phone) targetNode.phone = updates.phone;
+      }
 
-    try {
-      setLoading(true);
-      const savedTree = await saveWithMerge(updatedTree, `Edited ${targetNode.name} with isEditor`);
+      // Increment version
+      updatedTree.versionIndex++;
+      updatedTree.timestamp = getISTTimestamp();
 
-      setTree(savedTree);
-      alert(`Editor access ${newStatus ? 'granted to' : 'removed from'} ${targetNode.name}!`);
-    } catch (err) {
-      console.error("Failed to update editor status:", err);
-      alert("Failed to save changes to Google Drive.");
-    } finally {
-      setLoading(false);
-    }
+      try {
+        setLoading(true);
+        const savedTree = await saveWithMerge(updatedTree, `Edited ${targetNode.name} with isEditor`);
+
+        setTree(savedTree);
+        alert(`Editor access ${newStatus ? 'granted to' : 'removed from'} ${targetNode.name}!`);
+      } catch (err) {
+        console.error("Failed to update editor status:", err);
+        alert("Failed to save changes to Google Drive.");
+      }
+    });
   };
 
   const handleResetRoot = () => {
@@ -824,7 +871,7 @@ function App() {
         </div>
       </header>
       <main>
-        {loading && <LoadingOverlay />}
+        {loading && <LoadingOverlay message={loadingMessage} />}
         {error && <div className="error">{error}</div>}
 
         {tree && !loading && !error && (
