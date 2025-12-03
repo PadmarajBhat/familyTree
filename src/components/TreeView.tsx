@@ -395,9 +395,9 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
                 .duration(200)
                 .attr("d", d3.linkVertical()
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    .x((d: any) => d.x)
+                    .x((d: any) => (d.x === undefined || isNaN(d.x)) ? 0 : d.x)
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    .y((d: any) => d.y) as any
+                    .y((d: any) => (d.y === undefined || isNaN(d.y)) ? 0 : d.y) as any
                 );
 
             link.exit().transition()
