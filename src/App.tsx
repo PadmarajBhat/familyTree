@@ -1023,6 +1023,10 @@ function App() {
             existingNodes={tree ? tree.nodes : {}}
             onSave={handleSaveMember}
             onCancel={handleManualClose}
+            onDelete={(nodeId) => {
+              handleDeleteMember(nodeId);
+              handleManualClose();
+            }}
           />
         )}
       </main>

@@ -14,6 +14,7 @@ interface MemberEditorProps {
     existingNodes: Record<string, PersonNode>;
     onSave: (person: PersonNode, newParentId: string | null, newChildrenIds: string[], newSpouseIds: string[], newSiblingIds: string[]) => void;
     onCancel: () => void;
+    onDelete?: (nodeId: string) => void;
 }
 
 export const MemberEditor: React.FC<MemberEditorProps> = ({
@@ -22,7 +23,8 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     initialData,
     existingNodes,
     onSave,
-    onCancel
+    onCancel,
+    onDelete
 }) => {
     const [name, setName] = useState(initialData?.name || '');
     // const [gender, setGender] = useState<'male' | 'female' | 'other'>('male'); // TODO: Add gender to PersonNode if needed, currently not in interface but useful for UI
@@ -34,6 +36,16 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     const [email, setEmail] = useState(initialData?.email || '');
     const [address, setAddress] = useState(initialData?.address?.freeform || '');
     const [parentId, setParentId] = useState<string | null>(initialData?.parentId || null);
+
+    const [gender, setGender] = useState<'male' | 'female' | 'other' | null>(initialData?.gender || null);
+    const [hobbies, setHobbies] = useState<string[]>(initialData?.hobbies || []);
+    const [education, setEducation] = useState<{ degree: string; major: string }[]>(initialData?.education || []);
+    const [occupation, setOccupation] = useState<{ role: string; organization: string } | null>(initialData?.occupation || null);
+    const [notes, setNotes] = useState(initialData?.notes || '');
+    const [zipcode, setZipcode] = useState(initialData?.location?.zipcode || '');
+    const [locationData, setLocationData] = useState<{ district: string | null; state: string | null; country: string | null }>(
+        initialData?.location ? { district: initialData.location.district, state: initialData.location.state, country: initialData.location.country } : { district: null, state: null, country: null }
+    );
 
     // Father Search State
     const [fatherSearch, setFatherSearch] = useState('');
@@ -108,6 +120,64 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                 setImagePreview(reader.result as string);
             };
             reader.readAsDataURL(file);
+        }
+    };
+
+    const fetchLocation = async () => {
+        if (!zipcode || zipcode.length < 4) {
+            alert("Please enter a valid zipcode.");
+            return;
+        }
+
+        const cleanZip = zipcode.trim();
+        const len = cleanZip.length;
+
+        try {
+            if (len === 6) {
+                // Try Indian API
+                const response = await fetch(`https://api.postalpincode.in/pincode/${cleanZip}`);
+                const data = await response.json();
+                if (data && data[0].Status === "Success") {
+                    const details = data[0].PostOffice[0];
+                    setLocationData({
+                        district: details.District,
+                        state: details.State,
+                        country: details.Country
+                    });
+                    return;
+                }
+            } else if (len === 4) {
+                // Try Australia (Zippopotam.us)
+                const response = await fetch(`https://api.zippopotam.us/au/${cleanZip}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setLocationData({
+                        district: data.places[0]['place name'],
+                        state: data.places[0]['state'],
+                        country: data.country
+                    });
+                    return;
+                }
+            } else if (len === 5) {
+                // Try US (Zippopotam.us)
+                const response = await fetch(`https://api.zippopotam.us/us/${cleanZip}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setLocationData({
+                        district: data.places[0]['place name'],
+                        state: data.places[0]['state'],
+                        country: data.country
+                    });
+                    return;
+                }
+            }
+
+            // Fallback if specific length checks failed or API returned error
+            alert("Could not fetch location details. Please enter manually.");
+
+        } catch (error) {
+            console.error("Error fetching location:", error);
+            alert("Error fetching location.");
         }
     };
 
@@ -258,6 +328,17 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                 editorSince: initialData?.editorSince || null,
                 editedBy: currentUserEmail,
                 editedTime: now,
+                gender: gender,
+                hobbies: hobbies,
+                education: education,
+                occupation: occupation,
+                notes: notes,
+                location: zipcode ? {
+                    zipcode: zipcode,
+                    district: locationData.district,
+                    state: locationData.state,
+                    country: locationData.country
+                } : null
             };
 
             onSave(personData, parentId, childrenIds, spouseIds, siblingIds);
@@ -290,6 +371,22 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                 <CloseButton onClick={onCancel} />
                 <h2>{mode === 'add' ? 'Add Member' : 'Edit Member'}</h2>
                 <form onSubmit={(e) => handleSubmit(e, false)}>
+                    <div className="form-actions top-actions">
+                        <button type="submit" disabled={uploading} className="primary-btn">
+                            {uploading ? 'Saving...' : 'Save'}
+                        </button>
+                        {mode === 'edit' && onDelete && initialData && (
+                            <button type="button" onClick={() => {
+                                if (window.confirm("Are you sure you want to delete this member?")) {
+                                    onDelete(initialData.nodeId);
+                                }
+                            }} className="delete-btn" style={{ backgroundColor: '#ff4444', color: 'white' }}>
+                                Delete
+                            </button>
+                        )}
+                        <button type="button" onClick={onCancel} disabled={uploading} className="cancel-btn">Cancel</button>
+                    </div>
+
                     <div className="form-group image-upload">
                         <div
                             className="image-preview"
@@ -310,6 +407,36 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                     <div className="form-group">
                         <label>Name</label>
                         <input type="text" value={name} onChange={e => setName(e.target.value)} required />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Gender</label>
+                        <div className="toggle-group">
+                            <label>
+                                <input
+                                    type="radio"
+                                    name="gender"
+                                    checked={gender === 'male'}
+                                    onChange={() => setGender('male')}
+                                /> Male
+                            </label>
+                            <label>
+                                <input
+                                    type="radio"
+                                    name="gender"
+                                    checked={gender === 'female'}
+                                    onChange={() => setGender('female')}
+                                /> Female
+                            </label>
+                            <label>
+                                <input
+                                    type="radio"
+                                    name="gender"
+                                    checked={gender === 'other'}
+                                    onChange={() => setGender('other')}
+                                /> Other
+                            </label>
+                        </div>
                     </div>
 
                     <div className="form-group">
@@ -512,19 +639,90 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         <textarea value={address} onChange={e => setAddress(e.target.value)} rows={3} />
                     </div>
 
-                    <div className="form-actions">
-                        <button type="button" onClick={onCancel} disabled={uploading}>Cancel</button>
-                        {/* <button type="button" onClick={(e) => handleSubmit(e as any, true)} disabled={uploading} className="secondary-action">
-                            Save & Add Child
-                        </button> */}
-                        {/* Commented out Save & Add Child for now as it requires more complex state management in App.tsx 
-                            and the user request was primarily about "Add father and add child option" which usually means linking.
-                            I will focus on the linking part first as per the "Children" section added above.
-                        */}
-                        <button type="submit" disabled={uploading}>
-                            {uploading ? 'Saving...' : 'Save'}
-                        </button>
+                    <div className="form-group">
+                        <label>Location (Zipcode)</label>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <input
+                                type="text"
+                                value={zipcode}
+                                onChange={e => setZipcode(e.target.value)}
+                                placeholder="Zipcode/Pincode"
+                                style={{ flex: 1 }}
+                            />
+                            <button type="button" onClick={fetchLocation} style={{ padding: '0 15px' }}>Fetch</button>
+                        </div>
+                        {locationData.district && (
+                            <div style={{ marginTop: '10px', fontSize: '0.9em', color: '#555' }}>
+                                {locationData.district}, {locationData.state}, {locationData.country}
+                            </div>
+                        )}
                     </div>
+
+                    <div className="form-group">
+                        <label>Education</label>
+                        {education.map((edu, index) => (
+                            <div key={index} style={{ display: 'flex', gap: '10px', marginBottom: '5px' }}>
+                                <input
+                                    type="text"
+                                    placeholder="Degree"
+                                    value={edu.degree}
+                                    onChange={e => {
+                                        const newEdu = [...education];
+                                        newEdu[index].degree = e.target.value;
+                                        setEducation(newEdu);
+                                    }}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Major"
+                                    value={edu.major}
+                                    onChange={e => {
+                                        const newEdu = [...education];
+                                        newEdu[index].major = e.target.value;
+                                        setEducation(newEdu);
+                                    }}
+                                />
+                                <button type="button" onClick={() => {
+                                    setEducation(education.filter((_, i) => i !== index));
+                                }}>×</button>
+                            </div>
+                        ))}
+                        <button type="button" onClick={() => setEducation([...education, { degree: '', major: '' }])} style={{ fontSize: '0.8em' }}>+ Add Education</button>
+                    </div>
+
+                    <div className="form-group">
+                        <label>Occupation</label>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <input
+                                type="text"
+                                placeholder="Role"
+                                value={occupation?.role || ''}
+                                onChange={e => setOccupation({ ...occupation, role: e.target.value, organization: occupation?.organization || '' })}
+                            />
+                            <input
+                                type="text"
+                                placeholder="Organization"
+                                value={occupation?.organization || ''}
+                                onChange={e => setOccupation({ ...occupation, role: occupation?.role || '', organization: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="form-group">
+                        <label>Hobbies</label>
+                        <input
+                            type="text"
+                            value={hobbies.join(', ')}
+                            onChange={e => setHobbies(e.target.value.split(',').map(s => s.trim()).filter(s => s))}
+                            placeholder="Reading, Traveling, etc."
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Notes</label>
+                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Random remarks..." />
+                    </div>
+
                 </form >
             </div >
         </div >

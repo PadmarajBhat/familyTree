@@ -19,6 +19,12 @@ export interface PersonNode {
   editorSince: string | null; // ISO string
   editedBy: string | null;
   editedTime: string | null; // ISO string
+  gender?: 'male' | 'female' | 'other' | null;
+  hobbies?: string[];
+  education?: { degree: string; major: string }[];
+  occupation?: { role: string; organization: string } | null;
+  notes?: string | null;
+  location?: { zipcode: string | null; district: string | null; state: string | null; country: string | null } | null;
 }
 
 export interface Marriage {

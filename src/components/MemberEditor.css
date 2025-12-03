@@ -87,6 +87,14 @@
     margin-top: 20px;
 }
 
+.form-actions.top-actions {
+    margin-top: 0;
+    margin-bottom: 20px;
+    justify-content: space-between;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
 .form-actions button {
     padding: 10px 20px;
     border: none;
