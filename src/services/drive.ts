@@ -9,6 +9,9 @@ let gapiInitedPromise: Promise<void> | null = null;
 let tokenClient: any = null;
 let accessToken: string | null = null;
 
+const LOCK_FILE_NAME = 'family_tree_lock.json';
+const LOCK_EXPIRY_MS = 2 * 60 * 1000; // 2 minutes
+
 export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => void): Promise<void> => {
     if (gapiInitedPromise) {
         return gapiInitedPromise;
@@ -132,7 +135,7 @@ export const listTreeFiles = async () => {
     try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await (gapi.client as any).drive.files.list({
-            q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name contains 'json'`,
+            q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name contains 'json' and name != '${LOCK_FILE_NAME}'`,
             fields: 'nextPageToken, files(id, name, createdTime, modifiedTime, description)',
             orderBy: 'createdTime desc', // Load latest created file
         });
@@ -297,8 +300,7 @@ export const getPhotoUrl = (fileIdOrUrl: string | null): string | null => {
 
 // --- Locking Mechanism ---
 
-const LOCK_FILE_NAME = 'family_tree_lock.json';
-const LOCK_EXPIRY_MS = 2 * 60 * 1000; // 2 minutes
+// Constants moved to top
 
 export interface LockInfo {
     lockedBy: string;
