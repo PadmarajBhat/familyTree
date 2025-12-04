@@ -12,6 +12,7 @@ import { VersionHistory } from './components/VersionHistory';
 import { FanChartView } from './components/FanChartView';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { canEdit } from './logic/accessControl';
+import { canEditNode, isGlobalEditor } from './logic/permissions';
 import { getISTTimestamp } from './logic/dateUtils';
 import { generateSampleTree } from './logic/sampleData';
 import './App.css';
@@ -276,7 +277,11 @@ function App() {
       alert("Editing is disabled in Sample Mode.");
       return;
     }
-    if (selectedNodeId) {
+    if (selectedNodeId && tree) {
+      if (!canEditNode(tree, currentUser?.email, selectedNodeId)) {
+        alert("You do not have permission to edit this member.");
+        return;
+      }
       setEditingNodeId(selectedNodeId);
       setEditorMode('edit');
     }
@@ -698,6 +703,10 @@ function App() {
       return;
     }
     if (!tree) return;
+    if (!currentUser) {
+      alert("You must be signed in to delete members.");
+      return;
+    }
 
     await executeWithLock(async (latestTree) => {
       if (!latestTree) return;
@@ -706,6 +715,13 @@ function App() {
 
       // Strict Orphan Check
       const isOrphan = !node.parentId && node.childrenIds.length === 0 && node.spouseIds.length === 0;
+
+      // Permission Check: Only global editors can delete
+      if (!isGlobalEditor(latestTree, currentUser.email)) {
+        alert("Only editors can delete members.");
+        return;
+      }
+
       if (!isOrphan) {
         alert("Cannot delete member. Member must be an orphan (no parents, children, or spouses). Please unlink relationships first.");
         return;
@@ -1051,6 +1067,7 @@ function App() {
           <PersonDetail
             node={tree.nodes[selectedNodeId]}
             tree={tree}
+            currentUser={currentUser}
             onClose={handleManualClose}
             onEdit={handleEditClick}
             onDelete={handleDeleteMember}

@@ -4,20 +4,25 @@ import { CloseButton } from './CloseButton';
 import { getPhotoUrl } from '../services/drive';
 import { TreeView } from './TreeView';
 import { exportPersonDetailToPdf } from '../utils/exportPdf';
+import { canEditNode, isGlobalEditor } from '../logic/permissions';
 import './PersonDetail.css';
 
 interface PersonDetailProps {
     node: PersonNode;
     tree: TreeDocument;
+    currentUser: { email: string; name: string } | null;
     onClose: () => void;
     onEdit: () => void;
     onDelete: (nodeId: string) => void;
     onNodeClick: (nodeId: string) => void;
 }
 
-export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, onClose, onEdit, onDelete, onNodeClick }) => {
+export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentUser, onClose, onEdit, onDelete, onNodeClick }) => {
     const isOrphan = !node.parentId && node.childrenIds.length === 0 && node.spouseIds.length === 0;
     const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+    const canEdit = canEditNode(tree, currentUser?.email, node.nodeId);
+    const canDelete = isGlobalEditor(tree, currentUser?.email) && isOrphan;
 
     // Show ALL fields including empty ones
     const fields = [
@@ -150,7 +155,9 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, onClose,
                         </div>
 
                         <div className="detail-actions">
-                            <button onClick={onEdit}>Edit Details</button>
+                            {canEdit && (
+                                <button onClick={onEdit}>Edit Details</button>
+                            )}
                             <button
                                 onClick={handleExportPdf}
                                 disabled={isExportingPdf}
@@ -158,7 +165,7 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, onClose,
                             >
                                 {isExportingPdf ? 'Generating PDF...' : 'Export PDF'}
                             </button>
-                            {isOrphan && (
+                            {canDelete && (
                                 <button
                                     onClick={() => {
                                         if (window.confirm(`Are you sure you want to delete ${node.name}? This cannot be undone.`)) {
