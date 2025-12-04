@@ -280,6 +280,45 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                     }
                 }
 
+                // Add children count badge
+                const childrenCount = d.data.childrenIds ? d.data.childrenIds.length : 0;
+                if (childrenCount > 0) {
+                    const badgeRadius = 6;
+                    // Position at the outer edge of the arc, centered angularly
+                    // Or maybe slightly offset from the image?
+                    // Let's try positioning it at the end of the arc (angularly) and slightly inside the outer radius
+
+                    // Option 1: Top right corner of the arc section effectively
+                    // const badgeAngle = endAngle - (arcAngle * 0.1); 
+                    // const badgeR = d.y1 - 8;
+
+                    // Option 2: Centered but pushed to the outer rim
+                    const badgeAngle = midAngle;
+                    const badgeR = d.y1; // On the line
+
+                    const bx = badgeR * Math.sin(badgeAngle);
+                    const by = -badgeR * Math.cos(badgeAngle);
+
+                    group.append("circle")
+                        .attr("cx", bx)
+                        .attr("cy", by)
+                        .attr("r", badgeRadius)
+                        .attr("fill", "#ff4081") // A nice pink/red color
+                        .attr("stroke", "white")
+                        .attr("stroke-width", 1);
+
+                    group.append("text")
+                        .attr("x", bx)
+                        .attr("y", by)
+                        .attr("dy", "0.35em")
+                        .attr("text-anchor", "middle")
+                        .style("font-size", "8px")
+                        .style("font-weight", "bold")
+                        .style("fill", "white")
+                        .style("pointer-events", "none")
+                        .text(childrenCount);
+                }
+
                 const pathId = `textPath-${d.data.nodeId}-${Math.random().toString(36).substr(2, 9)}`;
                 group.append("path")
                     .attr("id", pathId)
