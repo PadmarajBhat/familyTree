@@ -44,6 +44,7 @@ function App() {
   const [defaultTreeName, setDefaultTreeName] = useState<string | null>(null);
   const [currentTreeId, setCurrentTreeId] = useState<string | null>(null);
   const [currentTreeName, setCurrentTreeName] = useState<string>('family_tree');
+  const [findRelationIds, setFindRelationIds] = useState<{ p1: string | null; p2: string | null }>({ p1: null, p2: null });
 
   const [viewDepth, setViewDepth] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -97,6 +98,7 @@ function App() {
     setSelectedNodeId(null);
     setEditorMode(null);
     setEditingNodeId(null);
+    setFindRelationIds({ p1: null, p2: null });
   };
 
   // Also, when we manually close a modal (e.g. click X), we should probably go back in history
@@ -969,6 +971,33 @@ function App() {
     }
   };
 
+  const handleFindRelation = (targetNodeId: string) => {
+    if (!tree) return;
+
+    let currentUserNodeId: string | null = null;
+    if (currentUser && currentUser.email) {
+      const foundNode = Object.values(tree.nodes).find(n => n.email?.toLowerCase() === currentUser.email.toLowerCase());
+      if (foundNode) {
+        currentUserNodeId = foundNode.nodeId;
+      }
+    }
+
+    setFindRelationIds({ p1: currentUserNodeId, p2: targetNodeId });
+    setShowFindRelation(true);
+    // Since we are opening from a modal (PersonDetail), we might want to close PersonDetail?
+    // Or keep it open underneath?
+    // The requirement says "route to find relation page", implying a switch.
+    // Also PersonDetail is an overlay. FindRelation is also typically an overlay or full page.
+    // Let's close the PersonDetail (selectedNodeId = null) to avoid clutter, 
+    // or keep it if the user wants to go back.
+    // Since `FindRelation` has a close button that calls `handleManualClose` which closes ALL modals,
+    // it's safer to close PersonDetail now OR handle the stack properly.
+    // Current `closeAllModals` closes EVERYTHING.
+    // So if we keep PersonDetail open, and then close FindRelation, PersonDetail might also close if we use closeAllModals.
+    // Let's explicitly close PersonDetail (setSelectedNodeId(null)) to be clean.
+    setSelectedNodeId(null);
+  };
+
   return (
     <div className="app-container">
       <header className="app-header">
@@ -1216,6 +1245,8 @@ function App() {
               setShowFindRelation(false);
             }}
             onClose={handleManualClose}
+            initialPerson1Id={findRelationIds.p1}
+            initialPerson2Id={findRelationIds.p2}
           />
         )}
 
@@ -1246,7 +1277,9 @@ function App() {
             onClose={handleManualClose}
             onEdit={handleEditClick}
             onDelete={handleDeleteMember}
+
             onNodeClick={handleNodeClick}
+            onFindRelation={handleFindRelation}
           />
         )}
 

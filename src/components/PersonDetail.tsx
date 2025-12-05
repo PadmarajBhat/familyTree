@@ -15,9 +15,10 @@ interface PersonDetailProps {
     onEdit: () => void;
     onDelete: (nodeId: string) => void;
     onNodeClick: (nodeId: string) => void;
+    onFindRelation: (nodeId: string) => void;
 }
 
-export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentUser, onClose, onEdit, onDelete, onNodeClick }) => {
+export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentUser, onClose, onEdit, onDelete, onNodeClick, onFindRelation }) => {
     const isOrphan = !node.parentId && node.childrenIds.length === 0 && node.spouseIds.length === 0;
     const [isExportingPdf, setIsExportingPdf] = useState(false);
 
@@ -158,6 +159,9 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentU
                             {canEdit && (
                                 <button onClick={onEdit}>Edit Details</button>
                             )}
+                            <button onClick={() => onFindRelation(node.nodeId)} title="Find Relation with Me">
+                                🔍 Find Relation
+                            </button>
                             <button
                                 onClick={handleExportPdf}
                                 disabled={isExportingPdf}

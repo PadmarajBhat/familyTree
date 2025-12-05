@@ -9,6 +9,8 @@ interface FindRelationProps {
     nodes: Record<string, PersonNode>;
     onMemberClick: (nodeId: string) => void;
     onClose: () => void;
+    initialPerson1Id?: string | null;
+    initialPerson2Id?: string | null;
 }
 
 interface PersonOption {
@@ -17,11 +19,11 @@ interface PersonOption {
     disambiguationInfo: string;
 }
 
-export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick, onClose }) => {
-    const [person1Search, setPerson1Search] = useState('');
-    const [person2Search, setPerson2Search] = useState('');
-    const [selectedPerson1, setSelectedPerson1] = useState<string | null>(null);
-    const [selectedPerson2, setSelectedPerson2] = useState<string | null>(null);
+export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick, onClose, initialPerson1Id, initialPerson2Id }) => {
+    const [person1Search, setPerson1Search] = useState(initialPerson1Id && nodes[initialPerson1Id] ? (nodes[initialPerson1Id].name || '') : '');
+    const [person2Search, setPerson2Search] = useState(initialPerson2Id && nodes[initialPerson2Id] ? (nodes[initialPerson2Id].name || '') : '');
+    const [selectedPerson1, setSelectedPerson1] = useState<string | null>(initialPerson1Id || null);
+    const [selectedPerson2, setSelectedPerson2] = useState<string | null>(initialPerson2Id || null);
     const [showPerson1Suggestions, setShowPerson1Suggestions] = useState(false);
     const [showPerson2Suggestions, setShowPerson2Suggestions] = useState(false);
 
