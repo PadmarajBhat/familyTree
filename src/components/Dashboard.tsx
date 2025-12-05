@@ -220,7 +220,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
                 <button onClick={onClose} style={{ padding: '8px 16px', cursor: 'pointer' }}>Close</button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px', maxWidth: '800px', margin: '0 auto' }}>
 
                 {/* 1. Member Growth */}
                 <div className="chart-card" style={cardStyle}>
@@ -239,7 +239,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
                 </div>
 
                 {/* 2. Geo Map */}
-                <div className="chart-card" style={{ ...cardStyle, gridColumn: 'span 2' }}>
+                <div className="chart-card" style={cardStyle}>
                     <h3>Member Locations</h3>
                     <MapChart nodes={nodes} />
                 </div>
@@ -362,6 +362,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
 const cardStyle = {
     background: 'white',
     borderRadius: '8px',
-    padding: '15px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+    padding: '20px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    color: '#333',
+    border: '1px solid #eee'
 };

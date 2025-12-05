@@ -36,8 +36,21 @@ export const MapChart: React.FC<MapChartProps> = ({ nodes }) => {
             nodes.forEach(node => {
                 const loc = node.location;
                 if (loc) {
-                    // Prioritize zipcode, then district
-                    const key = loc.zipcode || loc.district || loc.state;
+                    // Construct a more specific query
+                    // Try to include as much context as possible: Zipcode, City, State, Country
+                    const parts = [];
+                    if (loc.zipcode) parts.push(loc.zipcode);
+                    if (loc.district) parts.push(loc.district);
+                    if (loc.state) parts.push(loc.state);
+                    if (loc.country) parts.push(loc.country);
+
+                    // If we have a zipcode but no country, and it looks like an Indian PIN code (6 digits), append India
+                    // This is a heuristic to help with the user's specific issue
+                    if (loc.zipcode && /^\d{6}$/.test(loc.zipcode) && !loc.country) {
+                        parts.push("India");
+                    }
+
+                    const key = parts.join(', ');
                     if (key) {
                         if (!locMap[key]) locMap[key] = [];
                         locMap[key].push(node);

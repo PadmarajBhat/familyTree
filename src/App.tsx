@@ -1030,8 +1030,11 @@ function App() {
                       <button
                         className="menu-item"
                         onClick={() => {
-                          setShowDashboard(true);
-                          setIsMenuOpen(false);
+                          // Reload tree data to ensure freshness
+                          loadTree(true).then(() => {
+                            setShowDashboard(true);
+                            setIsMenuOpen(false);
+                          });
                         }}
                       >
                         Dashboard
