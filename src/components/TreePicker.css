@@ -1,9 +1,43 @@
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+}
+
 .tree-picker-modal {
     max-width: 600px;
     width: 90%;
     max-height: 80vh;
     display: flex;
     flex-direction: column;
+    background: white;
+    color: #333;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    padding: 1.5rem;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.close-button {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #666;
 }
 
 .tree-list {
@@ -70,4 +104,52 @@
 
 .btn-text:hover {
     color: #1976d2;
+}
+
+.create-form input {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-right: 10px;
+    flex: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+    .tree-picker-modal {
+        background: #333;
+        color: white;
+    }
+
+    .close-button {
+        color: #aaa;
+    }
+
+    .tree-item {
+        background: #444;
+        border-color: #555;
+        color: white;
+    }
+
+    .tree-item.current {
+        background: #2a4b6d;
+        border-color: #2196f3;
+    }
+
+    .tree-meta {
+        color: #aaa;
+    }
+
+    .btn-text {
+        color: #64b5f6;
+    }
+
+    .btn-text:hover {
+        color: #90caf9;
+    }
+
+    .create-form input {
+        background: #444;
+        color: white;
+        border-color: #666;
+    }
 }

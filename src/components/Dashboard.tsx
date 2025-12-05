@@ -4,6 +4,7 @@ import {
     PieChart, Pie, Cell, LineChart, Line, Treemap
 } from 'recharts';
 import type { TreeDocument } from '../logic/types';
+import { MapChart } from './MapChart';
 
 interface DashboardProps {
     tree: TreeDocument;
@@ -46,22 +47,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
         return Object.values(stats).sort((a, b) => parseInt(a.year) - parseInt(b.year));
     }, [nodes]);
 
-    // 2. Geo Plot (Zipcode Distribution)
-    const geoData = useMemo(() => {
-        const counts: Record<string, number> = {};
-        nodes.forEach(node => {
-
-            // If zipcode is present, use it.
-            const key = node.location?.zipcode || 'Unknown';
-            if (key !== 'Unknown') {
-                counts[key] = (counts[key] || 0) + 1;
-            }
-        });
-        return Object.entries(counts)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 20); // Top 20
-    }, [nodes]);
+    // 2. Geo Plot (Zipcode Distribution) - REMOVED (Handled by MapChart)
+    // const geoData = ...
 
     // 3. Age Plot
     const ageData = useMemo(() => {
@@ -251,19 +238,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
                     </ResponsiveContainer>
                 </div>
 
-                {/* 2. Geo Plot (Zipcodes) */}
-                <div className="chart-card" style={cardStyle}>
-                    <h3>Top Locations (Zipcodes)</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={geoData} layout="vertical">
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis type="number" />
-                            <YAxis dataKey="name" type="category" width={80} />
-                            <Tooltip />
-                            <Legend />
-                            <Bar dataKey="value" fill="#8884d8" />
-                        </BarChart>
-                    </ResponsiveContainer>
+                {/* 2. Geo Map */}
+                <div className="chart-card" style={{ ...cardStyle, gridColumn: 'span 2' }}>
+                    <h3>Member Locations</h3>
+                    <MapChart nodes={nodes} />
                 </div>
 
                 {/* 3. Age Distribution */}
