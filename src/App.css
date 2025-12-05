@@ -86,6 +86,7 @@ main {
 
 .loading-content {
   background-color: white;
+  color: #333;
   padding: 2rem;
   border-radius: 8px;
   display: flex;
@@ -93,6 +94,13 @@ main {
   align-items: center;
   gap: 1rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  .loading-content {
+    background-color: #333;
+    color: white;
+  }
 }
 
 .spinner {
@@ -140,12 +148,20 @@ main {
 
 .person-detail-card {
   background: white;
+  color: #333;
   padding: 2rem;
   border-radius: 8px;
   width: 90%;
   max-width: 500px;
   position: relative;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .person-detail-card {
+    background: #333;
+    color: white;
+  }
 }
 
 .close-btn {
@@ -256,4 +272,33 @@ main {
   flex-shrink: 1;
   min-width: 0;
   box-sizing: border-box;
+}
+
+@media (prefers-color-scheme: dark) {
+  .dropdown-menu {
+    background-color: #333;
+    color: white;
+  }
+
+  .menu-item {
+    color: white;
+  }
+
+  .menu-item:hover {
+    background-color: #444;
+  }
+
+  .menu-item.user-label {
+    color: #aaa;
+  }
+
+  .menu-divider {
+    background-color: #555;
+  }
+
+  .menu-item select {
+    background-color: #444;
+    color: white;
+    border-color: #666;
+  }
 }
