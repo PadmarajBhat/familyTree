@@ -6,7 +6,7 @@ interface Coordinates {
 }
 
 const CACHE_KEY = 'geocoding_cache';
-const RATE_LIMIT_DELAY = 1200; // 1.2 seconds to be safe (Nominatim limit is 1s)
+const RATE_LIMIT_DELAY = 1200; // 1.2 seconds to be safe
 
 // Load cache from localStorage
 const loadCache = (): Record<string, Coordinates> => {
@@ -41,7 +41,7 @@ export const getCoordinates = async (query: string): Promise<Coordinates | null>
         return cache[normalizedQuery];
     }
 
-    // Rate limiting
+    // Rate limiting (still good to have even for Photon)
     const now = Date.now();
     const timeSinceLastRequest = now - lastRequestTime;
     if (timeSinceLastRequest < RATE_LIMIT_DELAY) {
@@ -50,23 +50,32 @@ export const getCoordinates = async (query: string): Promise<Coordinates | null>
 
     try {
         lastRequestTime = Date.now();
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=1`);
+        // Use Photon API (Komoot) which is more lenient with CORS and usage
+        const response = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=1`);
         if (!response.ok) {
             throw new Error(`Geocoding failed: ${response.statusText}`);
         }
 
         const data = await response.json();
-        if (data && data.length > 0) {
-            const item = data[0];
-            const address = item.address || {};
+        // Photon returns GeoJSON
+        if (data && data.features && data.features.length > 0) {
+            const feature = data.features[0];
+            const props = feature.properties;
+            const coords = feature.geometry.coordinates; // [lon, lat]
 
-            // Prefer City > Town > Village > County > State > Country
-            const name = address.city || address.town || address.village || address.county || address.state || address.country || item.display_name.split(',')[0];
+            // Construct display name from available properties
+            const parts = [];
+            if (props.name) parts.push(props.name);
+            if (props.city && props.city !== props.name) parts.push(props.city);
+            if (props.state) parts.push(props.state);
+            if (props.country) parts.push(props.country);
 
-            const result = {
-                lat: parseFloat(item.lat),
-                lon: parseFloat(item.lon),
-                displayName: name
+            const displayName = parts.join(', ') || props.name || query;
+
+            const result: Coordinates = {
+                lat: coords[1], // Latitude is the second element
+                lon: coords[0], // Longitude is the first element
+                displayName: displayName
             };
 
             // Update cache

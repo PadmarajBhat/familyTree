@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { PersonNode } from '../logic/types';
 import { getCoordinates } from '../logic/geocoding';
+import { getPhotoUrl } from '../services/drive';
 
 interface MapChartProps {
     nodes: PersonNode[];
@@ -154,7 +155,7 @@ const createCustomIcon = (members: PersonNode[]) => {
     const html = `
         <div style="position: relative; width: 40px; height: 40px;">
             ${firstMember.imageUrl
-            ? `<div style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); background-image: url('${firstMember.imageUrl}'); background-size: cover; background-position: center;"></div>`
+            ? `<div style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); background-image: url('${getPhotoUrl(firstMember.imageUrl)}'); background-size: cover; background-position: center;"></div>`
             : `<div style="width: 40px; height: 40px; border-radius: 50%; background: #2196f3; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${firstMember.name?.charAt(0) || '?'}</div>`
         }
             ${count > 1
