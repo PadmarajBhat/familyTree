@@ -16,6 +16,10 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'
 export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
     const nodes = Object.values(tree.nodes);
 
+    React.useEffect(() => {
+        window.scrollTo(0, 0);
+    }, []);
+
     // 1. Year on Year Member Count (Births)
     const memberGrowthData = useMemo(() => {
         const yearCounts: Record<string, number> = {};
@@ -216,7 +220,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
     return (
         <div className="dashboard-container" style={{ padding: '20px', minHeight: 'calc(100vh - 60px)', background: '#f5f5f5' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', maxWidth: '800px', margin: '0 auto 20px auto' }}>
-                <h1 style={{ margin: 0, color: '#333' }}>Family Dashboard</h1>
+                <h1 style={{ margin: 0, color: '#333' }}>{tree.treeName || "Family"} Dashboard</h1>
                 <button onClick={onClose} style={{ padding: '10px 20px', cursor: 'pointer', background: '#2196f3', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>Back to Tree</button>
             </div>
 
