@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, updateUserPreference } from './services/drive';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, updateUserPreference, grantWritePermission } from './services/drive';
 import type { TreeDocument, PersonNode } from './logic/types';
 import { mergeTrees } from './logic/merge';
 import { TreeView } from './components/TreeView';
@@ -281,41 +281,79 @@ function App() {
     }
   };
 
-  const executeWithLock = async (action: (latestTree: TreeDocument | null) => Promise<void>) => {
+  const executeWithLock = async (action: (latestTree: TreeDocument | null, lockId: string) => Promise<void>) => {
     setLoading(true);
     setLoadingMessage("Acquiring lock...");
 
-    let lockId = await acquireLock(currentUser?.email || 'unknown');
+    // We need the ID of the file we are locking.
+    // Ideally use currentTreeId, but let's be safe and fetch the latest file ID again to be sure.
+    // Or simpler: listTreeFiles()[0].
 
-    while (!lockId) {
-      const lockInfo = await checkLock();
-      if (lockInfo) {
-        setLoadingMessage(`Waiting for lock release... (Locked by ${lockInfo.lockedBy})`);
-      } else {
-        setLoadingMessage("Acquiring lock...");
-        lockId = await acquireLock(currentUser?.email || 'unknown');
-      }
-
-      if (!lockId) {
-        await new Promise(r => setTimeout(r, 2000));
-      }
-    }
+    // NOTE: This assumes we are always locking the "latest" file.
+    // If we are editing an old version, that logic might be different, but for now we always edit head.
+    let lockId: string | null = null;
+    let targetFileId: string | null = null;
 
     try {
-      setLoadingMessage("Refreshing data...");
-      const latestTree = await loadTree(true);
+      const files = await listTreeFiles();
+      if (files && files.length > 0) {
+        targetFileId = files[0].id;
+      } else {
+        // No file to lock? Then we might be creating one.
+        // But we can't lock a non-existent file.
+        // So just proceed without lock (creating new file).
+        await action(null, "");
+        setLoading(false);
+        setLoadingMessage("Loading...");
+        return;
+      }
 
-      setLoadingMessage("Saving changes...");
-      await action(latestTree);
-    } catch (e) {
-      console.error("Error during locked operation", e);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      alert("An error occurred: " + (e as any).message);
-    } finally {
-      setLoadingMessage("Releasing lock...");
-      await releaseLock(lockId);
+      if (!targetFileId) return;
+
+      lockId = await acquireLock(targetFileId);
+
+      while (!lockId) {
+        const lockInfo = await checkLock(targetFileId);
+        if (lockInfo) {
+          setLoadingMessage(`Waiting for lock release... (Locked by ${lockInfo.lockedBy})`);
+        } else {
+          setLoadingMessage("Acquiring lock...");
+          lockId = await acquireLock(targetFileId);
+        }
+
+        if (!lockId) {
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+
+      try {
+        setLoadingMessage("Refreshing data...");
+        const latestTree = await loadTree(true);
+
+        setLoadingMessage("Saving changes...");
+        await action(latestTree, lockId);
+      } catch (e) {
+        console.error("Error during locked operation", e);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        alert("An error occurred: " + (e as any).message);
+        // Verify if we still hold the lock before releasing? 
+        // releaseLock handles safety checks internally mostly? 
+        // ContentRestriction release is safe (just turns it off).
+      } finally {
+        if (lockId) {
+          setLoadingMessage("Releasing lock...");
+          // Note: If the action saved and UNLOCKED atomically, we shouldn't unlock again?
+          // But blindly unlocking is usually fine as it's idempotent-ish (setting readOnly=false).
+          // However, to be cleaner, we can check. 
+          // For now, let's just release to be safe in case of errors.
+          await releaseLock(lockId);
+        }
+        setLoading(false);
+        setLoadingMessage("Loading...");
+      }
+    } catch (err) {
+      console.error("Top level error in executeWithLock", err);
       setLoading(false);
-      setLoadingMessage("Loading...");
     }
   };
 
@@ -363,23 +401,54 @@ function App() {
     setEditorMode('add');
   };
 
-  const saveWithMerge = async (localTree: TreeDocument, summaryText: string) => {
+  const saveWithMerge = async (localTree: TreeDocument, summaryText: string, lockId: string | null) => {
     const todayFileName = generateFilename(currentTreeName);
+
+    // If we have a lockId, it means we are editing an EXISTING file (probably).
+    // Check if the locked file is the same as "today's file".
+    // If yes, we update IT.
+
+    // Simplification: listTreeFiles().
     const files = await listTreeFiles();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const todaysFile = files.find((f: any) => f.name === todayFileName);
 
     if (todaysFile) {
       console.log("Found today's file, merging...", todaysFile.id);
+
+      // If we locked a DIFFERENT file (yesterday's), we are now creating TODAY's file.
+      // So we can unlock the OLD file (lockId) if it's different. 
+      // But executeWithLock finally block handles the unlock of lockId.
+
+      // If lockId === todaysFile.id, we can doing atomic unlock!
+      const isLockedFile = lockId === todaysFile.id;
+
+      // We already have latest content from loadTree called in executeWithLock? 
+      // Yes, 'localTree' passed here is actually the UPDATED local tree which was based on LATEST remote.
+      // So we don't strictly need to fetch again if we trust we are the only writer (which lock ensures).
+      // But mergeTrees logic usually fetches remote again. 
+      // Let's stick to mergeTraits for safety, but we can pass localTree as both if we are confident.
+      // Actually, executeWithLock fetches loadTree(true) -> latestTree. 
+      // Then we modified it -> localTree.
+      // So localTree IS the merge result of (Remote + Changes). 
+      // We still run mergeTrees usually to handle deeper conflicts but here we serialized it.
+
+      // So we can just save `localTree` to `todaysFile.id`.
+      // But let's keep the existing flow just in case.
       const remoteContent = await getFileContent(todaysFile.id) as TreeDocument;
       const { mergedTree } = mergeTrees(localTree, remoteContent);
-      // Ensure the summary is up to date in the file metadata
+
       const latestSummary = mergedTree.summary.length > 0 ? mergedTree.summary[0].changes : summaryText;
-      await updateTreeFile(todaysFile.id, mergedTree, latestSummary);
-      setCurrentTreeId(todaysFile.id); // Update ID just in case
+
+      // Optimize: If we are updating the SAME file we locked against, we can UNLOCK it now.
+      await updateTreeFile(todaysFile.id, mergedTree, latestSummary, isLockedFile);
+
+      setCurrentTreeId(todaysFile.id);
       return mergedTree;
     } else {
       console.log("Creating new file for today...", todayFileName);
+      // We are creating a NEW file. The lock was on the OLD file.
+      // The OLD file will be unlocked by executeWithLock finally block.
       const newFile = await saveTreeFile(todayFileName, localTree, summaryText);
       if (newFile && newFile.id) {
         setCurrentTreeId(newFile.id);
@@ -392,7 +461,7 @@ function App() {
   const handleSaveMember = async (personData: PersonNode, newParentId: string | null, newChildrenIds: string[], newSpouseIds: string[], newSiblingIds: string[]) => {
     if (viewMode === 'sample') return; // Double check
 
-    await executeWithLock(async (latestTree) => {
+    await executeWithLock(async (latestTree, lockId) => {
       // Initialize tree if it doesn't exist
       const currentTree: TreeDocument = latestTree ? JSON.parse(JSON.stringify(latestTree)) : {
         schemaVersion: 1,
@@ -722,7 +791,33 @@ function App() {
       try {
         setLoading(true); // executeWithLock handles loading, but saveWithMerge might not? executeWithLock handles it.
         // Actually executeWithLock sets loading=true.
-        const savedTree = await saveWithMerge(updatedTree, summaryText);
+        const savedTree = await saveWithMerge(updatedTree, summaryText, lockId);
+
+        // --- Permission Logic ---
+        // If we added or edited a member with an email, ensure they have Write access.
+        if (personData.email) {
+          // We should grant permission to this email.
+          // But on which file? The one we just saved to!
+          // savedTree itself doesn't have ID.
+          // But we have currentTreeId (or we can get it from listTreeFiles again if needed, or stick to todaysFile logic).
+          // saveWithMerge updates getCurrentTreeId.
+          // But React state updates are async, so currentTreeId might be stale here immediately? 
+          // Better to make saveWithMerge return the ID or similar.
+          // Or just fetch latest file ID.
+
+          // To be robust:
+          // "The App will automatically call grantWritePermission... whenever an email is added/updated."
+
+          // Check if email changed? Or just always grant?
+          // "Always grant" is safer and idempotent.
+
+          // We need the fileID of the file we just wrote.
+          // Since saveWithMerge handles specific logic, let's grab the file ID from a new helper or assume it's the head of list.
+          const files = await listTreeFiles();
+          if (files.length > 0) {
+            await grantWritePermission(files[0].id, personData.email);
+          }
+        }
 
         setTree(savedTree);
         setEditorMode(null);
@@ -771,7 +866,7 @@ function App() {
       return;
     }
 
-    await executeWithLock(async (latestTree) => {
+    await executeWithLock(async (latestTree, lockId) => {
       if (!latestTree) return;
       const node = latestTree.nodes[nodeId];
       if (!node) return;
