@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -17,9 +17,13 @@ interface LocationData {
 }
 
 // Component to update map view bounds
-const ChangeView = ({ center, zoom }: { center: [number, number], zoom: number }) => {
+const ChangeView = ({ bounds }: { bounds: L.LatLngBoundsExpression | null }) => {
     const map = useMap();
-    map.setView(center, zoom);
+    useEffect(() => {
+        if (bounds) {
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+    }, [bounds, map]);
     return null;
 };
 
@@ -87,9 +91,12 @@ export const MapChart: React.FC<MapChartProps> = ({ nodes }) => {
         fetchLocations();
     }, [nodes]);
 
-    const center: [number, number] = locations.length > 0
-        ? [locations[0].lat, locations[0].lon]
-        : [20.5937, 78.9629]; // Default to India
+    const bounds = useMemo(() => {
+        if (locations.length === 0) return null;
+        return L.latLngBounds(locations.map(l => [l.lat, l.lon]));
+    }, [locations]);
+
+    const center: [number, number] = [20.5937, 78.9629]; // Default to India if no data
 
     if (loading) {
         return <div style={{ height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading Map Data...</div>;
@@ -102,7 +109,7 @@ export const MapChart: React.FC<MapChartProps> = ({ nodes }) => {
     return (
         <div style={{ height: '400px', width: '100%', borderRadius: '8px', overflow: 'hidden' }}>
             <MapContainer center={center} zoom={4} style={{ height: '100%', width: '100%' }}>
-                <ChangeView center={center} zoom={4} />
+                <ChangeView bounds={bounds} />
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -147,7 +154,7 @@ const createCustomIcon = (members: PersonNode[]) => {
     const html = `
         <div style="position: relative; width: 40px; height: 40px;">
             ${firstMember.imageUrl
-            ? `<img src="${firstMember.imageUrl}" style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); object-fit: cover;" />`
+            ? `<div style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); background-image: url('${firstMember.imageUrl}'); background-size: cover; background-position: center;"></div>`
             : `<div style="width: 40px; height: 40px; border-radius: 50%; background: #2196f3; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${firstMember.name?.charAt(0) || '?'}</div>`
         }
             ${count > 1

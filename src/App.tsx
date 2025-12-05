@@ -140,7 +140,7 @@ function App() {
     }
   }, [isSignedIn, isGapiReady, viewMode, currentUser]);
 
-  const loadTree = async (returnOnly = false, _specificFileId?: string): Promise<TreeDocument | null> => {
+  const loadTree = async (returnOnly = false, specificFileId?: string): Promise<TreeDocument | null> => {
     if (!returnOnly) setLoading(true);
     setError(null);
     try {
@@ -149,7 +149,17 @@ function App() {
         // Check for user preference
         let fileToLoad = files[0];
         const prefs = await getPreferences();
-        if (currentUser && currentUser.email && prefs[currentUser.email]?.defaultTreeName) {
+
+        // If a specific file is requested, try to find it
+        if (specificFileId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const found = files.find((f: any) => f.id === specificFileId);
+          if (found) {
+            fileToLoad = found;
+          } else {
+            console.warn("Requested file not found:", specificFileId);
+          }
+        } else if (currentUser && currentUser.email && prefs[currentUser.email]?.defaultTreeName) {
           const prefName = prefs[currentUser.email].defaultTreeName!;
           setDefaultTreeName(prefName);
 
@@ -962,7 +972,7 @@ function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>Family Tree</h1>
+        <h1>{tree?.treeName || "Family Tree"}</h1>
         <div className="auth-controls">
           {isSignedIn ? (
             <div className="menu-container">
@@ -1082,7 +1092,7 @@ function App() {
         {loading && <LoadingOverlay message={loadingMessage} />}
         {error && <div className="error">{error}</div>}
 
-        {tree && !loading && !error && (
+        {tree && !loading && !error && !showDashboard && (
           <div className="view-toggle-bar" style={{ display: 'flex', justifyContent: 'center', padding: '10px', background: '#fff', borderBottom: '1px solid #eee' }}>
             <div style={{ display: 'flex', gap: '10px', background: '#f0f0f0', padding: '5px', borderRadius: '20px' }}>
               <button

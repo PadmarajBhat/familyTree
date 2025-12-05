@@ -50,17 +50,23 @@ export const getCoordinates = async (query: string): Promise<Coordinates | null>
 
     try {
         lastRequestTime = Date.now();
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=1`);
         if (!response.ok) {
             throw new Error(`Geocoding failed: ${response.statusText}`);
         }
 
         const data = await response.json();
         if (data && data.length > 0) {
+            const item = data[0];
+            const address = item.address || {};
+
+            // Prefer City > Town > Village > County > State > Country
+            const name = address.city || address.town || address.village || address.county || address.state || address.country || item.display_name.split(',')[0];
+
             const result = {
-                lat: parseFloat(data[0].lat),
-                lon: parseFloat(data[0].lon),
-                displayName: data[0].display_name
+                lat: parseFloat(item.lat),
+                lon: parseFloat(item.lon),
+                displayName: name
             };
 
             // Update cache

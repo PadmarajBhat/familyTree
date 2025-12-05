@@ -214,10 +214,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
     }, [nodes]);
 
     return (
-        <div className="dashboard-container" style={{ padding: '20px', height: '100vh', overflowY: 'auto', background: '#f5f5f5' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h1>Family Dashboard</h1>
-                <button onClick={onClose} style={{ padding: '8px 16px', cursor: 'pointer' }}>Close</button>
+        <div className="dashboard-container" style={{ padding: '20px', minHeight: 'calc(100vh - 60px)', background: '#f5f5f5' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', maxWidth: '800px', margin: '0 auto 20px auto' }}>
+                <h1 style={{ margin: 0, color: '#333' }}>Family Dashboard</h1>
+                <button onClick={onClose} style={{ padding: '10px 20px', cursor: 'pointer', background: '#2196f3', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>Back to Tree</button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px', maxWidth: '800px', margin: '0 auto' }}>
