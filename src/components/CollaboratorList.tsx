@@ -10,12 +10,13 @@ interface CollaboratorListProps {
     currentUserEmail: string;
     canToggle: boolean;
     onToggleEditor: (nodeId: string, newStatus: boolean, updates?: { email?: string; phone?: string }) => void;
+    onSetDefaultTree?: (email: string) => void;
     onClose: () => void;
 }
 
 const PROTECTED_EMAILS = ['padmarajbhat@gmail.com', 'narasimhapbhat@gmail.com'];
 
-export function CollaboratorList({ nodes, canToggle, onToggleEditor, onClose }: CollaboratorListProps) {
+export function CollaboratorList({ nodes, canToggle, onToggleEditor, onSetDefaultTree, onClose }: CollaboratorListProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [missingDetailsNode, setMissingDetailsNode] = useState<PersonNode | null>(null);
     const [emailInput, setEmailInput] = useState('');
@@ -121,6 +122,16 @@ export function CollaboratorList({ nodes, canToggle, onToggleEditor, onClose }: 
                 >
                     {isCurrentEditor ? 'Remove' : 'Add'}
                 </button>
+                {isCurrentEditor && onSetDefaultTree && node.email && (
+                    <button
+                        className="btn-text small"
+                        onClick={() => onSetDefaultTree(node.email!)}
+                        title="Set current tree as default for this user"
+                        style={{ marginLeft: '10px', fontSize: '0.8em' }}
+                    >
+                        Set Default Tree
+                    </button>
+                )}
             </div>
         );
     };

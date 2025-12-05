@@ -135,7 +135,7 @@ export const listTreeFiles = async () => {
     try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await (gapi.client as any).drive.files.list({
-            q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name contains 'json' and name != '${LOCK_FILE_NAME}'`,
+            q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name contains 'json' and name != '${LOCK_FILE_NAME}' and name != 'preferences.json'`,
             fields: 'nextPageToken, files(id, name, createdTime, modifiedTime, description)',
             orderBy: 'createdTime desc', // Load latest created file
         });
@@ -144,6 +144,63 @@ export const listTreeFiles = async () => {
         console.error("Error listing files", err);
         throw err;
     }
+};
+
+export interface UserPreferences {
+    [email: string]: {
+        defaultTreeName?: string;
+    };
+}
+
+export const getPreferences = async (): Promise<UserPreferences> => {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = await (gapi.client as any).drive.files.list({
+            q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name = 'preferences.json'`,
+            fields: 'files(id, name)',
+        });
+
+        const files = response.result.files;
+        if (files && files.length > 0) {
+            const content = await getFileContent(files[0].id);
+            return content as UserPreferences;
+        }
+        return {};
+    } catch (err) {
+        console.error("Error fetching preferences", err);
+        return {};
+    }
+};
+
+export const savePreferences = async (prefs: UserPreferences): Promise<void> => {
+    try {
+        // Check if file exists to update or create
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = await (gapi.client as any).drive.files.list({
+            q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name = 'preferences.json'`,
+            fields: 'files(id)',
+        });
+
+        const files = response.result.files;
+        if (files && files.length > 0) {
+            await updateTreeFile(files[0].id, prefs, "User Preferences");
+        } else {
+            await saveTreeFile("preferences.json", prefs, "User Preferences");
+        }
+    } catch (err) {
+        console.error("Error saving preferences", err);
+        throw err;
+    }
+};
+
+export const updateUserPreference = async (email: string, defaultTreeName: string): Promise<void> => {
+    // Simple lock-free approach for now, assuming low contention on preferences
+    const prefs = await getPreferences();
+    if (!prefs[email]) {
+        prefs[email] = {};
+    }
+    prefs[email].defaultTreeName = defaultTreeName;
+    await savePreferences(prefs);
 };
 
 export const getFileContent = async (fileId: string) => {

@@ -1,0 +1,73 @@
+.tree-picker-modal {
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.tree-list {
+    overflow-y: auto;
+    max-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.tree-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.tree-item.current {
+    border-color: #2196f3;
+    background: #f0f7ff;
+}
+
+.tree-info {
+    flex: 1;
+}
+
+.tree-name {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 4px;
+}
+
+.tree-meta {
+    font-size: 0.85em;
+    color: #666;
+}
+
+.tree-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.badge-default {
+    background: #4caf50;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+
+.btn-text {
+    background: none;
+    border: none;
+    color: #2196f3;
+    cursor: pointer;
+    font-size: 0.9em;
+    text-decoration: underline;
+}
+
+.btn-text:hover {
+    color: #1976d2;
+}

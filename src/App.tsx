@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock } from './services/drive';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, updateUserPreference } from './services/drive';
 import type { TreeDocument, PersonNode } from './logic/types';
 import { mergeTrees } from './logic/merge';
 import { TreeView } from './components/TreeView';
@@ -9,12 +9,14 @@ import { MemberSearch } from './components/MemberSearch';
 import { CollaboratorList } from './components/CollaboratorList';
 import { FindRelation } from './components/FindRelation';
 import { VersionHistory } from './components/VersionHistory';
+import { TreePicker } from './components/TreePicker';
 import { FanChartView } from './components/FanChartView';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { canEdit } from './logic/accessControl';
 import { canEditNode, isGlobalEditor } from './logic/permissions';
 import { getISTTimestamp } from './logic/dateUtils';
 import { generateSampleTree } from './logic/sampleData';
+import { getTreeNameFromFilename, generateFilename } from './logic/fileUtils';
 import './App.css';
 
 function App() {
@@ -36,12 +38,16 @@ function App() {
   const [showCollaborators, setShowCollaborators] = useState(false);
   const [showFindRelation, setShowFindRelation] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showTreePicker, setShowTreePicker] = useState(false);
+  const [defaultTreeName, setDefaultTreeName] = useState<string | null>(null);
+  const [currentTreeId, setCurrentTreeId] = useState<string | null>(null);
+  const [currentTreeName, setCurrentTreeName] = useState<string>('family_tree');
 
   const [viewDepth, setViewDepth] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // --- History / Back Button Logic ---
-  const isAnyModalOpen = showSearch || showCollaborators || showFindRelation || showVersionHistory || !!selectedNodeId || !!editorMode;
+  const isAnyModalOpen = showSearch || showCollaborators || showFindRelation || showVersionHistory || showTreePicker || !!selectedNodeId || !!editorMode;
 
   useEffect(() => {
     // When a modal opens, push a state if we aren't already in one
@@ -84,6 +90,7 @@ function App() {
     setShowCollaborators(false);
     setShowFindRelation(false);
     setShowVersionHistory(false);
+    setShowTreePicker(false);
     setSelectedNodeId(null);
     setEditorMode(null);
     setEditingNodeId(null);
@@ -130,15 +137,61 @@ function App() {
     }
   }, [isSignedIn, isGapiReady, viewMode, currentUser]);
 
-  const loadTree = async (returnOnly = false): Promise<TreeDocument | null> => {
+  const loadTree = async (returnOnly = false, specificFileId?: string): Promise<TreeDocument | null> => {
     if (!returnOnly) setLoading(true);
     setError(null);
     try {
       const files = await listTreeFiles();
       if (files && files.length > 0) {
-        const latestFile = files[0];
-        console.log("Loading file:", latestFile.name, latestFile.id);
-        const content = await getFileContent(latestFile.id);
+        // Check for user preference
+        let fileToLoad = files[0];
+        const prefs = await getPreferences();
+        if (currentUser && currentUser.email && prefs[currentUser.email]?.defaultTreeName) {
+          const prefName = prefs[currentUser.email].defaultTreeName!;
+          setDefaultTreeName(prefName);
+
+          // Find latest file for this name
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const matchingFiles = files.filter((f: any) => getTreeNameFromFilename(f.name) === prefName);
+          if (matchingFiles.length > 0) {
+            // Assuming files are ordered by createdTime desc
+            fileToLoad = matchingFiles[0];
+            console.log("Loading default tree:", fileToLoad.name);
+          } else {
+            console.warn("Default tree not found, falling back to latest.");
+          }
+        } else {
+          console.log("No default tree preference found.");
+        }
+
+        // Override if we are loading a specific file (e.g. from picker) - wait, loadTree doesn't take an ID arg yet.
+        // We should probably refactor loadTree to take an optional ID.
+        // But for now, let's just stick to the plan: loadTree loads THE tree.
+        // If we want to switch, we might need to pass an ID.
+
+        // Let's modify loadTree signature slightly to accept an optional fileId
+        // But I can't change the signature in the middle of this function body easily with replace_file_content if I didn't select the top.
+        // I selected lines 1-1098 so I can edit anywhere.
+
+        // Actually, I'll just use a module-level variable or state? No, that's messy.
+        // Let's assume loadTree always loads "the" tree.
+        // If I want to load a SPECIFIC tree, I should probably pass it.
+        // But for this specific "Default Tree" task, the requirement is "first interaction... loads default".
+        // So this logic here is correct for the INITIAL load.
+
+        // However, for "Switch Tree", we need to tell loadTree WHICH one.
+        // I will modify the signature in a separate chunk or just here if I can.
+        // I'll assume I can't change the signature easily without breaking calls.
+        // So I will add a new argument `specificFileId?: string`.
+
+        // Wait, I can't easily change the signature in this chunk because I didn't include the function definition line in THIS chunk.
+        // I will do it in a separate tool call or just rely on state?
+        // No, I'll update the signature in a separate chunk.
+
+        console.log("Loading file:", fileToLoad.name, fileToLoad.id);
+        setCurrentTreeId(fileToLoad.id);
+        setCurrentTreeName(getTreeNameFromFilename(fileToLoad.name));
+        const content = await getFileContent(fileToLoad.id);
         console.log("File content:", content);
 
         if (!content || typeof content !== 'object') {
@@ -296,7 +349,7 @@ function App() {
   };
 
   const saveWithMerge = async (localTree: TreeDocument, summaryText: string) => {
-    const todayFileName = `family_tree_${new Date().toISOString().split('T')[0]}.json`;
+    const todayFileName = generateFilename(currentTreeName);
     const files = await listTreeFiles();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const todaysFile = files.find((f: any) => f.name === todayFileName);
@@ -308,19 +361,14 @@ function App() {
       // Ensure the summary is up to date in the file metadata
       const latestSummary = mergedTree.summary.length > 0 ? mergedTree.summary[0].changes : summaryText;
       await updateTreeFile(todaysFile.id, mergedTree, latestSummary);
+      setCurrentTreeId(todaysFile.id); // Update ID just in case
       return mergedTree;
     } else {
       console.log("Creating new file for today...", todayFileName);
-      // Check if there's a more recent file than what we started with, just in case
-      if (files.length > 0) {
-        // const latestFile = files[0];
-        // If the latest file is NOT the one we loaded (unlikely if we just listed), 
-        // or if it has been modified since we loaded.
-        // But for simplicity, let's assume if today's file doesn't exist, we are starting the day.
-        // However, if someone else created today's file just now, 'todaysFile' would be found.
-        // So we are safe.
+      const newFile = await saveTreeFile(todayFileName, localTree, summaryText);
+      if (newFile && newFile.id) {
+        setCurrentTreeId(newFile.id);
       }
-      await saveTreeFile(todayFileName, localTree, summaryText);
       return localTree;
     }
   };
@@ -825,6 +873,83 @@ function App() {
     });
   };
 
+  const handleCreateTree = async (treeName: string) => {
+    if (!currentUser) return;
+    try {
+      setLoading(true);
+      // Create a new empty tree
+      const newTree: TreeDocument = {
+        schemaVersion: 1,
+        treeId: crypto.randomUUID(),
+        treeName: treeName,
+        versionIndex: 0,
+        timestamp: getISTTimestamp(),
+        rootNodeId: "",
+        nodes: {},
+        marriages: [],
+        summary: [],
+        meta: {
+          createdBy: currentUser.email,
+          createdTime: getISTTimestamp(),
+          nodeCount: 0
+        }
+      };
+
+      const filename = generateFilename(treeName);
+      const savedFile = await saveTreeFile(filename, newTree, "Initial creation");
+
+      if (savedFile && savedFile.id) {
+        setCurrentTreeId(savedFile.id);
+        setCurrentTreeName(treeName);
+        setTree(newTree);
+        setShowTreePicker(false);
+        alert(`Tree "${treeName}" created successfully!`);
+      }
+    } catch (err) {
+      console.error("Failed to create tree", err);
+      alert("Failed to create tree.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSetDefaultTreeForUser = async (targetEmail: string) => {
+    if (!currentTreeName) {
+      alert("No tree currently loaded to set as default.");
+      return;
+    }
+    try {
+      setLoading(true);
+      await updateUserPreference(targetEmail, currentTreeName);
+      alert(`Default tree set for ${targetEmail}`);
+    } catch (err) {
+      console.error("Failed to set default tree for user", err);
+      alert("Failed to set default tree for user.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSetDefaultTree = async (treeName: string) => {
+    if (!currentUser) return;
+    try {
+      setLoading(true);
+      await updateUserPreference(currentUser.email, treeName);
+      setDefaultTreeName(treeName);
+      alert("Default tree updated successfully!");
+    } catch (err) {
+      console.error("Failed to set default tree", err);
+      alert("Failed to set default tree.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSwitchTree = async (fileId: string) => {
+    setShowTreePicker(false);
+    await loadTree(false, fileId);
+  };
+
   const handleResetRoot = () => {
     if (tree) {
       setFanRootId(tree.rootNodeId);
@@ -898,6 +1023,15 @@ function App() {
                         }}
                       >
                         Version History
+                      </button>
+                      <button
+                        className="menu-item"
+                        onClick={() => {
+                          setShowTreePicker(true);
+                          setIsMenuOpen(false);
+                        }}
+                      >
+                        Switch Tree
                       </button>
                     </>
                   )}
@@ -1044,6 +1178,7 @@ function App() {
             currentUserEmail={currentUser.email}
             canToggle={!!isAuthorized}
             onToggleEditor={handleToggleEditor}
+            onSetDefaultTree={handleSetDefaultTreeForUser}
             onClose={handleManualClose}
           />
         )}
@@ -1061,6 +1196,17 @@ function App() {
 
         {showVersionHistory && tree && (
           <VersionHistory summary={tree.summary} onClose={handleManualClose} />
+        )}
+
+        {showTreePicker && (
+          <TreePicker
+            currentTreeId={currentTreeId}
+            defaultTreeName={defaultTreeName}
+            onSelect={handleSwitchTree}
+            onSetDefault={handleSetDefaultTree}
+            onCreate={handleCreateTree}
+            onClose={handleManualClose}
+          />
         )}
 
         {selectedNodeId && tree && tree.nodes[selectedNodeId] && (
