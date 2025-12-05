@@ -124,6 +124,106 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
         return Object.values(nodes).find(n => n.name?.toLowerCase() === name.toLowerCase());
     };
 
+    const LogMessage: React.FC<{ log: ChangeLog }> = ({ log }) => {
+        // 1. Try to use structured data if available
+        if (log.structured && log.structured.length > 0) {
+            return (
+                <div className="log-changes">
+                    {log.structured.map((change, i) => {
+                        const node = change.nodeId ? nodes[change.nodeId] : null;
+                        const suffix = i < (log.structured?.length || 0) - 1 ? '; ' : '';
+
+                        // Reconstruct message based on type
+                        if (!node) {
+                            // Node deleted or not found, fallback to plain text reconstruction or original text if single
+                            if (log.structured?.length === 1) return <span key={i}>{log.changes}</span>;
+                            return <span key={i}>{change.type} member (deleted){suffix}</span>;
+                        }
+
+                        const nameLink = (
+                            <span
+                                className="clickable-link"
+                                onClick={() => {
+                                    onSelectNode(node.nodeId);
+                                    onClose();
+                                }}
+                                title="View Profile"
+                                style={{ cursor: 'pointer', color: '#2196f3', textDecoration: 'underline' }}
+                            >
+                                {node.name || 'Unknown'}
+                            </span>
+                        );
+
+                        if (change.type === 'ADD') {
+                            return <span key={i}>Added {nameLink}{suffix}</span>;
+                        } else if (change.type === 'EDIT') {
+                            const fields = change.fieldsChanged.join(', ');
+                            return <span key={i}>Edited {nameLink} with {fields}{suffix}</span>;
+                        } else if (change.type === 'REPARENT') {
+                            return <span key={i}>Updated relationships for {nameLink}{suffix}</span>;
+                        } else {
+                            return <span key={i}>{log.changes}{suffix}</span>;
+                        }
+                    })}
+                </div>
+            );
+        }
+
+        // 2. Fallback: Parse regex for common patterns in plain text
+        // "Edited [Name] with..."
+        // "Added [Name]"
+        const text = log.changes;
+        const editMatch = text.match(/^Edited (.+?) with (.+)$/);
+        const addMatch = text.match(/^Added (.+)$/);
+
+        let content: React.ReactNode = text;
+
+        if (editMatch) {
+            const name = editMatch[1];
+            const rest = editMatch[2];
+            const node = findNodeByName(name);
+            if (node) {
+                content = (
+                    <span>
+                        Edited <span
+                            className="clickable-link"
+                            onClick={() => {
+                                onSelectNode(node.nodeId);
+                                onClose();
+                            }}
+                            title="View Profile"
+                            style={{ cursor: 'pointer', color: '#2196f3', textDecoration: 'underline' }}
+                        >
+                            {name}
+                        </span> with {rest}
+                    </span>
+                );
+            }
+        } else if (addMatch) {
+            const name = addMatch[1];
+            const node = findNodeByName(name);
+            if (node) {
+                content = (
+                    <span>
+                        Added <span
+                            className="clickable-link"
+                            onClick={() => {
+                                onSelectNode(node.nodeId);
+                                onClose();
+                            }}
+                            title="View Profile"
+                            style={{ cursor: 'pointer', color: '#2196f3', textDecoration: 'underline' }}
+                        >
+                            {name}
+                        </span>
+                    </span>
+                );
+            }
+        }
+
+        return <div className="log-changes">{content}</div>;
+    };
+
     return (
         <div className="version-history-container">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px 20px 20px' }}>
@@ -174,7 +274,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
                                                                         {new Date(log.editedTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                                                                     </div>
                                                                     <div className="log-content">
-                                                                        <div className="log-changes">{log.changes}</div>
+                                                                        <LogMessage log={log} />
                                                                         {log.rootNodeName && (
                                                                             <div className="log-root">
                                                                                 Root: {rootNodeLink ? (
