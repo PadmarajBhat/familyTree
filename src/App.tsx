@@ -1251,7 +1251,12 @@ function App() {
         )}
 
         {showVersionHistory && tree && (
-          <VersionHistory summary={tree.summary} onClose={handleManualClose} />
+          <VersionHistory
+            summary={tree.summary}
+            nodes={tree.nodes}
+            onClose={handleManualClose}
+            onSelectNode={handleNodeClick}
+          />
         )}
 
         {showDashboard && tree && (
