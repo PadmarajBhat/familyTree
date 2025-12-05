@@ -11,6 +11,7 @@ import { FindRelation } from './components/FindRelation';
 import { VersionHistory } from './components/VersionHistory';
 import { TreePicker } from './components/TreePicker';
 import { FanChartView } from './components/FanChartView';
+import { Dashboard } from './components/Dashboard';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { canEdit } from './logic/accessControl';
 import { canEditNode, isGlobalEditor } from './logic/permissions';
@@ -39,6 +40,7 @@ function App() {
   const [showFindRelation, setShowFindRelation] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showTreePicker, setShowTreePicker] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   const [defaultTreeName, setDefaultTreeName] = useState<string | null>(null);
   const [currentTreeId, setCurrentTreeId] = useState<string | null>(null);
   const [currentTreeName, setCurrentTreeName] = useState<string>('family_tree');
@@ -47,7 +49,7 @@ function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // --- History / Back Button Logic ---
-  const isAnyModalOpen = showSearch || showCollaborators || showFindRelation || showVersionHistory || showTreePicker || !!selectedNodeId || !!editorMode;
+  const isAnyModalOpen = showSearch || showCollaborators || showFindRelation || showVersionHistory || showTreePicker || showDashboard || !!selectedNodeId || !!editorMode;
 
   useEffect(() => {
     // When a modal opens, push a state if we aren't already in one
@@ -91,6 +93,7 @@ function App() {
     setShowFindRelation(false);
     setShowVersionHistory(false);
     setShowTreePicker(false);
+    setShowDashboard(false);
     setSelectedNodeId(null);
     setEditorMode(null);
     setEditingNodeId(null);
@@ -137,7 +140,7 @@ function App() {
     }
   }, [isSignedIn, isGapiReady, viewMode, currentUser]);
 
-  const loadTree = async (returnOnly = false, specificFileId?: string): Promise<TreeDocument | null> => {
+  const loadTree = async (returnOnly = false, _specificFileId?: string): Promise<TreeDocument | null> => {
     if (!returnOnly) setLoading(true);
     setError(null);
     try {
@@ -1027,6 +1030,15 @@ function App() {
                       <button
                         className="menu-item"
                         onClick={() => {
+                          setShowDashboard(true);
+                          setIsMenuOpen(false);
+                        }}
+                      >
+                        Dashboard
+                      </button>
+                      <button
+                        className="menu-item"
+                        onClick={() => {
                           setShowTreePicker(true);
                           setIsMenuOpen(false);
                         }}
@@ -1126,7 +1138,7 @@ function App() {
           </div>
         )}
 
-        {tree && !showSearch && !showFindRelation && !showVersionHistory && (
+        {tree && !showSearch && !showFindRelation && !showVersionHistory && !showDashboard && (
           <>
             {treeViewType === 'standard' ? (
               <div className="tree-container">
@@ -1196,6 +1208,10 @@ function App() {
 
         {showVersionHistory && tree && (
           <VersionHistory summary={tree.summary} onClose={handleManualClose} />
+        )}
+
+        {showDashboard && tree && (
+          <Dashboard tree={tree} onClose={handleManualClose} />
         )}
 
         {showTreePicker && (
