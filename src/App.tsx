@@ -1255,7 +1255,10 @@ function App() {
             summary={tree.summary}
             nodes={tree.nodes}
             onClose={handleManualClose}
-            onSelectNode={handleNodeClick}
+            onSelectNode={(nodeId) => {
+              setShowVersionHistory(false);
+              setSelectedNodeId(nodeId);
+            }}
           />
         )}
 

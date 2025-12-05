@@ -145,7 +145,6 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
                                 className="clickable-link"
                                 onClick={() => {
                                     onSelectNode(node.nodeId);
-                                    onClose();
                                 }}
                                 title="View Profile"
                                 style={{ cursor: 'pointer', color: '#2196f3', textDecoration: 'underline' }}
@@ -189,7 +188,6 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
                             className="clickable-link"
                             onClick={() => {
                                 onSelectNode(node.nodeId);
-                                onClose();
                             }}
                             title="View Profile"
                             style={{ cursor: 'pointer', color: '#2196f3', textDecoration: 'underline' }}
@@ -209,7 +207,6 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
                             className="clickable-link"
                             onClick={() => {
                                 onSelectNode(node.nodeId);
-                                onClose();
                             }}
                             title="View Profile"
                             style={{ cursor: 'pointer', color: '#2196f3', textDecoration: 'underline' }}
@@ -253,7 +250,6 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
                                                                     className="clickable-link"
                                                                     onClick={() => {
                                                                         onSelectNode(authorNode.nodeId);
-                                                                        onClose(); // Close history to show detail
                                                                     }}
                                                                     title="View Profile"
                                                                     style={{ cursor: 'pointer', color: '#2196f3', textDecoration: 'underline' }}
@@ -282,7 +278,6 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
                                                                                         className="clickable-link"
                                                                                         onClick={() => {
                                                                                             onSelectNode(rootNodeLink.nodeId);
-                                                                                            onClose();
                                                                                         }}
                                                                                         title="View Profile"
                                                                                         style={{ cursor: 'pointer', color: '#2196f3', textDecoration: 'underline' }}
