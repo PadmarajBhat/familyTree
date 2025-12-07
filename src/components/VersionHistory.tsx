@@ -24,6 +24,17 @@ interface GroupedLog {
 
 export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, onClose, onSelectNode }) => {
     const [viewMode, setViewMode] = React.useState<'date' | 'author'>('date');
+    const [expandedSections, setExpandedSections] = React.useState<Set<string>>(new Set(['date-Today']));
+
+    const toggleSection = (id: string) => {
+        const newSet = new Set(expandedSections);
+        if (newSet.has(id)) {
+            newSet.delete(id);
+        } else {
+            newSet.add(id);
+        }
+        setExpandedSections(newSet);
+    };
 
     const groupLogsByDate = (logs: ChangeLog[]): GroupedLog[] => {
         const today = new Date();
@@ -41,6 +52,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
 
         logs.forEach(log => {
             const logDate = new Date(log.editedTime);
+            // Reset time for comparison
             const logDateOnly = new Date(logDate);
             logDateOnly.setHours(0, 0, 0, 0);
 
@@ -112,6 +124,16 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
 
     const groupedLogs = useMemo(() => groupLogsByDate(summary), [summary]);
 
+    // Helper to find node by email (for Author)
+    const findNodeByEmail = (email: string) => {
+        return Object.values(nodes).find(n => n.email?.toLowerCase() === email.toLowerCase());
+    };
+
+    // Helper to find node by name (for Root Node - best effort)
+    const findNodeByName = (name: string) => {
+        return Object.values(nodes).find(n => n.name?.toLowerCase() === name.toLowerCase());
+    };
+
     // Group items by Author -> Then by Date Category using same logic
     const groupedByAuthor = useMemo(() => {
         const authorMap: Record<string, ChangeLog[]> = {};
@@ -129,31 +151,19 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
             const authorLogs = authorMap[author];
             const timeGrouped = groupLogsByDate(authorLogs);
 
-            // Find latest timestamp for sorting authors
-            let latestTimestamp = 0;
-            if (authorLogs.length > 0) {
-                latestTimestamp = Math.max(...authorLogs.map(l => new Date(l.editedTime).getTime()));
-            }
+            // Find node for name sorting
+            const authorNode = findNodeByEmail(author);
+            const displayName = authorNode ? authorNode.name : author;
 
             return {
                 author,
                 authorEmail: author,
-                timeGrouped,
-                latestTimestamp
+                displayName,
+                timeGrouped
             };
-        }).sort((a, b) => b.latestTimestamp - a.latestTimestamp);
+        }).sort((a, b) => (a.displayName || '').localeCompare(b.displayName || '')); // Alphabetical Sort
 
-    }, [summary]);
-
-    // Helper to find node by email (for Author)
-    const findNodeByEmail = (email: string) => {
-        return Object.values(nodes).find(n => n.email?.toLowerCase() === email.toLowerCase());
-    };
-
-    // Helper to find node by name (for Root Node - best effort)
-    const findNodeByName = (name: string) => {
-        return Object.values(nodes).find(n => n.name?.toLowerCase() === name.toLowerCase());
-    };
+    }, [summary, nodes]);
 
     const LogMessage: React.FC<{ log: ChangeLog }> = ({ log }) => {
         // 1. Try to use structured data if available
@@ -252,88 +262,103 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
         return <div className="log-changes">{content}</div>;
     };
 
-    const renderHistoryList = (groups: GroupedLog[]) => {
-        return groups.map((group) => (
-            <div key={group.dateCategory} className="history-category">
-                <h3 className="category-header">{group.dateCategory}</h3>
-                {group.dateGroups.map((dateGroup) => (
-                    <div key={dateGroup.date} className="date-group">
-                        <div className="date-header">{dateGroup.date}</div>
-                        {dateGroup.authorGroups.map((authorGroup) => {
-                            const authorNode = findNodeByEmail(authorGroup.authorEmail);
-                            return (
-                                <div key={authorGroup.author} className="author-group">
-                                    {/* Show author header ONLY in 'date' view, or if we want to repeat it. 
-                                        In 'author' view, the author is the top level container. 
-                                        But 'renderHistoryList' is used for both inner content.
-                                        In 'author' view, we probably don't need to show 'Author' header again inside?
-                                        Actually, 'groupLogsByDate' groups by Date -> Author. 
-                                        So even in 'By Author' view, we might have multiple authors if we shared logs? 
-                                        No, in 'By Author' view, we filter logs for ONE author, then call groupLogsByDate.
-                                        So authorGroups will always have length 1 (that author).
-                                        We can conditionally hide the author header if we know we are in author view?
-                                        Or just show it, it's fine.
-                                    */}
-                                    {viewMode === 'date' && (
-                                        <div className="author-header">
-                                            <span className="author-name">
-                                                {authorNode ? (
-                                                    <span
-                                                        className="clickable-link"
-                                                        onClick={() => {
-                                                            onSelectNode(authorNode.nodeId);
-                                                        }}
-                                                        title="View Profile"
-                                                        style={{ cursor: 'pointer', color: '#2196f3', textDecoration: 'underline' }}
-                                                    >
-                                                        {authorNode.name}
-                                                    </span>
-                                                ) : (
-                                                    authorGroup.author
-                                                )}
+    const renderDateGroups = (dateGroups: { date: string; authorGroups: { author: string; authorEmail: string; logs: ChangeLog[] }[] }[]) => {
+        return dateGroups.map((dateGroup) => (
+            <div key={dateGroup.date} className="date-group">
+                <div className="date-header">{dateGroup.date}</div>
+                {dateGroup.authorGroups.map((authorGroup) => {
+                    const authorNode = findNodeByEmail(authorGroup.authorEmail);
+                    return (
+                        <div key={authorGroup.author} className="author-group">
+                            {viewMode === 'date' && (
+                                <div className="author-header">
+                                    <span className="author-name">
+                                        {authorNode ? (
+                                            <span
+                                                className="clickable-link"
+                                                onClick={() => {
+                                                    onSelectNode(authorNode.nodeId);
+                                                }}
+                                                title="View Profile"
+                                                style={{ cursor: 'pointer', color: '#2196f3', textDecoration: 'underline' }}
+                                            >
+                                                {authorNode.name}
                                             </span>
-                                        </div>
-                                    )}
-                                    <div className="author-logs">
-                                        {authorGroup.logs.map((log, idx) => {
-                                            const rootNodeLink = log.rootNodeName ? findNodeByName(log.rootNodeName) : null;
-                                            return (
-                                                <div key={idx} className="log-entry">
-                                                    <div className="log-time">
-                                                        {new Date(log.editedTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                                                    </div>
-                                                    <div className="log-content">
-                                                        <LogMessage log={log} />
-                                                        {log.rootNodeName && (
-                                                            <div className="log-root">
-                                                                Root: {rootNodeLink ? (
-                                                                    <span
-                                                                        className="clickable-link"
-                                                                        onClick={() => {
-                                                                            onSelectNode(rootNodeLink.nodeId);
-                                                                        }}
-                                                                        title="View Profile"
-                                                                        style={{ cursor: 'pointer', color: '#2196f3', textDecoration: 'underline' }}
-                                                                    >
-                                                                        {log.rootNodeName}
-                                                                    </span>
-                                                                ) : (
-                                                                    log.rootNodeName
-                                                                )}
-                                                            </div>
+                                        ) : (
+                                            authorGroup.author
+                                        )}
+                                    </span>
+                                </div>
+                            )}
+                            <div className="author-logs">
+                                {authorGroup.logs.map((log, idx) => {
+                                    const rootNodeLink = log.rootNodeName ? findNodeByName(log.rootNodeName) : null;
+                                    return (
+                                        <div key={idx} className="log-entry">
+                                            <div className="log-time">
+                                                {new Date(log.editedTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                            <div className="log-content">
+                                                <LogMessage log={log} />
+                                                {log.rootNodeName && (
+                                                    <div className="log-root">
+                                                        Root: {rootNodeLink ? (
+                                                            <span
+                                                                className="clickable-link"
+                                                                onClick={() => {
+                                                                    onSelectNode(rootNodeLink.nodeId);
+                                                                }}
+                                                                title="View Profile"
+                                                                style={{ cursor: 'pointer', color: '#2196f3', textDecoration: 'underline' }}
+                                                            >
+                                                                {log.rootNodeName}
+                                                            </span>
+                                                        ) : (
+                                                            log.rootNodeName
                                                         )}
                                                     </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                ))}
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
         ));
+    };
+
+    const renderHistoryList = (groups: GroupedLog[]) => {
+        return groups.map((group) => {
+            return (
+                <div key={group.dateCategory} className="history-category">
+                    {viewMode === 'date' ? (
+                        <>
+                            <div
+                                className="category-header clickable-header"
+                                onClick={() => toggleSection(`date-${group.dateCategory}`)}
+                                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                            >
+                                <span className={`arrow ${expandedSections.has(`date-${group.dateCategory}`) ? 'expanded' : ''}`}>▶</span>
+                                <span style={{ marginLeft: '8px' }}>{group.dateCategory}</span>
+                            </div>
+                            {expandedSections.has(`date-${group.dateCategory}`) && (
+                                <div className="category-content">
+                                    {renderDateGroups(group.dateGroups)}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="category-content">
+                            <h4 className="category-subheader" style={{ marginTop: '12px', marginBottom: '8px', color: '#666', fontSize: '0.9em', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{group.dateCategory}</h4>
+                            {renderDateGroups(group.dateGroups)}
+                        </div>
+                    )}
+                </div>
+            );
+        });
     };
 
     return (
@@ -370,18 +395,36 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
                         ) : (
                             <div className="author-list">
                                 {groupedByAuthor.map(authorBlock => {
-                                    const authorNode = findNodeByEmail(authorBlock.authorEmail);
+                                    const isExpanded = expandedSections.has(`author-${authorBlock.authorEmail}`);
                                     return (
-                                        <div key={authorBlock.author} className="author-block" style={{ marginBottom: '24px' }}>
-                                            <div className="author-block-header" style={{ padding: '8px 12px', background: '#f5f5f5', borderRadius: '4px', marginBottom: '8px', fontWeight: 'bold' }}>
-                                                {authorNode ? authorNode.name : authorBlock.author}
-                                                <span style={{ fontWeight: 'normal', fontSize: '0.9em', color: '#666', marginLeft: '8px' }}>
-                                                    ({authorBlock.authorEmail})
-                                                </span>
+                                        <div key={authorBlock.author} className="author-block" style={{ marginBottom: '16px' }}>
+                                            <div
+                                                className="author-block-header"
+                                                onClick={() => toggleSection(`author-${authorBlock.authorEmail}`)}
+                                                style={{
+                                                    padding: '12px',
+                                                    background: '#f5f5f5',
+                                                    borderRadius: '4px',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between'
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                    <span className={`arrow ${isExpanded ? 'expanded' : ''}`}>▶</span>
+                                                    <span style={{ marginLeft: '12px' }}>{authorBlock.displayName}</span>
+                                                    <span style={{ fontWeight: 'normal', fontSize: '0.9em', color: '#666', marginLeft: '8px' }}>
+                                                        ({authorBlock.authorEmail})
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div style={{ paddingLeft: '8px' }}>
-                                                {renderHistoryList(authorBlock.timeGrouped)}
-                                            </div>
+                                            {isExpanded && (
+                                                <div style={{ paddingLeft: '8px', paddingTop: '8px' }}>
+                                                    {renderHistoryList(authorBlock.timeGrouped)}
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
