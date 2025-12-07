@@ -1229,9 +1229,13 @@ function App() {
                         className="menu-item"
                         onClick={() => {
                           // Reload tree data to ensure freshness
+                          setLoading(true);
+                          setLoadingMessage("Loading Dashboard...");
                           loadTree(true).then(() => {
                             setShowDashboard(true);
                             setIsMenuOpen(false);
+                            setLoading(false);
+                            setLoadingMessage("Loading...");
                           });
                         }}
                       >

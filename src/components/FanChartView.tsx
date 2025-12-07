@@ -174,6 +174,10 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                 .data(root.descendants().filter(d => d.depth < 6))
                 .join("g");
 
+            const badgesGroup = group.append("g")
+                .attr("class", "badges-layer")
+                .style("pointer-events", "none");
+
             paths.append("path")
                 .attr("fill", d => {
                     let current = d;
@@ -299,23 +303,21 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                     const bx = badgeR * Math.sin(badgeAngle);
                     const by = -badgeR * Math.cos(badgeAngle);
 
-                    group.append("circle")
-                        .attr("cx", bx)
-                        .attr("cy", by)
+                    const badge = badgesGroup.append("g")
+                        .attr("transform", `translate(${bx}, ${by})`);
+
+                    badge.append("circle")
                         .attr("r", badgeRadius)
                         .attr("fill", "#ff4081") // A nice pink/red color
                         .attr("stroke", "white")
                         .attr("stroke-width", 1);
 
-                    group.append("text")
-                        .attr("x", bx)
-                        .attr("y", by)
+                    badge.append("text")
                         .attr("dy", "0.35em")
                         .attr("text-anchor", "middle")
                         .style("font-size", "8px")
                         .style("font-weight", "bold")
                         .style("fill", "white")
-                        .style("pointer-events", "none")
                         .text(childrenCount);
                 }
 
