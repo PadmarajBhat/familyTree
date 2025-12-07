@@ -132,7 +132,7 @@ export const listTreeFiles = async () => {
     try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await (gapi.client as any).drive.files.list({
-            q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name contains 'json' and name != 'preferences.json'`,
+            q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name contains 'json' and not name contains 'lock_' and name != 'preferences.json'`,
             fields: 'nextPageToken, files(id, name, createdTime, modifiedTime, description)',
             orderBy: 'createdTime desc', // Load latest created file
         });
@@ -242,7 +242,6 @@ export const saveTreeFile = async (name: string, content: unknown, description?:
     }
 };
 
-// Updated updateTreeFile to support atomic unlock
 export const updateTreeFile = async (fileId: string, content: unknown, description?: string, unlock: boolean = false) => {
     const fileContent = JSON.stringify(content, null, 2);
     const file = new Blob([fileContent], { type: 'application/json' });
@@ -253,12 +252,7 @@ export const updateTreeFile = async (fileId: string, content: unknown, descripti
     if (description) {
         metadata.description = description;
     }
-
-    if (unlock) {
-        metadata.contentRestrictions = [{
-            readOnly: false
-        }];
-    }
+    // unlock param is ignored in file-based locking
 
     const accessToken = gapi.auth.getToken().access_token;
     const form = new FormData();
@@ -350,73 +344,82 @@ export const getPhotoUrl = (fileIdOrUrl: string | null): string | null => {
     return `https://drive.google.com/thumbnail?id=${fileIdOrUrl}&sz=w1000`;
 };
 
-// --- Locking Mechanism (ContentRestrictions) ---
+// --- Locking Mechanism (File Based) ---
 
 export interface LockInfo {
     lockedBy: string;
-    lockedAt: number; // API doesn't give exact time easily in list, but we can put it in reason string or just rely on API
-    lockId: string; // The File ID itself acts as the lock reference
+    lockedAt: number;
+    lockId: string; // The ID of the lock file
 }
 
-export const checkLock = async (fileId: string): Promise<LockInfo | null> => {
+export const checkLock = async (targetFileId: string): Promise<LockInfo | null> => {
     try {
+        const lockFileName = `lock_${targetFileId}.json`;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const response = await (gapi.client as any).drive.files.get({
-            fileId: fileId,
-            fields: 'contentRestrictions',
+        const response = await (gapi.client as any).drive.files.list({
+            q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name = '${lockFileName}'`,
+            fields: 'files(id, name, createdTime)',
         });
 
-        const restrictions = response.result.contentRestrictions;
-        if (restrictions && restrictions.length > 0 && restrictions[0].readOnly) {
-            const user = restrictions[0].restrictingUser;
-            // The API might return restrictedTime in ISO string
-            const lockedTime = restrictions[0].restrictionTime ? new Date(restrictions[0].restrictionTime).getTime() : Date.now();
-
+        const files = response.result.files;
+        if (files && files.length > 0) {
+            const lockFile = files[0];
+            const content = await getFileContent(lockFile.id);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const meta = content as any;
             return {
-                lockedBy: user?.emailAddress || 'Unknown',
-                lockedAt: lockedTime,
-                lockId: fileId
+                lockedBy: meta?.lockedBy || 'Unknown',
+                lockedAt: meta?.lockedAt || new Date(lockFile.createdTime).getTime(),
+                lockId: lockFile.id
             };
         }
         return null;
     } catch (err) {
         console.error("Error checking lock", err);
-        return null; // Assume no lock or error
-    }
-};
-
-export const acquireLock = async (fileId: string): Promise<string | null> => {
-    // 1. Try to add content restriction
-    try {
-        const user = await getUserProfile();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (gapi.client as any).drive.files.update({
-            fileId: fileId,
-            resource: {
-                contentRestrictions: [{
-                    readOnly: true,
-                    reason: `Locked by ${user?.email || 'User'} for editing`
-                }]
-            }
-        });
-        return fileId;
-    } catch (err) {
-        console.error("Failed to acquire lock (likely already locked)", err);
         return null;
     }
 };
 
-export const releaseLock = async (fileId: string): Promise<void> => {
-    try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (gapi.client as any).drive.files.update({
-            fileId: fileId,
-            resource: {
-                contentRestrictions: [{
-                    readOnly: false
-                }]
+export const acquireLock = async (targetFileId: string): Promise<string | null> => {
+    const existingLock = await checkLock(targetFileId);
+    if (existingLock) {
+        console.log(`File ${targetFileId} is already locked by ${existingLock.lockedBy}`);
+        const now = Date.now();
+        if (now - existingLock.lockedAt > 10 * 60 * 1000) {
+            console.warn("Lock is stale > 10m. Stealing lock...");
+            try {
+                await deleteFile(existingLock.lockId);
+            } catch (e) {
+                console.error("Failed to delete stale lock", e);
             }
-        });
+        } else {
+            return null;
+        }
+    }
+
+    try {
+        const user = await getUserProfile();
+        const lockData = {
+            lockedBy: user?.email || 'Unknown',
+            lockedAt: Date.now(),
+            targetFileId: targetFileId
+        };
+        const lockFileName = `lock_${targetFileId}.json`;
+
+        const savedLock = await saveTreeFile(lockFileName, lockData, "Lock File");
+        if (savedLock && savedLock.id) {
+            return savedLock.id;
+        }
+        return null;
+    } catch (err) {
+        console.error("Failed to acquire lock", err);
+        return null;
+    }
+};
+
+export const releaseLock = async (lockFileId: string): Promise<void> => {
+    try {
+        await deleteFile(lockFileId);
         console.log("Lock released.");
     } catch (err) {
         console.error("Error releasing lock", err);
@@ -438,6 +441,5 @@ export const grantWritePermission = async (fileId: string, email: string) => {
         console.log(`Granted write permission to ${email}`);
     } catch (err) {
         console.error(`Failed to grant permission to ${email}`, err);
-        // It might fail if already exists, which is fine
     }
 };

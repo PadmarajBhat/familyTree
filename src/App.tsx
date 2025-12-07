@@ -346,9 +346,8 @@ function App() {
 
       try {
         setLoadingMessage("Refreshing data...");
-        // Crucial: Load the SPECIFIC file we just locked. 
-        // We do not want loadTree's default logic which might prefer currentTreeId.
-        const latestTree = await loadTree(true, lockId);
+        // Crucial: Load the SPECIFIC file we just locked.
+        const latestTree = await loadTree(true, targetFileId!);
 
         setLoadingMessage("Saving changes...");
         await action(latestTree, lockId);
@@ -416,12 +415,6 @@ function App() {
 
   const saveWithMerge = async (localTree: TreeDocument, summaryText: string, lockId: string | null) => {
     const todayFileName = generateFilename(currentTreeName);
-
-    // If we have a lockId, it means we are editing an EXISTING file (probably).
-    // Check if the locked file is the same as "today's file".
-    // If yes, we update IT.
-
-    // Simplification: listTreeFiles().
     const files = await listTreeFiles();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const todaysFile = files.find((f: any) => f.name === todayFileName);
@@ -429,39 +422,15 @@ function App() {
     if (todaysFile) {
       console.log("Found today's file, merging...", todaysFile.id);
 
-      // If we locked a DIFFERENT file (yesterday's), we are now creating TODAY's file.
-      // So we can unlock the OLD file (lockId) if it's different. 
-      // But executeWithLock finally block handles the unlock of lockId.
-
-      // If lockId === todaysFile.id, we can doing atomic unlock!
-      const isLockedFile = lockId === todaysFile.id;
-
-      // We already have latest content from loadTree called in executeWithLock? 
-      // Yes, 'localTree' passed here is actually the UPDATED local tree which was based on LATEST remote.
-      // So we don't strictly need to fetch again if we trust we are the only writer (which lock ensures).
-      // But mergeTrees logic usually fetches remote again. 
-      // Let's stick to mergeTraits for safety, but we can pass localTree as both if we are confident.
-      // Actually, executeWithLock fetches loadTree(true) -> latestTree. 
-      // Then we modified it -> localTree.
-      // So localTree IS the merge result of (Remote + Changes). 
-      // We still run mergeTrees usually to handle deeper conflicts but here we serialized it.
-
-      // So we can just save `localTree` to `todaysFile.id`.
-      // But let's keep the existing flow just in case.
       const remoteContent = await getFileContent(todaysFile.id) as TreeDocument;
       const { mergedTree } = mergeTrees(localTree, remoteContent);
-
       const latestSummary = mergedTree.summary.length > 0 ? mergedTree.summary[0].changes : summaryText;
 
-      // Optimize: If we are updating the SAME file we locked against, we can UNLOCK it now.
-      await updateTreeFile(todaysFile.id, mergedTree, latestSummary, isLockedFile);
-
+      await updateTreeFile(todaysFile.id, mergedTree, latestSummary, false);
       setCurrentTreeId(todaysFile.id);
       return mergedTree;
     } else {
       console.log("Creating new file for today...", todayFileName);
-      // We are creating a NEW file. The lock was on the OLD file.
-      // The OLD file will be unlocked by executeWithLock finally block.
       const newFile = await saveTreeFile(todayFileName, localTree, summaryText);
       if (newFile && newFile.id) {
         setCurrentTreeId(newFile.id);
@@ -470,16 +439,12 @@ function App() {
     }
   };
 
-
   const handleSaveMember = async (personData: PersonNode, newParentId: string | null, newChildrenIds: string[], newSpouseIds: string[], newSiblingIds: string[]) => {
-    if (viewMode === 'sample') return; // Double check
+    if (viewMode === 'sample') return;
 
-    // Capture the state of the node as the user SAW it when they started editing.
-    // This allows us to diff (User Input) vs (User View) to find INTENTIONAL changes.
     const userViewNode = editorMode === 'edit' && tree ? tree.nodes[personData.nodeId] : null;
 
     await executeWithLock(async (latestTree, lockId) => {
-      // Initialize tree if it doesn't exist
       const currentTree: TreeDocument = latestTree ? JSON.parse(JSON.stringify(latestTree)) : {
         schemaVersion: 1,
         treeId: crypto.randomUUID(),
@@ -498,10 +463,9 @@ function App() {
       };
 
       const updatedTree: TreeDocument = currentTree;
-      const oldNode = editorMode === 'edit' ? updatedTree.nodes[personData.nodeId] : null; // This is the LATEST node from server
+      const oldNode = editorMode === 'edit' ? updatedTree.nodes[personData.nodeId] : null;
       const oldParentId = oldNode?.parentId || null;
 
-      // Helper to update edited metadata for any node we touch
       const touchNode = (nodeId: string) => {
         if (updatedTree.nodes[nodeId]) {
           updatedTree.nodes[nodeId].editedBy = currentUser?.email || 'unknown';
@@ -509,11 +473,9 @@ function App() {
         }
       };
 
-      // Update the main node's metadata
       personData.editedBy = currentUser?.email || 'unknown';
       personData.editedTime = getISTTimestamp();
 
-      // Detect User Changes
       const userChangedFields = new Set<string>();
       if (editorMode === 'edit' && userViewNode) {
         (Object.keys(personData) as (keyof PersonNode)[]).forEach(key => {
@@ -522,11 +484,9 @@ function App() {
           }
         });
       } else if (editorMode === 'add') {
-        // All fields are "changed" in add mode
         (Object.keys(personData) as (keyof PersonNode)[]).forEach(key => userChangedFields.add(key));
       }
 
-      // Generate Summary
       const changes: string[] = [];
       const structuredChanges: { type: 'ADD' | 'EDIT' | 'DELETE' | 'REPARENT'; nodeId: string | null; fieldsChanged: string[]; before: Partial<PersonNode>; after: Partial<PersonNode>; }[] = [];
 
@@ -540,8 +500,6 @@ function App() {
           after: personData
         });
       } else {
-        // Edit mode - change log
-        // We log what the USER changed (Intention)
         const fieldsChangedLog: string[] = [];
         const before: Partial<PersonNode> = {};
         const after: Partial<PersonNode> = {};
@@ -566,29 +524,22 @@ function App() {
         }
       }
 
-      // Apply User Changes to UpdatedTree
       if (editorMode === 'edit' && oldNode) {
         userChangedFields.forEach(key => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (updatedTree.nodes[personData.nodeId] as any)[key] = (personData as any)[key];
         });
-        // Also always update metadata
         updatedTree.nodes[personData.nodeId].editedBy = personData.editedBy;
         updatedTree.nodes[personData.nodeId].editedTime = personData.editedTime;
       } else if (editorMode === 'add') {
         updatedTree.nodes[personData.nodeId] = personData;
       }
 
-
-      // Handle Reparenting / Linking
-      // Only execute if user actively changed the parent or if we are adding a new node
       if ((editorMode === 'add' || userChangedFields.has('parentId')) && newParentId !== oldParentId) {
-        // Remove from old parent
         if (oldParentId && updatedTree.nodes[oldParentId]) {
           updatedTree.nodes[oldParentId].childrenIds = updatedTree.nodes[oldParentId].childrenIds.filter(id => id !== personData.nodeId);
           touchNode(oldParentId);
         }
-        // Add to new parent
         if (newParentId && updatedTree.nodes[newParentId]) {
           if (!updatedTree.nodes[newParentId].childrenIds.includes(personData.nodeId)) {
             updatedTree.nodes[newParentId].childrenIds.push(personData.nodeId);
@@ -613,45 +564,25 @@ function App() {
         });
       }
 
-      // Handle Children Updates
-      // We rely on newChildrenIds vs oldNode.childrenIds diffs + user change detection?
-      // Children/Spouses/Siblings are arrays. Merging arrays is tricky.
-      // If user Added A, but Mobile Added B.
-      // User View: [X]. User sees [X]. Adds A -> [X, A].
-      // Mobile View: [X]. Mobile Adds B -> [X, B].
-      // Latest (oldNode): [X, B].
-      // User Input: [X, A].
-      // If we blindly take User Input, we get [X, A]. B is lost.
-      // We need to detect: User Added A. (Delta = +A).
-      // Apply +A to Latest ([X, B]) -> [X, B, A].
-
-      // Check Children Changes
       const userAddedChildren = newChildrenIds.filter(id => !userViewNode?.childrenIds.includes(id));
       const userRemovedChildren = userViewNode ? userViewNode.childrenIds.filter(id => !newChildrenIds.includes(id)) : [];
 
-      // Process Added Children (User Intent)
       userAddedChildren.forEach(childId => {
-        // Avoid duplicates if already in latest
         if (!updatedTree.nodes[personData.nodeId].childrenIds.includes(childId)) {
           updatedTree.nodes[personData.nodeId].childrenIds.push(childId);
         }
-
         const childNode = updatedTree.nodes[childId];
         if (childNode) {
           const oldChildParentId = childNode.parentId;
-          // Remove from old parent's children list if exists
           if (oldChildParentId && updatedTree.nodes[oldChildParentId]) {
             updatedTree.nodes[oldChildParentId].childrenIds = updatedTree.nodes[oldChildParentId].childrenIds.filter(id => id !== childId);
             touchNode(oldChildParentId);
           }
-
-          // Set new parent
           childNode.parentId = personData.nodeId;
           touchNode(childId);
-
           changes.push(`Added child ${childNode.name} to ${personData.name}`);
           structuredChanges.push({
-            type: 'REPARENT', // Technically reparenting the child
+            type: 'REPARENT',
             nodeId: childId,
             fieldsChanged: ['parentId'],
             before: { parentId: oldChildParentId },
@@ -660,17 +591,13 @@ function App() {
         }
       });
 
-      // Process Removed Children (User Intent)
       userRemovedChildren.forEach(childId => {
-        // Remove from latest
         updatedTree.nodes[personData.nodeId].childrenIds = updatedTree.nodes[personData.nodeId].childrenIds.filter(id => id !== childId);
-
         const childNode = updatedTree.nodes[childId];
         if (childNode) {
           const oldChildParentId = childNode.parentId;
           childNode.parentId = null;
           touchNode(childId);
-
           changes.push(`Removed child ${childNode.name} from ${personData.name}`);
           structuredChanges.push({
             type: 'REPARENT',
@@ -682,8 +609,6 @@ function App() {
         }
       });
 
-
-      // Check if any of the added children was the root node (Logic preserved)
       const rootWasReparented = userAddedChildren.some(childId => childId === updatedTree.rootNodeId);
       if (rootWasReparented) {
         let newRootId = personData.nodeId;
@@ -696,16 +621,13 @@ function App() {
           visited.add(newRootId);
           newRootId = updatedTree.nodes[newRootId].parentId!;
         }
-        console.log(`Root node updated from ${updatedTree.rootNodeId} to ${newRootId} (old root became a child)`);
+        console.log(`Root node updated from ${updatedTree.rootNodeId} to ${newRootId}`);
         updatedTree.rootNodeId = newRootId;
       }
 
-
-      // Handle Spouse Updates (Smart Merge)
       const userAddedSpouses = newSpouseIds.filter(id => !userViewNode?.spouseIds.includes(id));
       const userRemovedSpouses = userViewNode ? userViewNode.spouseIds.filter(id => !newSpouseIds.includes(id)) : [];
 
-      // Process Added Spouses
       userAddedSpouses.forEach(spouseId => {
         if (!updatedTree.nodes[personData.nodeId].spouseIds.includes(spouseId)) {
           updatedTree.nodes[personData.nodeId].spouseIds.push(spouseId);
@@ -720,10 +642,8 @@ function App() {
         }
       });
 
-      // Process Removed Spouses
       userRemovedSpouses.forEach(spouseId => {
         updatedTree.nodes[personData.nodeId].spouseIds = updatedTree.nodes[personData.nodeId].spouseIds.filter(id => id !== spouseId);
-
         const spouseNode = updatedTree.nodes[spouseId];
         if (spouseNode) {
           spouseNode.spouseIds = spouseNode.spouseIds.filter(id => id !== personData.nodeId);
@@ -731,60 +651,25 @@ function App() {
           changes.push(`Removed spouse link between ${personData.name} and ${spouseNode.name}`);
         }
       });
-      // Do NOT blindly assign personData.spouseIds = newSpouseIds;
 
-      // Handle Sibling Updates (Smart Merge) - Just use parent logic
-      // Siblings are effectively Children of Parent.
-      // Logic: User Added Sibling -> Means User Linked Sibling to Parent.
-
-      // newSiblingIds is a helper.
-      if (personData.parentId) {
+      newSiblingIds.forEach(sibId => {
+        const sibNode = updatedTree.nodes[sibId];
         const parentId = personData.parentId;
-        // Logic largely same as before, but only if user Added/Removed siblings from THEIR view
-        // Actually, siblings are just derived in this view usually?
-        // But MemberEditor allows editing them.
-
-        // Let's assume standard logic is fine if we guard it.
-        // User added Sibling X.
-        // X.parentId = parentId.
-        // Parent.children.add(X).
-
-        // We only care about Added Sibling (linking)
-        // newSiblingIds contains result list.
-        // If user actively added a sibling...
-
-        // Simpler: Just rely on the explicit actions.
-        // If user added a sibling in UI, we should process it. 
-        // We can just iterate newSiblingIds and ensure they are linked.
-        // If they are already linked (by mobile), no harm.
-
-        newSiblingIds.forEach(sibId => {
-          const sibNode = updatedTree.nodes[sibId];
-          if (sibNode && sibNode.parentId !== parentId) {
-            // ... same logic ...
-            const oldSibParent = sibNode.parentId;
-            if (oldSibParent && updatedTree.nodes[oldSibParent]) {
-              updatedTree.nodes[oldSibParent].childrenIds = updatedTree.nodes[oldSibParent].childrenIds.filter(id => id !== sibId);
-              touchNode(oldSibParent);
-            }
-            sibNode.parentId = parentId;
-            touchNode(sibId);
-
-            if (updatedTree.nodes[parentId] && !updatedTree.nodes[parentId].childrenIds.includes(sibId)) {
-              updatedTree.nodes[parentId].childrenIds.push(sibId);
-              touchNode(parentId);
-            }
-            changes.push(`Linked sibling ${sibNode.name} to parent ${updatedTree.nodes[parentId].name}`);
+        if (parentId && sibNode && sibNode.parentId !== parentId) {
+          const oldSibParent = sibNode.parentId;
+          if (oldSibParent && updatedTree.nodes[oldSibParent]) {
+            updatedTree.nodes[oldSibParent].childrenIds = updatedTree.nodes[oldSibParent].childrenIds.filter(id => id !== sibId);
+            touchNode(oldSibParent);
           }
-        });
-
-        // Removed siblings? If user unlinked a sibling in UI.
-        // Similar check: userViewSiblings vs newSiblingIds.
-        // ... (Skipping verbose logic for now, assuming add-only for siblings is most common, or handled safely)
-      }
-
-      // Update/Add Node - REMOVED blind assignment
-      // updatedTree.nodes[personData.nodeId] = personData; <--- REMOVED
+          sibNode.parentId = parentId;
+          touchNode(sibId);
+          if (updatedTree.nodes[parentId] && !updatedTree.nodes[parentId].childrenIds.includes(sibId)) {
+            updatedTree.nodes[parentId].childrenIds.push(sibId);
+            touchNode(parentId);
+          }
+          changes.push(`Linked sibling ${sibNode.name} to parent ${updatedTree.nodes[parentId].name}`);
+        }
+      });
 
       updatedTree.timestamp = getISTTimestamp();
 
@@ -795,10 +680,8 @@ function App() {
         }
       }
 
-      // Check if we need to update the root node (if the current root got a parent)
       if (personData.nodeId === updatedTree.rootNodeId && personData.parentId) {
         let newRootId = personData.parentId;
-        // Traverse up to find the ultimate root
         const visited = new Set<string>();
         while (updatedTree.nodes[newRootId] && updatedTree.nodes[newRootId].parentId) {
           if (visited.has(newRootId)) {
@@ -814,7 +697,6 @@ function App() {
 
       const summaryText = changes.join('; ');
       if (!summaryText && editorMode === 'edit') {
-        // No changes detected
         setEditorMode(null);
         setEditingNodeId(null);
         alert("No changes detected.");
@@ -830,53 +712,27 @@ function App() {
         });
       }
 
-      // Final validation: Ensure rootNodeId is valid before saving
       if (!updatedTree.rootNodeId || !updatedTree.nodes[updatedTree.rootNodeId]) {
         console.warn('Invalid rootNodeId detected before save! Attempting to fix...');
         const nodeIds = Object.keys(updatedTree.nodes);
         if (nodeIds.length > 0) {
-          // Find a node with no parent (potential root)
           const newRoot = Object.values(updatedTree.nodes).find(n => !n.parentId);
           if (newRoot) {
             updatedTree.rootNodeId = newRoot.nodeId;
-            console.log('Fixed rootNodeId to node without parent:', newRoot.name);
           } else {
-            // If all nodes have parents, pick the first one
             updatedTree.rootNodeId = nodeIds[0];
-            console.log('No orphan found, using first node as root:', updatedTree.nodes[nodeIds[0]].name);
           }
         } else {
-          console.error('Cannot save tree with no nodes!');
           alert('Error: Tree has no nodes. Cannot save.');
           return;
         }
       }
 
       try {
-        setLoading(true); // executeWithLock handles loading, but saveWithMerge might not? executeWithLock handles it.
-        // Actually executeWithLock sets loading=true.
+        setLoading(true);
         const savedTree = await saveWithMerge(updatedTree, summaryText, lockId);
 
-        // --- Permission Logic ---
-        // If we added or edited a member with an email, ensure they have Write access.
         if (personData.email) {
-          // We should grant permission to this email.
-          // But on which file? The one we just saved to!
-          // savedTree itself doesn't have ID.
-          // But we have currentTreeId (or we can get it from listTreeFiles again if needed, or stick to todaysFile logic).
-          // saveWithMerge updates getCurrentTreeId.
-          // But React state updates are async, so currentTreeId might be stale here immediately? 
-          // Better to make saveWithMerge return the ID or similar.
-          // Or just fetch latest file ID.
-
-          // To be robust:
-          // "The App will automatically call grantWritePermission... whenever an email is added/updated."
-
-          // Check if email changed? Or just always grant?
-          // "Always grant" is safer and idempotent.
-
-          // We need the fileID of the file we just wrote.
-          // Since saveWithMerge handles specific logic, let's grab the file ID from a new helper or assume it's the head of list.
           const files = await listTreeFiles();
           if (files.length > 0) {
             await grantWritePermission(files[0].id, personData.email);
@@ -886,12 +742,13 @@ function App() {
         setTree(savedTree);
         setEditorMode(null);
         setEditingNodeId(null);
+
+        if (lockId) await releaseLock(lockId);
         alert("Member saved successfully!");
       } catch (err) {
         console.error("Failed to save tree:", err);
-        alert("Failed to save changes to Google Drive.");
+        alert("Failed to save changes.");
       }
-      // finally block removed because executeWithLock handles loading=false
     });
   };
 
@@ -905,10 +762,7 @@ function App() {
     try {
       console.log("Generating sample tree...");
       const sampleTree = generateSampleTree(currentUser.email);
-      console.log("Sample tree generated:", sampleTree);
-      console.log("Node count:", sampleTree.meta.nodeCount);
       setTree(sampleTree);
-      // alert("Sample tree loaded!"); 
     } catch (err) {
       console.error("Failed to load sample tree:", err);
       alert("Failed to create sample tree.");
