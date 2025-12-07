@@ -153,6 +153,7 @@ function App() {
         const prefs = await getPreferences();
 
         // If a specific file is requested, try to find it
+        // If a specific file is requested, try to find it
         if (specificFileId) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const found = files.find((f: any) => f.id === specificFileId);
@@ -161,6 +162,10 @@ function App() {
           } else {
             console.warn("Requested file not found:", specificFileId);
           }
+        } else if (currentTreeId && files.some((f: any) => f.id === currentTreeId)) {
+          // Reload current tree
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          fileToLoad = files.find((f: any) => f.id === currentTreeId);
         } else if (currentUser && currentUser.email && prefs[currentUser.email]?.defaultTreeName) {
           const prefName = prefs[currentUser.email].defaultTreeName!;
           setDefaultTreeName(prefName);
@@ -297,7 +302,15 @@ function App() {
     try {
       const files = await listTreeFiles();
       if (files && files.length > 0) {
-        targetFileId = files[0].id;
+        if (currentTreeId) {
+          // Prioritize the currently loaded tree
+          // Check if it still exists in the list
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const currentFile = files.find((f: any) => f.id === currentTreeId);
+          targetFileId = currentFile ? currentFile.id : files[0].id;
+        } else {
+          targetFileId = files[0].id;
+        }
       } else {
         // No file to lock? Then we might be creating one.
         // But we can't lock a non-existent file.
