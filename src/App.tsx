@@ -966,7 +966,7 @@ function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>{tree?.treeName || "Family Tree"}</h1>
+        <h1>{tree ? tree.treeName : (viewState === 'home' && currentUser ? "Family Tree Dashboard" : "Family Tree")}</h1>
         <div className="auth-controls">
           {isSignedIn ? (
             <div className="menu-container">
@@ -1132,18 +1132,13 @@ function App() {
           </div>
         )}
 
-        {!loading && !tree && viewMode === 'user' && (
+        {!loading && !tree && !currentUser && viewMode === 'user' && (
           <div className="welcome">
             <p>Welcome. Please sign in or ensure the tree is shared publicly.</p>
-            {isAuthorized && !tree && (
-              <div className="welcome-actions">
-                <button onClick={handleAddClick}>Start New Tree</button>
-              </div>
-            )}
           </div>
         )}
 
-        {!tree && !loading && !error && (
+        {!tree && !loading && !error && !currentUser && (
           <div className="welcome-screen">
             <h2>Welcome to Family Tree</h2>
             <p>Please sign in to view your family tree or load a sample tree.</p>

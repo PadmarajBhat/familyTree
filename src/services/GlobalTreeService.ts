@@ -9,6 +9,7 @@ export interface SearchResult {
     treeId: string;
     treeName: string;
     node: PersonNode;
+    parentName?: string | null;
 }
 
 export const GlobalTreeService = {
@@ -55,10 +56,12 @@ export const GlobalTreeService = {
             Object.values(tree.nodes).forEach(node => {
                 const nameMatch = node.name?.toLowerCase().includes(lowerQuery) || false;
                 if (nameMatch) {
+                    const parentNode = node.parentId ? tree.nodes[node.parentId] : null;
                     results.push({
                         treeId: fileId, // Use fileId as the identifier we can load later
                         treeName: tree.treeName,
-                        node: node
+                        node: node,
+                        parentName: parentNode?.name
                     });
                 }
             });

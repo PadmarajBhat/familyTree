@@ -48,6 +48,10 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
         initialData?.location ? { district: initialData.location.district, state: initialData.location.state, country: initialData.location.country } : { district: null, state: null, country: null }
     );
 
+    // Generic Duplicate Search
+    const [nameSuggestions, setNameSuggestions] = useState<SearchResult[]>([]);
+    const [showNameSuggestions, setShowNameSuggestions] = useState(false);
+
     // Father Search State
     const [fatherSearch, setFatherSearch] = useState('');
     const [showFatherSuggestions, setShowFatherSuggestions] = useState(false);
@@ -182,17 +186,28 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
         }
     };
 
-    const [suggestedFathers, setSuggestedFathers] = useState<SearchResult[]>([]);
-
     // Use an effect for searching to handle async GlobalTreeService if needed (though it's sync for now if loaded)
     // Actually GlobalTreeService.searchAllTrees is sync on cache.
-    // We should debounce search input.
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (name && name.length > 2) {
+                const results = GlobalTreeService.searchAllTrees(name);
+                const filtered = results.filter(res => res.node.nodeId !== initialData?.nodeId);
+                setNameSuggestions(filtered);
+                setShowNameSuggestions(true);
+            } else {
+                setNameSuggestions([]);
+                setShowNameSuggestions(false);
+            }
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [name, initialData]);
 
+    const [suggestedFathers, setSuggestedFathers] = useState<SearchResult[]>([]);
     useEffect(() => {
         const timer = setTimeout(() => {
             if (fatherSearch && fatherSearch.length > 2) {
                 const results = GlobalTreeService.searchAllTrees(fatherSearch);
-                // Filter results
                 const filtered = results.filter(res => {
                     // Cannot be own father
                     if (res.node.nodeId === initialData?.nodeId) return false;
@@ -207,6 +222,8 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         // Let's rely on the fact that if it's in existingNodes, use the old logic.
                         // If it's from another tree, assume safe for now (or Shadow Node logic handles it).
                     }
+                    // Prevent cycle: Candidate cannot be a descendant of current node
+                    // if (initialData && isAncestor(res.node.nodeId, initialData.nodeId, existingNodes)) return false; // Hard to check global ancenstry.
                     return true;
                 }).slice(0, 10);
                 setSuggestedFathers(filtered);
@@ -337,6 +354,16 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
         setSiblingIds(prev => prev.filter(sid => sid !== id));
     };
 
+    const handleDuplicateSelect = (result: SearchResult) => {
+        if (!confirm(`Populate details from ${result.node.name}? This will overwrite current fields.`)) return;
+
+        setName(result.node.name || '');
+        setDob(result.node.dob || '');
+        if (result.node.gender) setGender(result.node.gender);
+        // ... populate other fields if needed
+        setShowNameSuggestions(false);
+    };
+
     const handleSubmit = async (e: React.FormEvent, shouldAddChild: boolean = false) => {
         e.preventDefault();
 
@@ -464,9 +491,38 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         />
                     </div>
 
-                    <div className="form-group">
+                    <div className="form-group" style={{ position: 'relative' }}>
                         <label>Name</label>
-                        <input type="text" value={name} onChange={e => setName(e.target.value)} required />
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            onFocus={() => name.length > 2 && setShowNameSuggestions(true)}
+                            onBlur={() => setTimeout(() => setShowNameSuggestions(false), 200)}
+                            required
+                        />
+                        {showNameSuggestions && nameSuggestions.length > 0 && (
+                            <div className="suggestions-dropdown">
+                                <div className="suggestions-header">Possible Duplicates (Click to Populate)</div>
+                                {nameSuggestions.map(curr => (
+                                    <div
+                                        key={`${curr.treeId}-${curr.node.nodeId}`}
+                                        className="suggestion-item"
+                                        onClick={() => handleDuplicateSelect(curr)}
+                                    >
+                                        <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: curr.node.imageUrl ? `url(${getPhotoUrl(curr.node.imageUrl)})` : 'none' }}>
+                                            {!curr.node.imageUrl && '?'}
+                                        </div>
+                                        <div className="suggestion-info">
+                                            <div className="suggestion-name">{curr.node.name} <span className="tree-badge">({curr.treeName})</span></div>
+                                            <div className="suggestion-details">
+                                                {curr.parentName ? `${curr.node.gender === 'female' ? 'D/o' : 'S/o'} ${curr.parentName}` : 'No parent info'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <div className="form-group">
