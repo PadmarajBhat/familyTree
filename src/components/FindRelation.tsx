@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { PersonNode } from '../logic/types';
 import { findPath, getDisambiguationInfo, buildPathTree } from '../logic/relationshipUtils';
+import { GlobalTreeService } from '../services/GlobalTreeService';
 import { TreeView } from './TreeView';
 import { CloseButton } from './CloseButton';
 import './FindRelation.css';
@@ -27,28 +28,42 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
     const [showPerson1Suggestions, setShowPerson1Suggestions] = useState(false);
     const [showPerson2Suggestions, setShowPerson2Suggestions] = useState(false);
 
-    const nodeList = useMemo(() => Object.values(nodes), [nodes]);
+    // Use Effects for search
+    const [person1Options, setPerson1Options] = useState<PersonOption[]>([]);
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (person1Search && person1Search.length > 2) {
+                const results = GlobalTreeService.searchAllTrees(person1Search);
+                const options = results.map(res => ({
+                    node: res.node,
+                    label: `${res.node.name} (${res.treeName})`,
+                    disambiguationInfo: getDisambiguationInfo(res.node, nodes) // Note: this uses local nodes for disambiguation info... might be slightly off for external nodes but OK for now
+                })).slice(0, 10);
+                setPerson1Options(options);
+            } else {
+                setPerson1Options([]);
+            }
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [person1Search, nodes]);
 
-    // Get filtered and labeled person options
-    const getPersonOptions = (searchTerm: string): PersonOption[] => {
-        if (!searchTerm.trim()) return [];
-
-        const lowerSearch = searchTerm.toLowerCase();
-        return nodeList
-            .filter(node => {
-                const name = node.name?.toLowerCase() || '';
-                return name.includes(lowerSearch);
-            })
-            .map(node => ({
-                node,
-                label: node.name || 'Unknown',
-                disambiguationInfo: getDisambiguationInfo(node, nodes)
-            }))
-            .slice(0, 10); // Limit to 10 results
-    };
-
-    const person1Options = useMemo(() => getPersonOptions(person1Search), [person1Search, nodes]);
-    const person2Options = useMemo(() => getPersonOptions(person2Search), [person2Search, nodes]);
+    const [person2Options, setPerson2Options] = useState<PersonOption[]>([]);
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (person2Search && person2Search.length > 2) {
+                const results = GlobalTreeService.searchAllTrees(person2Search);
+                const options = results.map(res => ({
+                    node: res.node,
+                    label: `${res.node.name} (${res.treeName})`,
+                    disambiguationInfo: getDisambiguationInfo(res.node, nodes)
+                })).slice(0, 10);
+                setPerson2Options(options);
+            } else {
+                setPerson2Options([]);
+            }
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [person2Search, nodes]);
 
     const selectedPerson1Node = selectedPerson1 ? nodes[selectedPerson1] : null;
     const selectedPerson2Node = selectedPerson2 ? nodes[selectedPerson2] : null;

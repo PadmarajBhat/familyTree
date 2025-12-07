@@ -242,7 +242,7 @@ export const saveTreeFile = async (name: string, content: unknown, description?:
     }
 };
 
-export const updateTreeFile = async (fileId: string, content: unknown, description?: string, unlock: boolean = false) => {
+export const updateTreeFile = async (fileId: string, content: unknown, description?: string, _unlock: boolean = false) => {
     const fileContent = JSON.stringify(content, null, 2);
     const file = new Blob([fileContent], { type: 'application/json' });
 
