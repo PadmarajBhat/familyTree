@@ -913,7 +913,7 @@ function App() {
 
       try {
         setLoading(true);
-        const savedTree = await saveWithMerge(updatedTree, updatedTree.summary[0]?.changes || "Deleted member");
+        const savedTree = await saveWithMerge(updatedTree, updatedTree.summary[0]?.changes || "Deleted member", lockId);
 
         setTree(savedTree);
         setSelectedNodeId(null); // Close detail view
@@ -933,7 +933,7 @@ function App() {
 
     if (!currentUser || !tree) return;
 
-    await executeWithLock(async (latestTree) => {
+    await executeWithLock(async (latestTree, lockId) => {
       if (!latestTree) return;
 
       // Check if current user is an editor
@@ -972,7 +972,7 @@ function App() {
 
       try {
         setLoading(true);
-        const savedTree = await saveWithMerge(updatedTree, `Edited ${targetNode.name} with isEditor`);
+        const savedTree = await saveWithMerge(updatedTree, `Edited ${targetNode.name} with isEditor`, lockId);
 
         setTree(savedTree);
         alert(`Editor access ${newStatus ? 'granted to' : 'removed from'} ${targetNode.name}!`);
