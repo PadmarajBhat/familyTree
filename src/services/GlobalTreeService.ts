@@ -14,6 +14,11 @@ export interface SearchResult {
 }
 
 export const GlobalTreeService = {
+    // Register a tree into the cache (e.g. the currently active tree)
+    registerTree(fileId: string, tree: TreeDocument): void {
+        loadedTreesCache[fileId] = tree;
+    },
+
     // Load all shortlisted trees
     async loadShortlistedTrees(shortlistedIds: string[]): Promise<void> {
         if (shortlistedIds.length === 0) return;

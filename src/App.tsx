@@ -322,6 +322,9 @@ function App() {
         // Hydrate Live Links (Shadow Nodes) from Global Cache
         GlobalTreeService.hydrateTree(treeDoc, files);
 
+        // Register current tree for Unified Search
+        GlobalTreeService.registerTree(fileToLoad.id, treeDoc);
+
         setTree(treeDoc);
         return treeDoc;
       } else {
@@ -486,12 +489,18 @@ function App() {
 
       await updateTreeFile(todaysFile.id, mergedTree, latestSummary, false);
       setCurrentTreeId(todaysFile.id);
+
+      // Update cache
+      GlobalTreeService.registerTree(todaysFile.id, mergedTree);
+
       return mergedTree;
     } else {
       console.log("Creating new file for today...", todayFileName);
       const newFile = await saveTreeFile(todayFileName, localTree, summaryText);
       if (newFile && newFile.id) {
         setCurrentTreeId(newFile.id);
+        // Update cache
+        GlobalTreeService.registerTree(newFile.id, localTree);
       }
       return localTree;
     }
@@ -1082,6 +1091,13 @@ function App() {
                             setIsMenuOpen(false);
                             setLoading(false);
                             setLoadingMessage("Loading...");
+                          });
+                        }}
+                      >
+                        Dashboard
+                      </button>
+                    </>
+                  )}
                   <button
                     className="menu-item"
                     onClick={() => {
@@ -1102,13 +1118,13 @@ function App() {
                   </button>
                 </div>
               )}
-                </div>
-              ) : (
-              <button onClick={signIn} disabled={!isGapiReady}>
-                {isGapiReady ? 'Sign In' : '...'}
-              </button>
-          )}
             </div>
+          ) : (
+            <button onClick={signIn} disabled={!isGapiReady}>
+              {isGapiReady ? 'Sign In' : '...'}
+            </button>
+          )}
+        </div>
       </header>
       <main>
         {loading && <LoadingOverlay message={loadingMessage} />}
