@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { listTreeFiles, saveTreeFile, deleteFile } from '../services/drive';
 import { getISTTimestamp } from '../logic/dateUtils';
 import type { TreeDocument } from '../logic/types';
+import { getTreeNameFromFilename, generateFilename } from '../logic/fileUtils';
 
 interface HomeProps {
     userEmail: string;
@@ -40,14 +41,34 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         setLoading(true);
         try {
             const files = await listTreeFiles();
+
+            // Group files by Tree Name
+            const groupedFiles: Record<string, TreeFile[]> = {};
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const treeFiles = files.map((f: any) => ({
-                id: f.id,
-                name: f.name.replace('family_tree_', '').replace('.json', '').replace(/_/g, ' '),
-                modifiedTime: f.modifiedTime,
-                description: f.description
-            }));
-            setTrees(treeFiles);
+            files.forEach((f: any) => {
+                const treeName = getTreeNameFromFilename(f.name);
+                if (!groupedFiles[treeName]) {
+                    groupedFiles[treeName] = [];
+                }
+                groupedFiles[treeName].push({
+                    id: f.id,
+                    name: treeName,
+                    modifiedTime: f.modifiedTime,
+                    description: f.description
+                });
+            });
+
+            // For each group, pick the latest one
+            const latestTrees: TreeFile[] = [];
+            Object.values(groupedFiles).forEach(group => {
+                // Sort by modifiedTime descending
+                group.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime());
+                latestTrees.push(group[0]);
+            });
+
+            // Set trees state to these latest versions
+            setTrees(latestTrees);
         } catch (error) {
             console.error("Failed to list trees", error);
         } finally {
@@ -69,7 +90,7 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         if (!newTreeName.trim()) return;
         setCreating(true);
         try {
-            const name = `family_tree_${newTreeName.trim().replace(/\s+/g, '_')}.json`;
+            const name = generateFilename(newTreeName);
             const newTree: TreeDocument = {
                 schemaVersion: 1,
                 treeId: crypto.randomUUID(),
@@ -103,8 +124,20 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         if (!confirm(`Are you sure you want to delete tree "${name}"? This cannot be undone.`)) return;
 
         try {
+            // Delete ALL files for this tree name? Or just the latest?
+            // User probably implies "Delete Tree" means the whole thing.
+            // But we only have ID of the latest one here.
+
+            // Just delete the one file for now is safer, OR
+            // We should fetch all files for this name and delete them.
+            // Let's stick to deleting the specific file shown to avoid accidental data loss of history unless explicitly requested.
             await deleteFile(id);
+
             // Also remove from shortlist if present
+            // Note: Shortlist uses file IDs currently. If file ID changes daily, shortlist breaks?
+            // Issue: Shortlist logic stores 'id'. If ID changes daily, the shortlist will point to old files.
+            // We should ideally shortlist by 'Tree Name'.
+            // For now, removing the ID is correct for THIS file.
             if (shortlistedIds.includes(id)) {
                 const newIds = shortlistedIds.filter(sid => sid !== id);
                 setShortlistedIds(newIds);

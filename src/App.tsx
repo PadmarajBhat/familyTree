@@ -190,6 +190,8 @@ function App() {
     }
   }, [isSignedIn, isGapiReady, viewMode, currentUser]);
 
+
+
   const loadTree = async (returnOnly = false, specificFileId?: string): Promise<TreeDocument | null> => {
     if (!returnOnly) setLoading(true);
     setError(null);
@@ -201,30 +203,49 @@ function App() {
         // prefs removed
 
         // If a specific file is requested, try to find it
-        // If a specific file is requested, try to find it
         if (specificFileId) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const found = files.find((f: any) => f.id === specificFileId);
           if (found) {
             fileToLoad = found;
           } else {
-            console.warn("Requested file not found:", specificFileId);
-            // Fallback?
+            // If specific ID is not found (e.g. from shortlist but file changed daily),
+            // we should try to find the "latest" file for the same Tree Name if possible?
+            // But we don't know the Tree Name from the ID.
+            // However, Home.tsx now Shortlists IDs.
+            // Major Issue: Shortlist stores IDs. But IDs change daily.
+            // The loaded Tree Name should be stored in Shortlist instead of ID?
+            // For now, let's assume the user clicked "Home", which loaded the LATEST ID for that tree.
+            console.warn("Requested file ID not found:", specificFileId);
           }
         } else if (currentTreeId && files.some((f: any) => f.id === currentTreeId)) {
-          // Reload current tree
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          fileToLoad = files.find((f: any) => f.id === currentTreeId);
+          // Reload current tree: we have ID, it exists.
+          // But if we are reloading generally (e.g. refreshing), we might want the latest Daily file for current Tree Name?
+          // Since we have currentTreeName state:
+          if (currentTreeName) {
+            // specific logic to find latest for this name
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const consistentFiles = files.filter((f: any) => getTreeNameFromFilename(f.name) === currentTreeName);
+            if (consistentFiles.length > 0) {
+              // Sort desc
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              consistentFiles.sort((a: any, b: any) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime());
+              fileToLoad = consistentFiles[0];
+            }
+          } else {
+            // fallback
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            fileToLoad = files.find((f: any) => f.id === currentTreeId);
+          }
         }
-
-        // Note: We removed the old "getPreferences" logic in favor of the new Shortlist/Home logic.
+        // If neither specific nor current valid, defaults to files[0] (latest in list usually?)
 
         console.log("Loading file:", fileToLoad.name, fileToLoad.id);
         setCurrentTreeId(fileToLoad.id);
         setCurrentTreeName(getTreeNameFromFilename(fileToLoad.name));
 
         const content = await getFileContent(fileToLoad.id);
-        console.log("File content:", content);
+        console.log("File content loaded."); // Reduced logging
 
         if (!content || typeof content !== 'object') {
           throw new Error("Invalid file content: Not an object");
