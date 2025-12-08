@@ -45,6 +45,7 @@ function App() {
   const [currentTreeId, setCurrentTreeId] = useState<string | null>(null);
   const [currentTreeName, setCurrentTreeName] = useState<string>('family_tree');
   const [findRelationIds, setFindRelationIds] = useState<{ p1: string | null; p2: string | null }>({ p1: null, p2: null });
+  const [historyFilterNodeId, setHistoryFilterNodeId] = useState<string | null>(null);
 
   const [viewDepth, setViewDepth] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -98,6 +99,7 @@ function App() {
     setEditorMode(null);
     setEditingNodeId(null);
     setFindRelationIds({ p1: null, p2: null });
+    setHistoryFilterNodeId(null);
   };
 
   // Also, when we manually close a modal (e.g. click X), we should probably go back in history
@@ -316,6 +318,9 @@ function App() {
             return null;
           }
         }
+
+        // Hydrate Live Links (Shadow Nodes) from Global Cache
+        GlobalTreeService.hydrateTree(treeDoc);
 
         setTree(treeDoc);
         return treeDoc;
@@ -1004,6 +1009,12 @@ function App() {
     setSelectedNodeId(null);
   };
 
+  const handleViewHistory = (nodeId: string) => {
+    setHistoryFilterNodeId(nodeId);
+    setShowVersionHistory(true);
+    setSelectedNodeId(null); // Close Person Detail
+  };
+
   return (
     <div className="app-container">
       <header className="app-header">
@@ -1276,6 +1287,7 @@ function App() {
               setShowVersionHistory(false);
               setSelectedNodeId(nodeId);
             }}
+            filterNodeId={historyFilterNodeId}
           />
         )}
 
@@ -1296,6 +1308,7 @@ function App() {
 
             onNodeClick={handleNodeClick}
             onFindRelation={handleFindRelation}
+            onViewHistory={handleViewHistory}
           />
         )}
 

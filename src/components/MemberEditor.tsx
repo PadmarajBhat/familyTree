@@ -48,6 +48,10 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
         initialData?.location ? { district: initialData.location.district, state: initialData.location.state, country: initialData.location.country } : { district: null, state: null, country: null }
     );
 
+    // For Live Links
+    const [externalLink, setExternalLink] = useState<{ treeId: string; nodeId: string } | undefined>(initialData?.externalLink);
+    const [isLinkedNode, setIsLinkedNode] = useState(!!initialData?.externalLink);
+
     // Generic Duplicate Search
     const [nameSuggestions, setNameSuggestions] = useState<SearchResult[]>([]);
     const [showNameSuggestions, setShowNameSuggestions] = useState(false);
@@ -355,12 +359,17 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     };
 
     const handleDuplicateSelect = (result: SearchResult) => {
-        if (!confirm(`Populate details from ${result.node.name}? This will overwrite current fields.`)) return;
+        // Mandatory Live Link
+        // alert(`Linking to "${result.node.name}" in tree "${result.treeName}".`);
+
+        setExternalLink({ treeId: result.treeId, nodeId: result.node.nodeId });
+        setIsLinkedNode(true);
+        // setNotes(prev => prev + `\n[Linked from ${result.treeName}]`); // Optional, maybe skip to keep clean
 
         setName(result.node.name || '');
-        setDob(result.node.dob || '');
-        if (result.node.gender) setGender(result.node.gender);
-        // ... populate other fields if needed
+        if (result.node.dob) setDob(result.node.dob);
+        if (result.node.gender) setGender(result.node.gender || 'other');
+
         setShowNameSuggestions(false);
     };
 
@@ -434,8 +443,23 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                     district: locationData.district,
                     state: locationData.state,
                     country: locationData.country
-                } : null
+                } : null,
+                externalLink: externalLink
             };
+
+            // Live Link Write-Back
+            if (isLinkedNode && externalLink) {
+                const success = await GlobalTreeService.updateRemoteNode(
+                    externalLink.treeId,
+                    externalLink.nodeId,
+                    personData,
+                    currentUserEmail
+                );
+                if (!success) {
+                    // Error handled in service; abort local save to ensure consistency
+                    return;
+                }
+            }
 
             onSave(personData, parentId, childrenIds, spouseIds, siblingIds);
             if (shouldAddChild) {
@@ -466,6 +490,28 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
             <div className="member-editor-content">
                 <CloseButton onClick={onCancel} />
                 <h2>{mode === 'add' ? 'Add Member' : 'Edit Member'}</h2>
+                {isLinkedNode && (
+                    <div style={{
+                        backgroundColor: '#e8f5e9',
+                        color: '#1b5e20',
+                        padding: '10px',
+                        borderRadius: '4px',
+                        marginBottom: '15px',
+                        border: '1px solid #a5d6a7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}>
+                        <span style={{ fontSize: '1.2em' }}>🔗</span>
+                        <div>
+                            <strong>Live Link Active</strong>
+                            <div style={{ fontSize: '0.9em' }}>
+                                This person is linked to Tree: <strong>{externalLink?.treeId}</strong>.
+                                Edits made here will update the source tree automatically.
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <form onSubmit={(e) => handleSubmit(e, false)}>
                     <div className="form-actions top-actions">
                         <button type="submit" disabled={uploading} className="primary-btn">

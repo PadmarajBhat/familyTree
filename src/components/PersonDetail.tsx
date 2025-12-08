@@ -16,23 +16,24 @@ interface PersonDetailProps {
     onDelete: (nodeId: string) => void;
     onNodeClick: (nodeId: string) => void;
     onFindRelation: (nodeId: string) => void;
+    onViewHistory: (nodeId: string) => void;
 }
 
-export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentUser, onClose, onEdit, onDelete, onNodeClick, onFindRelation }) => {
+export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentUser, onClose, onEdit, onDelete, onNodeClick, onFindRelation, onViewHistory }) => {
     const isOrphan = !node.parentId && node.childrenIds.length === 0 && node.spouseIds.length === 0;
     const [isExportingPdf, setIsExportingPdf] = useState(false);
 
     const canEdit = canEditNode(tree, currentUser?.email, node.nodeId);
     const canDelete = isGlobalEditor(tree, currentUser?.email) && isOrphan;
 
-    // Show ALL fields including empty ones
+    // Show only non-empty fields
     const fields = [
-        { label: 'Born', value: node.dob || '—' },
-        { label: 'Died', value: node.dod || '—' },
-        { label: 'Phone', value: node.phone || '—' },
-        { label: 'Email', value: node.email || '—' },
-        { label: 'Address', value: node.address.freeform || '—' },
-    ];
+        { label: 'Born', value: node.dob },
+        { label: 'Died', value: node.dod },
+        { label: 'Phone', value: node.phone },
+        { label: 'Email', value: node.email },
+        { label: 'Address', value: node.address.freeform },
+    ].filter(f => f.value && f.value !== '—' && f.value.trim() !== '');
 
     const handleExportPdf = async () => {
         setIsExportingPdf(true);
@@ -161,6 +162,9 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentU
                             )}
                             <button onClick={() => onFindRelation(node.nodeId)} title="Find Relation with Me">
                                 🔍 Find Relation
+                            </button>
+                            <button onClick={() => onViewHistory(node.nodeId)} title="View History">
+                                📜 History
                             </button>
                             <button
                                 onClick={handleExportPdf}

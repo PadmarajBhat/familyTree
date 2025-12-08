@@ -8,6 +8,7 @@ interface VersionHistoryProps {
     nodes: Record<string, PersonNode>;
     onClose: () => void;
     onSelectNode: (nodeId: string) => void;
+    filterNodeId?: string | null;
 }
 
 interface GroupedLog {
@@ -22,7 +23,7 @@ interface GroupedLog {
     }[];
 }
 
-export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, onClose, onSelectNode }) => {
+export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, onClose, onSelectNode, filterNodeId }) => {
     const [viewMode, setViewMode] = React.useState<'date' | 'author'>('date');
     const [expandedSections, setExpandedSections] = React.useState<Set<string>>(new Set(['date-Today']));
 
@@ -35,6 +36,36 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
         }
         setExpandedSections(newSet);
     };
+
+    // Filter logs if filterNodeId is provided
+    const filteredSummary = useMemo(() => {
+        if (!filterNodeId) return summary;
+
+        const targetNode = nodes[filterNodeId];
+        const targetName = targetNode?.name?.toLowerCase();
+
+        return summary.filter(log => {
+            // 1. Check structured data
+            if (log.structured && log.structured.length > 0) {
+                return log.structured.some(change => change.nodeId === filterNodeId);
+            }
+
+            // 2. Fallback: Check text for name match (best effort)
+            if (targetName) {
+                return log.changes.toLowerCase().includes(targetName);
+            }
+
+            return false;
+        });
+    }, [summary, filterNodeId, nodes]);
+
+    // Update expanded sections when filter changes
+    React.useEffect(() => {
+        if (filterNodeId) {
+            // If filtering, expand everything by default or at least "Today"
+            setExpandedSections(new Set(['date-Today', 'date-This Week', 'date-Older', 'date-This Month']));
+        }
+    }, [filterNodeId]);
 
     const groupLogsByDate = (logs: ChangeLog[]): GroupedLog[] => {
         const today = new Date();
@@ -122,7 +153,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
         return result;
     };
 
-    const groupedLogs = useMemo(() => groupLogsByDate(summary), [summary]);
+    const groupedLogs = useMemo(() => groupLogsByDate(filteredSummary), [filteredSummary]);
 
     // Helper to find node by email (for Author)
     const findNodeByEmail = (email: string) => {
@@ -138,7 +169,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
     const groupedByAuthor = useMemo(() => {
         const authorMap: Record<string, ChangeLog[]> = {};
 
-        summary.forEach(log => {
+        filteredSummary.forEach(log => {
             const author = log.editedBy || 'Unknown';
             if (!authorMap[author]) {
                 authorMap[author] = [];
@@ -365,7 +396,12 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, 
         <div className="version-history-container">
             <div style={{ padding: '16px 20px 0 20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h2 style={{ margin: 0 }}>Version History</h2>
+                    <h2 style={{ margin: 0 }}>
+                        {filterNodeId && nodes[filterNodeId]
+                            ? `History for ${nodes[filterNodeId].name}`
+                            : "Version History"
+                        }
+                    </h2>
                     <CloseButton onClick={onClose} />
                 </div>
 
