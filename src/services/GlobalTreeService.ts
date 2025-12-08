@@ -89,7 +89,14 @@ export const GlobalTreeService = {
                     if (externalNode.occupation) node.occupation = externalNode.occupation;
                     if (externalNode.hobbies) node.hobbies = externalNode.hobbies;
                     if (externalNode.location) node.location = externalNode.location;
+                    if (externalNode.location) node.location = externalNode.location;
                     if (externalNode.address) node.address = externalNode.address;
+
+                    // Hydrate Tree Name for UI
+                    if (!node.externalLink.treeName) {
+                        const sourceTree = loadedTreesCache[node.externalLink.treeId];
+                        if (sourceTree) node.externalLink.treeName = sourceTree.treeName;
+                    }
                 }
             }
         });

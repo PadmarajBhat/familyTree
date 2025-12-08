@@ -8,6 +8,7 @@ interface HomeProps {
     userEmail: string;
     onSelectTree: (treeId: string) => void;
     currentTreeId: string | null;
+    isEditor: boolean;
 }
 
 interface TreeFile {
@@ -17,7 +18,7 @@ interface TreeFile {
     description?: string;
 }
 
-export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTreeId }) => {
+export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTreeId, isEditor }) => {
     const [trees, setTrees] = useState<TreeFile[]>([]);
     const [loading, setLoading] = useState(false);
     const [shortlistedIds, setShortlistedIds] = useState<string[]>([]);
@@ -124,13 +125,32 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         if (!confirm(`Are you sure you want to delete tree "${name}"? This cannot be undone.`)) return;
 
         try {
-            // Delete ALL files for this tree name? Or just the latest?
-            // User probably implies "Delete Tree" means the whole thing.
-            // But we only have ID of the latest one here.
+            // Security Check: Only allow if it's "Today's" version.
+            // listTreeFiles returns metadata. "modifiedTime" is ISO string.
+            // We need to fetch the file metadata again or use what we have? We have it in `trees`.
+            const treeFile = trees.find(t => t.id === id);
+            if (!treeFile) return;
 
-            // Just delete the one file for now is safer, OR
-            // We should fetch all files for this name and delete them.
-            // Let's stick to deleting the specific file shown to avoid accidental data loss of history unless explicitly requested.
+            // Check if "modifiedTime" is "Today" in IST
+            const fileDate = new Date(treeFile.modifiedTime);
+            // IST is UTC+5:30.
+            // Let's get "Today" in IST.
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const istNow = new Date(utc + (3600000 * 5.5));
+
+            const fileUtc = fileDate.getTime() + (fileDate.getTimezoneOffset() * 60000);
+            const fileIst = new Date(fileUtc + (3600000 * 5.5));
+
+            const isSameDay = istNow.getDate() === fileIst.getDate() &&
+                istNow.getMonth() === fileIst.getMonth() &&
+                istNow.getFullYear() === fileIst.getFullYear();
+
+            if (!isSameDay) {
+                alert("Safety Lock: You can only delete versions created or modified TODAY.\n\nHistorical versions must be preserved. To delete older files, please use Google Drive directly.");
+                return;
+            }
+
             await deleteFile(id);
 
             // Also remove from shortlist if present
@@ -162,15 +182,19 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
             <header className="home-header">
                 <h1>Family Trees</h1>
                 <div className="home-actions">
-                    <input
-                        type="text"
-                        placeholder="New Tree Name"
-                        value={newTreeName}
-                        onChange={e => setNewTreeName(e.target.value)}
-                    />
-                    <button onClick={handleCreateTree} disabled={creating || !newTreeName}>
-                        {creating ? "Creating..." : "Create New"}
-                    </button>
+                    {isEditor && (
+                        <>
+                            <input
+                                type="text"
+                                placeholder="New Tree Name"
+                                value={newTreeName}
+                                onChange={e => setNewTreeName(e.target.value)}
+                            />
+                            <button onClick={handleCreateTree} disabled={creating || !newTreeName}>
+                                {creating ? "Creating..." : "Create New"}
+                            </button>
+                        </>
+                    )}
                 </div>
             </header>
 
@@ -218,13 +242,15 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                                     <span>Last modified: {new Date(tree.modifiedTime).toLocaleDateString()}</span>
                                 </div>
                                 <div className="card-actions">
-                                    <button
-                                        className="delete-btn"
-                                        onClick={(e) => handleDeleteTree(tree.id, tree.name, e)}
-                                        title="Delete Tree"
-                                    >
-                                        🗑️
-                                    </button>
+                                    {isEditor && (
+                                        <button
+                                            className="delete-btn"
+                                            onClick={(e) => handleDeleteTree(tree.id, tree.name, e)}
+                                            title="Delete Today's Version"
+                                        >
+                                            🗑️
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -235,8 +261,10 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
             <style>{`
                 .home-screen {
                     padding: 2rem;
-                    max-width: 1200px;
+                    max-width: 100%;
+                    width: 1200px;
                     margin: 0 auto;
+                    box-sizing: border-box; 
                 }
                 .home-header {
                     display: flex;

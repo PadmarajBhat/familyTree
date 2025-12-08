@@ -13,7 +13,7 @@ interface MemberEditorProps {
     mode: 'add' | 'edit';
     initialData?: PersonNode;
     existingNodes: Record<string, PersonNode>;
-    onSave: (person: PersonNode, newParentId: string | null, newChildrenIds: string[], newSpouseIds: string[], newSiblingIds: string[]) => void;
+    onSave: (person: PersonNode, newParentId: string | null, newChildrenIds: string[], newSpouseIds: string[], newSiblingIds: string[], shadowNodes?: PersonNode[]) => void;
     onCancel: () => void;
     onDelete?: (nodeId: string) => void;
 }
@@ -49,7 +49,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     );
 
     // For Live Links
-    const [externalLink, setExternalLink] = useState<{ treeId: string; nodeId: string } | undefined>(initialData?.externalLink);
+    const [externalLink, setExternalLink] = useState<{ treeId: string; nodeId: string; treeName?: string } | undefined>(initialData?.externalLink);
     const [isLinkedNode, setIsLinkedNode] = useState(!!initialData?.externalLink);
 
     // Generic Duplicate Search
@@ -238,33 +238,80 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
         return () => clearTimeout(timer);
     }, [fatherSearch, initialData]);
 
-    const [suggestedChildren, setSuggestedChildren] = useState<SearchResult[]>([]);
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (childSearch && childSearch.length > 2) {
-                const results = GlobalTreeService.searchAllTrees(childSearch);
-                const filtered = results.filter(res => res.node.nodeId !== initialData?.nodeId && !childrenIds.includes(res.node.nodeId)).slice(0, 10);
-                setSuggestedChildren(filtered);
-            } else {
-                setSuggestedChildren([]);
-            }
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [childSearch, initialData, childrenIds]);
+    // State for pending Shadow Nodes (remote nodes selected as relations)
+    const [pendingShadowNodes, setPendingShadowNodes] = useState<PersonNode[]>([]);
 
-    const [suggestedSpouses, setSuggestedSpouses] = useState<SearchResult[]>([]);
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (spouseSearch && spouseSearch.length > 2) {
-                const results = GlobalTreeService.searchAllTrees(spouseSearch);
-                const filtered = results.filter(res => res.node.nodeId !== initialData?.nodeId && !spouseIds.includes(res.node.nodeId)).slice(0, 10);
-                setSuggestedSpouses(filtered);
-            } else {
-                setSuggestedSpouses([]);
+    const createShadowNode = (result: SearchResult): PersonNode => {
+        return {
+            nodeId: result.node.nodeId,
+            name: result.node.name,
+            imageUrl: result.node.imageUrl,
+            gender: result.node.gender,
+            dob: result.node.dob,
+            dobApprox: result.node.dobApprox || { known: false, year: null, month: null, day: null },
+            dod: result.node.dod,
+            dodApprox: result.node.dodApprox || { known: false, year: null, month: null, day: null },
+            dobInferred: false,
+            ageProvided: null,
+            phone: null,
+            phoneE164: null,
+            email: null,
+            address: { freeform: null }, // Don't verify address for shadow nodes
+            spouseIds: [],
+            parentId: null,
+            childrenIds: [],
+            isEditor: false,
+            editorSince: null,
+            editedBy: null,
+            editedTime: null,
+            externalLink: {
+                treeId: result.treeId,
+                nodeId: result.node.nodeId,
+                treeName: result.treeName
             }
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [spouseSearch, initialData, spouseIds]);
+        };
+    };
+
+    const handleFatherSelect = (result: SearchResult) => {
+        setParentId(result.node.nodeId);
+        setFatherSearch(result.node.name || 'Unknown');
+        setShowFatherSuggestions(false);
+
+        // If not in existingNodes, queue it as a Shadow Node
+        if (!existingNodes[result.node.nodeId]) {
+            const shadow = createShadowNode(result);
+            setPendingShadowNodes(prev => [...prev.filter(n => n.nodeId !== shadow.nodeId), shadow]);
+        }
+    };
+
+    const handleSpouseSelect = (result: SearchResult) => {
+        setSpouseIds(prev => [...prev, result.node.nodeId]);
+        setSpouseSearch('');
+        setShowSpouseSuggestions(false);
+
+        if (!existingNodes[result.node.nodeId]) {
+            const shadow = createShadowNode(result);
+            setPendingShadowNodes(prev => [...prev.filter(n => n.nodeId !== shadow.nodeId), shadow]);
+        }
+    };
+
+    // Need to implement handleChildSelect
+    const handleChildSelect = (result: SearchResult) => {
+        setChildrenIds(prev => [...prev, result.node.nodeId]);
+        setChildSearch('');
+        setShowChildSuggestions(false);
+
+        if (!existingNodes[result.node.nodeId]) {
+            const shadow = createShadowNode(result);
+            setPendingShadowNodes(prev => [...prev.filter(n => n.nodeId !== shadow.nodeId), shadow]);
+        }
+    };
+
+    // Also update existing effect to use handleAddChild logic if needed
+    // But wait, the original code might have inline logic for these.
+    // I need to be careful not to double declare.
+    // The previous view showed handleFatherSelect was there but incomplete.
+
 
     // Siblings are strictly local to the parent usually, unless we support cross-tree siblings (half-siblings?).
     // For now, keep siblings local or use the same parent logic.
@@ -288,290 +335,314 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     }, [siblingSearch, existingNodes, initialData, siblingIds]);
 
 
-    const handleFatherSelect = (result: SearchResult) => {
-        // If the result is from another tree, we need to handle that.
-        // For now, we return the nodeId. The App handling of onSave needs to support Shadow Nodes if we pass extra info.
-        // But MemberEditor stores parentId as string.
-        // If it's a cross-tree node, we might need a way to store "link".
-        // Current implementation expects parentId to be an ID in the current tree.
-        // If we select a node from another tree, we should probably Create a Shadow Node immediately or on Save?
-        // Let's trigger a specialized handling.
 
-        // Wait, for this task (Default Tree), we just need to IMPLEMENT Unified Search.
-        // The implementation plan says: "Selecting a person from another tree will create the corresponding Shadow Node and link."
-        // This implies logic in App.tsx or MemberEditor.
-        // If I change 'parentId' to be 'external:treeId:nodeId', App.tsx needs to parse it.
-        // Or better: pass the external link info to onSave.
+    // REALITY CHECK: If I just pass ID, App.tsx won't find it in current tree nodes.
+    // So onSave will fail or create a broken link.
+    // I need to pass "newParentExternalLink" to onSave?
+    // Or onSave should accept "changes" object?
 
-        // But MemberEditor state 'parentId' is string.
-        // Let's treat 'parentId' as just ID.
-        // If it's external, we need to know.
+    // Let's stick to the simplest Plan B:
+    // When selecting an external node, we don't support it FULLY in this step unless I modify onSave signature.
+    // I will MODIFY onSave signature to accept `externalLinks`.
+};
 
-        // Actually, if we use GlobalTreeService, we are just selecting a Node.
-        // If the node is NOT in existingNodes, it's external.
-        // But we need to know WHICH tree it came from.
-        setParentId(result.node.nodeId);
-        setFatherSearch(result.node.name || 'Unknown');
-        setShowFatherSuggestions(false);
 
-        // We need to store that this parent is external if it is.
-        // Let's add a state for 'externalParentDetails'
-        // But wait, the previous code didn't have this.
-        // I will assume for now we just pass the ID.
-        // REALITY CHECK: If I just pass ID, App.tsx won't find it in current tree nodes.
-        // So onSave will fail or create a broken link.
-        // I need to pass "newParentExternalLink" to onSave?
-        // Or onSave should accept "changes" object?
+setChildrenIds(prev => prev.filter(id => id !== childId));
+};
 
-        // Let's stick to the simplest Plan B:
-        // When selecting an external node, we don't support it FULLY in this step unless I modify onSave signature.
-        // I will MODIFY onSave signature to accept `externalLinks`.
-    };
 
-    const handleChildSelect = (result: SearchResult) => {
-        setChildrenIds(prev => [...prev, result.node.nodeId]);
-        setChildSearch('');
-        setShowChildSuggestions(false);
-    };
 
-    const handleRemoveChild = (childId: string) => {
-        setChildrenIds(prev => prev.filter(id => id !== childId));
-    };
+const handleRemoveSpouse = (id: string) => {
+    setSpouseIds(prev => prev.filter(sid => sid !== id));
+};
 
-    const handleSpouseSelect = (result: SearchResult) => {
-        setSpouseIds(prev => [...prev, result.node.nodeId]);
-        setSpouseSearch('');
-        setShowSpouseSuggestions(false);
-    };
+const handleSiblingSelect = (node: PersonNode) => {
+    setSiblingIds(prev => [...prev, node.nodeId]);
+    setSiblingSearch('');
+    setShowSiblingSuggestions(false);
+};
 
-    const handleRemoveSpouse = (id: string) => {
-        setSpouseIds(prev => prev.filter(sid => sid !== id));
-    };
+const handleRemoveSibling = (id: string) => {
+    setSiblingIds(prev => prev.filter(sid => sid !== id));
+};
 
-    const handleSiblingSelect = (node: PersonNode) => {
-        setSiblingIds(prev => [...prev, node.nodeId]);
-        setSiblingSearch('');
-        setShowSiblingSuggestions(false);
-    };
+// State to hold the remote image URL during linking (to prevent wiping it on save)
+const [linkedImageUrl, setLinkedImageUrl] = useState<string | null>(null);
 
-    const handleRemoveSibling = (id: string) => {
-        setSiblingIds(prev => prev.filter(sid => sid !== id));
-    };
+const handleDuplicateSelect = (result: SearchResult) => {
+    // Mandatory Live Link
+    setExternalLink({ treeId: result.treeId, nodeId: result.node.nodeId, treeName: result.treeName });
+    setIsLinkedNode(true);
+    if (result.node.imageUrl) {
+        setLinkedImageUrl(result.node.imageUrl);
+        setImagePreview(getPhotoUrl(result.node.imageUrl));
+    }
 
-    const handleDuplicateSelect = (result: SearchResult) => {
-        // Mandatory Live Link
-        // alert(`Linking to "${result.node.name}" in tree "${result.treeName}".`);
+    setName(result.node.name || '');
+    if (result.node.dob) setDob(result.node.dob);
+    if (result.node.gender) setGender(result.node.gender || 'other');
 
-        setExternalLink({ treeId: result.treeId, nodeId: result.node.nodeId });
-        setIsLinkedNode(true);
-        // setNotes(prev => prev + `\n[Linked from ${result.treeName}]`); // Optional, maybe skip to keep clean
+    setShowNameSuggestions(false);
+};
 
-        setName(result.node.name || '');
-        if (result.node.dob) setDob(result.node.dob);
-        if (result.node.gender) setGender(result.node.gender || 'other');
+const handleSubmit = async (e: React.FormEvent, shouldAddChild: boolean = false) => {
+    e.preventDefault();
 
-        setShowNameSuggestions(false);
-    };
+    // Email is only required for editors
+    const isEditor = initialData?.isEditor || false;
+    if (isEditor && (!email || !email.trim())) {
+        alert("Email is required for editors.");
+        return;
+    }
 
-    const handleSubmit = async (e: React.FormEvent, shouldAddChild: boolean = false) => {
-        e.preventDefault();
+    setUploading(true);
 
-        // Email is only required for editors
-        const isEditor = initialData?.isEditor || false;
-        if (isEditor && (!email || !email.trim())) {
-            alert("Email is required for editors.");
-            return;
+    try {
+        let imageUrl = initialData?.imageUrl || null;
+
+        // If we have a linked image URL from duplicate selection, use it by default
+        if (linkedImageUrl) {
+            imageUrl = linkedImageUrl;
         }
 
-        setUploading(true);
-
-        try {
-            let imageUrl = initialData?.imageUrl || null;
-            if (imageFile) {
-                // If there was an old image, delete it to prevent duplicates
-                if (initialData?.imageUrl) {
-                    try {
-                        await deleteFile(initialData.imageUrl);
-                    } catch (e) {
-                        console.warn("Failed to delete old image file", e);
-                        // Continue anyway, don't block save
-                    }
-                }
-                imageUrl = await uploadImage(imageFile);
-            }
-
-            let finalDob = dob;
-            let dobInferred = initialData?.dobInferred || false;
-
-            if (!dob && age) {
-                finalDob = deriveDobFromAge(parseInt(age), isAlive ? null : dod);
-                dobInferred = true;
-            } else if (dob) {
-                dobInferred = false;
-            }
-
-            const now = getISTTimestamp();
-
-            const personData: PersonNode = {
-                nodeId: initialData?.nodeId || uuidv4(),
-                name: name || null,
-                imageUrl: imageUrl,
-                phone: phone || null,
-                phoneE164: phone ? phone.replace(/\D/g, '') : null,
-                email: email ? email.toLowerCase() : null,
-                dob: finalDob || null,
-                dobApprox: initialData?.dobApprox || { known: false, year: null, month: null, day: null },
-                dod: !isAlive ? (dod || null) : null,
-                dodApprox: initialData?.dodApprox || { known: false, year: null, month: null, day: null },
-                ageProvided: age ? parseInt(age) : null,
-                dobInferred: dobInferred,
-                address: { freeform: address || null },
-                spouseIds: spouseIds,
-                parentId: parentId,
-                childrenIds: childrenIds,
-                isEditor: initialData?.isEditor || false,
-                editorSince: initialData?.editorSince || null,
-                editedBy: currentUserEmail,
-                editedTime: now,
-                gender: gender,
-                hobbies: hobbies,
-                education: education,
-                occupation: occupation,
-                notes: notes,
-                location: zipcode ? {
-                    zipcode: zipcode,
-                    district: locationData.district,
-                    state: locationData.state,
-                    country: locationData.country
-                } : null,
-                externalLink: externalLink
-            };
-
-            // Live Link Write-Back
-            if (isLinkedNode && externalLink) {
-                const success = await GlobalTreeService.updateRemoteNode(
-                    externalLink.treeId,
-                    externalLink.nodeId,
-                    personData,
-                    currentUserEmail
-                );
-                if (!success) {
-                    // Error handled in service; abort local save to ensure consistency
-                    return;
+        if (imageFile) {
+            // If there was an old image, delete it to prevent duplicates
+            if (initialData?.imageUrl) {
+                try {
+                    await deleteFile(initialData.imageUrl);
+                } catch (e) {
+                    console.warn("Failed to delete old image file", e);
+                    // Continue anyway, don't block save
                 }
             }
-
-            onSave(personData, parentId, childrenIds, spouseIds, siblingIds);
-            if (shouldAddChild) {
-                // Logic handled in parent component via a specific signal or just by knowing the flow
-                // Actually, onSave is void. We might need a way to signal "Add Child".
-                // For now, let's assume onSave handles the data update, and we need a way to trigger the next step.
-                // We can pass a flag or use a different callback.
-                // But the prop definition is fixed. Let's stick to the plan:
-                // "Save & Add Child" -> We need to tell App.tsx to open add mode for a child.
-                // We can modify onSave signature or add a new prop.
-                // Let's hack it slightly: The App.tsx can inspect the 'shouldAddChild' if we pass it?
-                // No, let's just add a temporary property to the personData or change onSave signature in the interface above.
-                // I'll stick to changing the onSave signature in the interface above to include a 'nextAction' param?
-                // Or just keep it simple: The user asked for "Add child option".
-                // Let's just pass a callback or use a global state? No.
-                // Let's add a `nextAction` parameter to `onSave`.
-            }
-        } catch (error) {
-            console.error("Error saving member:", error);
-            alert("Failed to save member. Please try again.");
-        } finally {
-            setUploading(false);
+            imageUrl = await uploadImage(imageFile);
         }
-    };
 
-    return (
-        <div className="member-editor-modal">
-            <div className="member-editor-content">
-                <CloseButton onClick={onCancel} />
-                <h2>{mode === 'add' ? 'Add Member' : 'Edit Member'}</h2>
-                {isLinkedNode && (
-                    <div style={{
-                        backgroundColor: '#e8f5e9',
-                        color: '#1b5e20',
-                        padding: '10px',
-                        borderRadius: '4px',
-                        marginBottom: '15px',
-                        border: '1px solid #a5d6a7',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                    }}>
-                        <span style={{ fontSize: '1.2em' }}>🔗</span>
-                        <div>
-                            <strong>Live Link Active</strong>
-                            <div style={{ fontSize: '0.9em' }}>
-                                This person is linked to Tree: <strong>{externalLink?.treeId}</strong>.
-                                Edits made here will update the source tree automatically.
-                            </div>
-                        </div>
-                    </div>
-                )}
-                <form onSubmit={(e) => handleSubmit(e, false)}>
-                    <div className="form-actions top-actions">
-                        <button type="submit" disabled={uploading} className="primary-btn">
-                            {uploading ? 'Saving...' : 'Save'}
+        let finalDob = dob;
+        let dobInferred = initialData?.dobInferred || false;
+
+        if (!dob && age) {
+            finalDob = deriveDobFromAge(parseInt(age), isAlive ? null : dod);
+            dobInferred = true;
+        } else if (dob) {
+            dobInferred = false;
+        }
+
+        const now = getISTTimestamp();
+
+        const personData: PersonNode = {
+            nodeId: initialData?.nodeId || uuidv4(),
+            name: name || null,
+            imageUrl: imageUrl,
+            phone: phone || null,
+            phoneE164: phone ? phone.replace(/\D/g, '') : null,
+            email: email ? email.toLowerCase() : null,
+            dob: finalDob || null,
+            dobApprox: initialData?.dobApprox || { known: false, year: null, month: null, day: null },
+            dod: !isAlive ? (dod || null) : null,
+            dodApprox: initialData?.dodApprox || { known: false, year: null, month: null, day: null },
+            ageProvided: age ? parseInt(age) : null,
+            dobInferred: dobInferred,
+            address: { freeform: address || null },
+            spouseIds: spouseIds,
+            parentId: parentId,
+            childrenIds: childrenIds,
+            isEditor: initialData?.isEditor || false,
+            editorSince: initialData?.editorSince || null,
+            editedBy: currentUserEmail,
+            editedTime: now,
+            gender: gender,
+            hobbies: hobbies,
+            education: education,
+            occupation: occupation,
+            notes: notes,
+            location: zipcode ? {
+                zipcode: zipcode,
+                district: locationData.district,
+                state: locationData.state,
+                country: locationData.country
+            } : null,
+            externalLink: externalLink
+        };
+
+        // Live Link Write-Back
+        if (isLinkedNode && externalLink) {
+            const success = await GlobalTreeService.updateRemoteNode(
+                externalLink.treeId,
+                externalLink.nodeId,
+                personData,
+                currentUserEmail
+            );
+            if (!success) {
+                // Error handled in service; abort local save to ensure consistency
+                return;
+            }
+        }
+
+        onSave(personData, parentId, childrenIds, spouseIds, siblingIds, pendingShadowNodes);
+        if (shouldAddChild) {
+            // Logic handled in parent component via a specific signal or just by knowing the flow
+            // Actually, onSave is void. We might need a way to signal "Add Child".
+            // For now, let's assume onSave handles the data update, and we need a way to trigger the next step.
+            // We can pass a flag or use a different callback.
+            // But the prop definition is fixed. Let's stick to the plan:
+            // "Save & Add Child" -> We need to tell App.tsx to open add mode for a child.
+            // We can modify onSave signature or add a new prop.
+            // Let's hack it slightly: The App.tsx can inspect the 'shouldAddChild' if we pass it?
+            // No, let's just add a temporary property to the personData or change onSave signature in the interface above.
+            // I'll stick to changing the onSave signature in the interface above to include a 'nextAction' param?
+            // Or just keep it simple: The user asked for "Add child option".
+            // Let's just pass a callback or use a global state? No.
+            // Let's add a `nextAction` parameter to `onSave`.
+        }
+    } catch (error) {
+        console.error("Error saving member:", error);
+        alert("Failed to save member. Please try again.");
+    } finally {
+        setUploading(false);
+    }
+};
+
+return (
+    <div className="member-editor-modal">
+        <div className="member-editor-content">
+            <CloseButton onClick={onCancel} />
+            <h2>{mode === 'add' ? 'Add Member' : 'Edit Member'}</h2>
+            {isLinkedNode && externalLink && (
+                <div style={{ background: '#e3f2fd', padding: '10px', borderRadius: '4px', marginBottom: '10px', border: '1px solid #2196f3' }}>
+                    <strong>Live Link Active:</strong> This person is linked to tree "{externalLink.treeName || externalLink.treeId}".
+                    <br />
+                    <small>Edits made here will update the source tree automatically.</small>
+                </div>
+            )}
+            <form onSubmit={(e) => handleSubmit(e, false)}>
+                <div className="form-actions top-actions">
+                    <button type="submit" disabled={uploading} className="primary-btn">
+                        {uploading ? 'Saving...' : 'Save'}
+                    </button>
+                    {mode === 'edit' && onDelete && initialData && (
+                        <button type="button" onClick={() => {
+                            if (window.confirm("Are you sure you want to delete this member?")) {
+                                onDelete(initialData.nodeId);
+                            }
+                        }} className="delete-btn" style={{ backgroundColor: '#ff4444', color: 'white' }}>
+                            Delete
                         </button>
-                        {mode === 'edit' && onDelete && initialData && (
-                            <button type="button" onClick={() => {
-                                if (window.confirm("Are you sure you want to delete this member?")) {
-                                    onDelete(initialData.nodeId);
-                                }
-                            }} className="delete-btn" style={{ backgroundColor: '#ff4444', color: 'white' }}>
-                                Delete
-                            </button>
-                        )}
-                        <button type="button" onClick={onCancel} disabled={uploading} className="cancel-btn">Cancel</button>
-                    </div>
+                    )}
+                    <button type="button" onClick={onCancel} disabled={uploading} className="cancel-btn">Cancel</button>
+                </div>
 
-                    <div className="form-group image-upload">
-                        <div
-                            className="image-preview"
-                            onClick={() => fileInputRef.current?.click()}
-                            style={{ backgroundImage: imagePreview ? `url(${imagePreview})` : 'none' }}
-                        >
-                            {!imagePreview && <span>Tap to add photo</span>}
+                <div className="form-group image-upload">
+                    <div
+                        className="image-preview"
+                        onClick={() => fileInputRef.current?.click()}
+                        style={{ backgroundImage: imagePreview ? `url(${imagePreview})` : 'none' }}
+                    >
+                        {!imagePreview && <span>Tap to add photo</span>}
+                    </div>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        ref={fileInputRef}
+                        onChange={handleImageChange}
+                        style={{ display: 'none' }}
+                    />
+                </div>
+
+                <div className="form-group" style={{ position: 'relative' }}>
+                    <label>Name</label>
+                    <input
+                        type="text"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        onFocus={() => name.length > 2 && setShowNameSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowNameSuggestions(false), 200)}
+                        required
+                    />
+                    {showNameSuggestions && nameSuggestions.length > 0 && (
+                        <div className="suggestions-dropdown">
+                            <div className="suggestions-header">Possible Duplicates (Click to Populate)</div>
+                            {nameSuggestions.map(curr => (
+                                <div
+                                    key={`${curr.treeId}-${curr.node.nodeId}`}
+                                    className="suggestion-item"
+                                    onClick={() => handleDuplicateSelect(curr)}
+                                >
+                                    <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: curr.node.imageUrl ? `url(${getPhotoUrl(curr.node.imageUrl)})` : 'none' }}>
+                                        {!curr.node.imageUrl && '?'}
+                                    </div>
+                                    <div className="suggestion-info">
+                                        <div className="suggestion-name">{curr.node.name} <span className="tree-badge">({curr.treeName})</span></div>
+                                        <div className="suggestion-details">
+                                            {curr.parentName ? `${curr.node.gender === 'female' ? 'D/o' : 'S/o'} ${curr.parentName}` : 'No parent info'}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                        <input
-                            type="file"
-                            accept="image/*"
-                            ref={fileInputRef}
-                            onChange={handleImageChange}
-                            style={{ display: 'none' }}
-                        />
-                    </div>
+                    )}
+                </div>
 
-                    <div className="form-group" style={{ position: 'relative' }}>
-                        <label>Name</label>
+                <div className="form-group">
+                    <label>Gender</label>
+                    <div className="toggle-group">
+                        <label>
+                            <input
+                                type="radio"
+                                name="gender"
+                                checked={gender === 'male'}
+                                onChange={() => setGender('male')}
+                            /> Male
+                        </label>
+                        <label>
+                            <input
+                                type="radio"
+                                name="gender"
+                                checked={gender === 'female'}
+                                onChange={() => setGender('female')}
+                            /> Female
+                        </label>
+                        <label>
+                            <input
+                                type="radio"
+                                name="gender"
+                                checked={gender === 'other'}
+                                onChange={() => setGender('other')}
+                            /> Other
+                        </label>
+                    </div>
+                </div>
+
+                <div className="form-group">
+                    <label>Father (Parent)</label>
+                    <div className="autocomplete">
                         <input
                             type="text"
-                            value={name}
-                            onChange={e => setName(e.target.value)}
-                            onFocus={() => name.length > 2 && setShowNameSuggestions(true)}
-                            onBlur={() => setTimeout(() => setShowNameSuggestions(false), 200)}
-                            required
+                            value={fatherSearch}
+                            onChange={e => {
+                                setFatherSearch(e.target.value);
+                                setShowFatherSuggestions(true);
+                                if (e.target.value === '') setParentId(null);
+                            }}
+                            onFocus={() => setShowFatherSuggestions(true)}
+                            placeholder="Search for father..."
                         />
-                        {showNameSuggestions && nameSuggestions.length > 0 && (
+                        {showFatherSuggestions && suggestedFathers.length > 0 && (
                             <div className="suggestions-dropdown">
-                                <div className="suggestions-header">Possible Duplicates (Click to Populate)</div>
-                                {nameSuggestions.map(curr => (
+                                <div className="suggestions-header">Search Results</div>
+                                {suggestedFathers.map((res, idx) => (
                                     <div
-                                        key={`${curr.treeId}-${curr.node.nodeId}`}
+                                        key={`${res.node.nodeId}-${idx}`}
                                         className="suggestion-item"
-                                        onClick={() => handleDuplicateSelect(curr)}
+                                        onClick={() => handleFatherSelect(res)}
                                     >
-                                        <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: curr.node.imageUrl ? `url(${getPhotoUrl(curr.node.imageUrl)})` : 'none' }}>
-                                            {!curr.node.imageUrl && '?'}
+                                        <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: res.node.imageUrl ? `url(${getPhotoUrl(res.node.imageUrl)})` : 'none' }}>
+                                            {!res.node.imageUrl && '?'}
                                         </div>
                                         <div className="suggestion-info">
-                                            <div className="suggestion-name">{curr.node.name} <span className="tree-badge">({curr.treeName})</span></div>
+                                            <div className="suggestion-name">{res.node.name} <span className="tree-badge">({res.treeName})</span></div>
                                             <div className="suggestion-details">
-                                                {curr.parentName ? `${curr.node.gender === 'female' ? 'D/o' : 'S/o'} ${curr.parentName}` : 'No parent info'}
+                                                {res.parentName ? `${res.node.gender === 'female' ? 'D/o' : 'S/o'} ${res.parentName}` : 'No parent info'}
                                             </div>
                                         </div>
                                     </div>
@@ -579,362 +650,294 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                             </div>
                         )}
                     </div>
+                </div>
 
-                    <div className="form-group">
-                        <label>Gender</label>
-                        <div className="toggle-group">
-                            <label>
-                                <input
-                                    type="radio"
-                                    name="gender"
-                                    checked={gender === 'male'}
-                                    onChange={() => setGender('male')}
-                                /> Male
-                            </label>
-                            <label>
-                                <input
-                                    type="radio"
-                                    name="gender"
-                                    checked={gender === 'female'}
-                                    onChange={() => setGender('female')}
-                                /> Female
-                            </label>
-                            <label>
-                                <input
-                                    type="radio"
-                                    name="gender"
-                                    checked={gender === 'other'}
-                                    onChange={() => setGender('other')}
-                                /> Other
-                            </label>
-                        </div>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Father (Parent)</label>
-                        <div className="autocomplete">
-                            <input
-                                type="text"
-                                value={fatherSearch}
-                                onChange={e => {
-                                    setFatherSearch(e.target.value);
-                                    setShowFatherSuggestions(true);
-                                    if (e.target.value === '') setParentId(null);
-                                }}
-                                onFocus={() => setShowFatherSuggestions(true)}
-                                placeholder="Search for father..."
-                            />
-                            {showFatherSuggestions && suggestedFathers.length > 0 && (
-                                <div className="suggestions-dropdown">
-                                    <div className="suggestions-header">Search Results</div>
-                                    {suggestedFathers.map((res, idx) => (
-                                        <div
-                                            key={`${res.node.nodeId}-${idx}`}
-                                            className="suggestion-item"
-                                            onClick={() => handleFatherSelect(res)}
-                                        >
-                                            <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: res.node.imageUrl ? `url(${getPhotoUrl(res.node.imageUrl)})` : 'none' }}>
-                                                {!res.node.imageUrl && '?'}
-                                            </div>
-                                            <div className="suggestion-info">
-                                                <div className="suggestion-name">{res.node.name} <span className="tree-badge">({res.treeName})</span></div>
-                                                <div className="suggestion-details">
-                                                    {res.parentName ? `${res.node.gender === 'female' ? 'D/o' : 'S/o'} ${res.parentName}` : 'No parent info'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                <div className="form-group">
+                    <label>Spouses</label>
+                    <div className="children-list">
+                        {spouseIds.map(id => {
+                            const node = existingNodes[id];
+                            return (
+                                <div key={id} className="child-tag">
+                                    <span>{node?.name || 'Unknown'}</span>
+                                    <button type="button" onClick={() => handleRemoveSpouse(id)}>×</button>
                                 </div>
-                            )}
-                        </div>
+                            );
+                        })}
                     </div>
-
-                    <div className="form-group">
-                        <label>Spouses</label>
-                        <div className="children-list">
-                            {spouseIds.map(id => {
-                                const node = existingNodes[id];
-                                return (
-                                    <div key={id} className="child-tag">
-                                        <span>{node?.name || 'Unknown'}</span>
-                                        <button type="button" onClick={() => handleRemoveSpouse(id)}>×</button>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <div className="autocomplete">
-                            <input
-                                type="text"
-                                value={spouseSearch}
-                                onChange={e => {
-                                    setSpouseSearch(e.target.value);
-                                    setShowSpouseSuggestions(true);
-                                }}
-                                onFocus={() => setShowSpouseSuggestions(true)}
-                                placeholder="Search to add spouse..."
-                            />
-                            {showSpouseSuggestions && suggestedSpouses.length > 0 && (
-                                <div className="suggestions-dropdown">
-                                    <div className="suggestions-header">Search Results</div>
-                                    {suggestedSpouses.map((res, idx) => (
-                                        <div
-                                            key={`${res.node.nodeId}-${idx}`}
-                                            className="suggestion-item"
-                                            onClick={() => handleSpouseSelect(res)}
-                                        >
-                                            <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: res.node.imageUrl ? `url(${getPhotoUrl(res.node.imageUrl)})` : 'none' }}>
-                                                {!res.node.imageUrl && '?'}
-                                            </div>
-                                            <div className="suggestion-info">
-                                                <div className="suggestion-name">{res.node.name} <span className="tree-badge">({res.treeName})</span></div>
-                                                <div className="suggestion-details">
-                                                    {res.parentName ? `${res.node.gender === 'female' ? 'D/o' : 'S/o'} ${res.parentName}` : 'No parent info'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Siblings {(!parentId) && <span style={{ fontSize: '0.8em', color: '#888' }}>(Requires Parent)</span>}</label>
-                        {parentId ? (
-                            <>
-                                <div className="children-list">
-                                    {siblingIds.map(id => {
-                                        const node = existingNodes[id];
-                                        return (
-                                            <div key={id} className="child-tag">
-                                                <span>{node?.name || 'Unknown'}</span>
-                                                <button type="button" onClick={() => handleRemoveSibling(id)}>×</button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                <div className="autocomplete">
-                                    <input
-                                        type="text"
-                                        value={siblingSearch}
-                                        onChange={e => {
-                                            setSiblingSearch(e.target.value);
-                                            setShowSiblingSuggestions(true);
-                                        }}
-                                        onFocus={() => setShowSiblingSuggestions(true)}
-                                        placeholder="Search to add sibling..."
-                                    />
-                                    {showSiblingSuggestions && filteredSiblings.length > 0 && (
-                                        <ul className="suggestions-list">
-                                            {filteredSiblings.map(node => (
-                                                <li key={node.nodeId} onClick={() => handleSiblingSelect(node)}>
-                                                    {node.name}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-                            </>
-                        ) : (
-                            <div className="info-text" style={{ color: '#666', fontStyle: 'italic' }}>
-                                Please select a father/parent first to manage siblings.
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="form-group">
-                        <label>Children</label>
-                        <div className="children-list">
-                            {childrenIds.map(childId => {
-                                const child = existingNodes[childId];
-                                return (
-                                    <div key={childId} className="child-tag">
-                                        <span>{child?.name || 'Unknown'}</span>
-                                        <button type="button" onClick={() => handleRemoveChild(childId)}>×</button>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <div className="autocomplete">
-                            <input
-                                type="text"
-                                value={childSearch}
-                                onChange={e => {
-                                    setChildSearch(e.target.value);
-                                    setShowChildSuggestions(true);
-                                }}
-                                onFocus={() => setShowChildSuggestions(true)}
-                                placeholder="Search to add child..."
-                            />
-                            {showChildSuggestions && suggestedChildren.length > 0 && (
-                                <div className="suggestions-dropdown">
-                                    <div className="suggestions-header">Search Results</div>
-                                    {suggestedChildren.map((res, idx) => (
-                                        <div
-                                            key={`${res.node.nodeId}-${idx}`}
-                                            className="suggestion-item"
-                                            onClick={() => handleChildSelect(res)}
-                                        >
-                                            <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: res.node.imageUrl ? `url(${getPhotoUrl(res.node.imageUrl)})` : 'none' }}>
-                                                {!res.node.imageUrl && '?'}
-                                            </div>
-                                            <div className="suggestion-info">
-                                                <div className="suggestion-name">{res.node.name} <span className="tree-badge">({res.treeName})</span></div>
-                                                <div className="suggestion-details">
-                                                    {res.parentName ? `${res.node.gender === 'female' ? 'D/o' : 'S/o'} ${res.parentName}` : 'No parent info'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Status</label>
-                        <div className="toggle-group">
-                            <label>
-                                <input
-                                    type="radio"
-                                    checked={isAlive}
-                                    onChange={() => setIsAlive(true)}
-                                /> Alive
-                            </label>
-                            <label>
-                                <input
-                                    type="radio"
-                                    checked={!isAlive}
-                                    onChange={() => setIsAlive(false)}
-                                /> Deceased
-                            </label>
-                        </div>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Date of Birth</label>
-                        <input type="date" value={dob} onChange={e => { setDob(e.target.value); setAge(''); }} />
-                    </div>
-
-                    {
-                        !dob && (
-                            <div className="form-group">
-                                <label>Or Age (approx)</label>
-                                <input type="number" value={age} onChange={e => { setAge(e.target.value); setDob(''); }} placeholder="Years" />
-                            </div>
-                        )
-                    }
-
-                    {
-                        !isAlive && (
-                            <div className="form-group">
-                                <label>Date of Death</label>
-                                <input type="date" value={dod} onChange={e => setDod(e.target.value)} />
-                            </div>
-                        )
-                    }
-
-                    <div className="form-group">
-                        <label>Phone</label>
-                        <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Email {(initialData?.isEditor) && <span style={{ color: 'red' }}>*</span>}</label>
-                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required={initialData?.isEditor || false} />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Address</label>
-                        <textarea value={address} onChange={e => setAddress(e.target.value)} rows={3} />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Location (Zipcode)</label>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <input
-                                type="text"
-                                value={zipcode}
-                                onChange={e => setZipcode(e.target.value)}
-                                placeholder="Zipcode/Pincode"
-                                style={{ flex: 1 }}
-                            />
-                            <button type="button" onClick={fetchLocation} style={{ padding: '0 15px' }}>Fetch</button>
-                        </div>
-                        {locationData.district && (
-                            <div style={{ marginTop: '10px', fontSize: '0.9em', color: '#555' }}>
-                                {locationData.district}, {locationData.state}, {locationData.country}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="form-group">
-                        <label>Education</label>
-                        {education.map((edu, index) => (
-                            <div key={index} style={{ display: 'flex', gap: '10px', marginBottom: '5px' }}>
-                                <input
-                                    type="text"
-                                    placeholder="Degree"
-                                    value={edu.degree}
-                                    onChange={e => {
-                                        const newEdu = [...education];
-                                        newEdu[index].degree = e.target.value;
-                                        setEducation(newEdu);
-                                    }}
-                                />
-                                <input
-                                    type="text"
-                                    placeholder="Major"
-                                    value={edu.major}
-                                    onChange={e => {
-                                        const newEdu = [...education];
-                                        newEdu[index].major = e.target.value;
-                                        setEducation(newEdu);
-                                    }}
-                                />
-                                <button type="button" onClick={() => {
-                                    setEducation(education.filter((_, i) => i !== index));
-                                }}>×</button>
-                            </div>
-                        ))}
-                        <button type="button" onClick={() => setEducation([...education, { degree: '', major: '' }])} style={{ fontSize: '0.8em' }}>+ Add Education</button>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Occupation</label>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <input
-                                type="text"
-                                placeholder="Role"
-                                value={occupation?.role || ''}
-                                onChange={e => setOccupation({ ...occupation, role: e.target.value, organization: occupation?.organization || '' })}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Organization"
-                                value={occupation?.organization || ''}
-                                onChange={e => setOccupation({ ...occupation, role: occupation?.role || '', organization: e.target.value })}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Hobbies</label>
+                    <div className="autocomplete">
                         <input
                             type="text"
-                            value={hobbies.join(', ')}
-                            onChange={e => setHobbies(e.target.value.split(',').map(s => s.trim()).filter(s => s))}
-                            placeholder="Reading, Traveling, etc."
+                            value={spouseSearch}
+                            onChange={e => {
+                                setSpouseSearch(e.target.value);
+                                setShowSpouseSuggestions(true);
+                            }}
+                            onFocus={() => setShowSpouseSuggestions(true)}
+                            placeholder="Search to add spouse..."
+                        />
+                        {showSpouseSuggestions && suggestedSpouses.length > 0 && (
+                            <div className="suggestions-dropdown">
+                                <div className="suggestions-header">Search Results</div>
+                                {suggestedSpouses.map((res, idx) => (
+                                    <div
+                                        key={`${res.node.nodeId}-${idx}`}
+                                        className="suggestion-item"
+                                        onClick={() => handleSpouseSelect(res)}
+                                    >
+                                        <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: res.node.imageUrl ? `url(${getPhotoUrl(res.node.imageUrl)})` : 'none' }}>
+                                            {!res.node.imageUrl && '?'}
+                                        </div>
+                                        <div className="suggestion-info">
+                                            <div className="suggestion-name">{res.node.name} <span className="tree-badge">({res.treeName})</span></div>
+                                            <div className="suggestion-details">
+                                                {res.parentName ? `${res.node.gender === 'female' ? 'D/o' : 'S/o'} ${res.parentName}` : 'No parent info'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="form-group">
+                    <label>Siblings {(!parentId) && <span style={{ fontSize: '0.8em', color: '#888' }}>(Requires Parent)</span>}</label>
+                    {parentId ? (
+                        <>
+                            <div className="children-list">
+                                {siblingIds.map(id => {
+                                    const node = existingNodes[id];
+                                    return (
+                                        <div key={id} className="child-tag">
+                                            <span>{node?.name || 'Unknown'}</span>
+                                            <button type="button" onClick={() => handleRemoveSibling(id)}>×</button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div className="autocomplete">
+                                <input
+                                    type="text"
+                                    value={siblingSearch}
+                                    onChange={e => {
+                                        setSiblingSearch(e.target.value);
+                                        setShowSiblingSuggestions(true);
+                                    }}
+                                    onFocus={() => setShowSiblingSuggestions(true)}
+                                    placeholder="Search to add sibling..."
+                                />
+                                {showSiblingSuggestions && filteredSiblings.length > 0 && (
+                                    <ul className="suggestions-list">
+                                        {filteredSiblings.map(node => (
+                                            <li key={node.nodeId} onClick={() => handleSiblingSelect(node)}>
+                                                {node.name}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        <div className="info-text" style={{ color: '#666', fontStyle: 'italic' }}>
+                            Please select a father/parent first to manage siblings.
+                        </div>
+                    )}
+                </div>
+
+                <div className="form-group">
+                    <label>Children</label>
+                    <div className="children-list">
+                        {childrenIds.map(childId => {
+                            const child = existingNodes[childId];
+                            return (
+                                <div key={childId} className="child-tag">
+                                    <span>{child?.name || 'Unknown'}</span>
+                                    <button type="button" onClick={() => handleRemoveChild(childId)}>×</button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="autocomplete">
+                        <input
+                            type="text"
+                            value={childSearch}
+                            onChange={e => {
+                                setChildSearch(e.target.value);
+                                setShowChildSuggestions(true);
+                            }}
+                            onFocus={() => setShowChildSuggestions(true)}
+                            placeholder="Search to add child..."
+                        />
+                        {showChildSuggestions && suggestedChildren.length > 0 && (
+                            <div className="suggestions-dropdown">
+                                <div className="suggestions-header">Search Results</div>
+                                {suggestedChildren.map((res, idx) => (
+                                    <div
+                                        key={`${res.node.nodeId}-${idx}`}
+                                        className="suggestion-item"
+                                        onClick={() => handleChildSelect(res)}
+                                    >
+                                        <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: res.node.imageUrl ? `url(${getPhotoUrl(res.node.imageUrl)})` : 'none' }}>
+                                            {!res.node.imageUrl && '?'}
+                                        </div>
+                                        <div className="suggestion-info">
+                                            <div className="suggestion-name">{res.node.name} <span className="tree-badge">({res.treeName})</span></div>
+                                            <div className="suggestion-details">
+                                                {res.parentName ? `${res.node.gender === 'female' ? 'D/o' : 'S/o'} ${res.parentName}` : 'No parent info'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="form-group">
+                    <label>Status</label>
+                    <div className="toggle-group">
+                        <label>
+                            <input
+                                type="radio"
+                                checked={isAlive}
+                                onChange={() => setIsAlive(true)}
+                            /> Alive
+                        </label>
+                        <label>
+                            <input
+                                type="radio"
+                                checked={!isAlive}
+                                onChange={() => setIsAlive(false)}
+                            /> Deceased
+                        </label>
+                    </div>
+                </div>
+
+                <div className="form-group">
+                    <label>Date of Birth</label>
+                    <input type="date" value={dob} onChange={e => { setDob(e.target.value); setAge(''); }} />
+                </div>
+
+                {
+                    !dob && (
+                        <div className="form-group">
+                            <label>Or Age (approx)</label>
+                            <input type="number" value={age} onChange={e => { setAge(e.target.value); setDob(''); }} placeholder="Years" />
+                        </div>
+                    )
+                }
+
+                {
+                    !isAlive && (
+                        <div className="form-group">
+                            <label>Date of Death</label>
+                            <input type="date" value={dod} onChange={e => setDod(e.target.value)} />
+                        </div>
+                    )
+                }
+
+                <div className="form-group">
+                    <label>Phone</label>
+                    <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
+                </div>
+
+                <div className="form-group">
+                    <label>Email {(initialData?.isEditor) && <span style={{ color: 'red' }}>*</span>}</label>
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} required={initialData?.isEditor || false} />
+                </div>
+
+                <div className="form-group">
+                    <label>Address</label>
+                    <textarea value={address} onChange={e => setAddress(e.target.value)} rows={3} />
+                </div>
+
+                <div className="form-group">
+                    <label>Location (Zipcode)</label>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <input
+                            type="text"
+                            value={zipcode}
+                            onChange={e => setZipcode(e.target.value)}
+                            placeholder="Zipcode/Pincode"
+                            style={{ flex: 1 }}
+                        />
+                        <button type="button" onClick={fetchLocation} style={{ padding: '0 15px' }}>Fetch</button>
+                    </div>
+                    {locationData.district && (
+                        <div style={{ marginTop: '10px', fontSize: '0.9em', color: '#555' }}>
+                            {locationData.district}, {locationData.state}, {locationData.country}
+                        </div>
+                    )}
+                </div>
+
+                <div className="form-group">
+                    <label>Education</label>
+                    {education.map((edu, index) => (
+                        <div key={index} style={{ display: 'flex', gap: '10px', marginBottom: '5px' }}>
+                            <input
+                                type="text"
+                                placeholder="Degree"
+                                value={edu.degree}
+                                onChange={e => {
+                                    const newEdu = [...education];
+                                    newEdu[index].degree = e.target.value;
+                                    setEducation(newEdu);
+                                }}
+                            />
+                            <input
+                                type="text"
+                                placeholder="Major"
+                                value={edu.major}
+                                onChange={e => {
+                                    const newEdu = [...education];
+                                    newEdu[index].major = e.target.value;
+                                    setEducation(newEdu);
+                                }}
+                            />
+                            <button type="button" onClick={() => {
+                                setEducation(education.filter((_, i) => i !== index));
+                            }}>×</button>
+                        </div>
+                    ))}
+                    <button type="button" onClick={() => setEducation([...education, { degree: '', major: '' }])} style={{ fontSize: '0.8em' }}>+ Add Education</button>
+                </div>
+
+                <div className="form-group">
+                    <label>Occupation</label>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <input
+                            type="text"
+                            placeholder="Role"
+                            value={occupation?.role || ''}
+                            onChange={e => setOccupation({ ...occupation, role: e.target.value, organization: occupation?.organization || '' })}
+                        />
+                        <input
+                            type="text"
+                            placeholder="Organization"
+                            value={occupation?.organization || ''}
+                            onChange={e => setOccupation({ ...occupation, role: occupation?.role || '', organization: e.target.value })}
                         />
                     </div>
+                </div>
 
-                    <div className="form-group">
-                        <label>Notes</label>
-                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Random remarks..." />
-                    </div>
+                <div className="form-group">
+                    <label>Hobbies</label>
+                    <input
+                        type="text"
+                        value={hobbies.join(', ')}
+                        onChange={e => setHobbies(e.target.value.split(',').map(s => s.trim()).filter(s => s))}
+                        placeholder="Reading, Traveling, etc."
+                    />
+                </div>
 
-                </form >
-            </div >
+                <div className="form-group">
+                    <label>Notes</label>
+                    <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Random remarks..." />
+                </div>
+
+            </form >
         </div >
-    );
+    </div >
+);
 };
