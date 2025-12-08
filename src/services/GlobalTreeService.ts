@@ -74,7 +74,7 @@ export const GlobalTreeService = {
 
     // Live Link Hydration
     // Populates 'Shadow Nodes' (nodes with externalLink) with real data from loaded trees
-    hydrateTree(tree: TreeDocument): void {
+    hydrateTree(tree: TreeDocument, files: { id: string; name: string }[] = []): void {
         Object.values(tree.nodes).forEach(node => {
             if (node.externalLink) {
                 const externalNode = this.getNode(node.externalLink.treeId, node.externalLink.nodeId);
@@ -91,11 +91,18 @@ export const GlobalTreeService = {
                     if (externalNode.location) node.location = externalNode.location;
                     if (externalNode.location) node.location = externalNode.location;
                     if (externalNode.address) node.address = externalNode.address;
+                }
 
-                    // Hydrate Tree Name for UI
-                    if (!node.externalLink.treeName) {
-                        const sourceTree = loadedTreesCache[node.externalLink.treeId];
-                        if (sourceTree) node.externalLink.treeName = sourceTree.treeName;
+                // Hydrate Tree Name for UI (even if externalNode is not loaded)
+                if (!node.externalLink.treeName) {
+                    const sourceTree = loadedTreesCache[node.externalLink.treeId];
+                    if (sourceTree) {
+                        node.externalLink.treeName = sourceTree.treeName;
+                    } else if (files.length > 0) {
+                        const file = files.find(f => f.id === node.externalLink!.treeId);
+                        if (file) {
+                            node.externalLink.treeName = file.name.split('_')[0];
+                        }
                     }
                 }
             }

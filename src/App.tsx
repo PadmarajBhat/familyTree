@@ -320,7 +320,7 @@ function App() {
         }
 
         // Hydrate Live Links (Shadow Nodes) from Global Cache
-        GlobalTreeService.hydrateTree(treeDoc);
+        GlobalTreeService.hydrateTree(treeDoc, files);
 
         setTree(treeDoc);
         return treeDoc;
@@ -1034,7 +1034,7 @@ function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>{tree ? tree.treeName : (viewState === 'home' && currentUser ? "Family Tree Dashboard" : "Family Tree")}</h1>
+        <h1>{currentTreeName && tree ? `${currentTreeName}'s Family Tree` : (viewState === 'home' && currentUser ? "Family Tree Dashboard" : "Family Tree")}</h1>
         <div className="auth-controls">
           {isSignedIn ? (
             <div className="menu-container">
@@ -1149,152 +1149,159 @@ function App() {
           </div>
         )}
 
+        {tree && !loading && !error && !showDashboard && viewState === 'tree' && (
+          <>
+            {treeViewType === 'standard' ? (
+              <div className="tree-container">
+                <TreeView
+                  data={tree}
+                  onNodeClick={handleNodeClick}
+                  onNodeLongPress={handleNodeLongPress}
+                  maxDepth={viewDepth}
+                />
+              </div>
+            ) : (
+              <div className="tree-container">
+                <FanChartView
+                  key="hourglass"
+                  data={tree}
+                  rootNodeId={fanRootId || selectedNodeId || tree.rootNodeId}
+                  onNodeClick={handleNodeClick}
+                  initialMode="hourglass"
+                  onResetRoot={handleResetRoot}
+                />
+              </div>
+            )}
+            {isAuthorized && viewMode === 'user' && (
+              <button
+                className="fab-add"
+                onClick={handleAddClick}
+                title="Add Member"
+              >
+                +
+              </button>
+            )}
+          </>
+        )}
+
         {viewMode === 'sample' && (
           <div className="sample-banner" style={{ background: '#ff9800', color: 'white', padding: '10px', textAlign: 'center' }}>
             Sample Mode (Read Only)
           </div>
         )}
 
-        {!loading && !tree && !currentUser && viewMode === 'user' && (
-          <div className="welcome">
-            <p>Welcome. Please sign in or ensure the tree is shared publicly.</p>
+        {!loading && !tree && !currentUser && (
+          <div className="welcome-screen">
+            <div className="landing-content">
+              <h1>Family Tree</h1>
+              <p className="subtitle">Connect with your past, build your future.</p>
+              <button
+                className="cta-button"
+                onClick={signIn}
+                disabled={!isGapiReady}
+              >
+                {isGapiReady ? 'Sign In with Google' : 'Initializing...'}
+              </button>
+            </div>
           </div>
         )}
 
-        {!tree && !loading && !error && !currentUser && (
-          <div className="welcome-screen">
-            <h2>Welcome to Family Tree</h2>
-            <p>Please sign in to view your family tree or load a sample tree.</p>
-            <>
-              {treeViewType === 'standard' ? (
-                <div className="tree-container">
-                  <TreeView
-                    data={tree}
-                    onNodeClick={handleNodeClick}
-                    onNodeLongPress={handleNodeLongPress}
-                    maxDepth={viewDepth}
-                  />
-                </div>
-              ) : (
-                <div className="tree-container">
-                  <FanChartView
-                    key="hourglass"
-                    data={tree}
-                    rootNodeId={fanRootId || selectedNodeId || tree.rootNodeId}
-                    onNodeClick={handleNodeClick}
-                    initialMode="hourglass"
-                    onResetRoot={handleResetRoot}
-                  />
-                </div>
-              )}
-              {isAuthorized && viewMode === 'user' && (
-                <button
-                  className="fab-add"
-                  onClick={handleAddClick}
-                  title="Add Member"
-                >
-                  +
-                </button>
-              )}
-            </>
+        {viewState === 'home' && currentUser && (
+          <Home
+            userEmail={currentUser.email}
+            onSelectTree={async (treeId) => {
+              await loadTree(false, treeId);
+              setViewState('tree');
+            }}
+            currentTreeId={currentTreeId}
+            isEditor={canEdit(currentUser?.email)}
+          />
         )}
 
-            {viewState === 'home' && currentUser && (
-              <Home
-                userEmail={currentUser.email}
-                onSelectTree={async (treeId) => {
-                  await loadTree(false, treeId);
-                  setViewState('tree');
-                }}
-                currentTreeId={currentTreeId}
-                isEditor={canEdit(currentUser?.email)}
-              />
-            )}
+        {showSearch && tree && (
+          <MemberSearch
+            nodes={tree.nodes}
+            onMemberClick={(nodeId) => {
+              setSelectedNodeId(nodeId);
+              setShowSearch(false);
+            }}
+            onClose={handleManualClose}
+          />
+        )}
 
-            {showSearch && tree && (
-              <MemberSearch
-                nodes={tree.nodes}
-                onMemberClick={(nodeId) => {
-                  setSelectedNodeId(nodeId);
-                  setShowSearch(false);
-                }}
-                onClose={handleManualClose}
-              />
-            )}
+        {showCollaborators && tree && currentUser && (
+          <CollaboratorList
+            nodes={tree.nodes}
+            currentUserEmail={currentUser.email}
+            canToggle={!!isAuthorized}
+            onToggleEditor={handleToggleEditor}
+            onSetDefaultTree={handleSetDefaultTreeForUser}
+            onClose={handleManualClose}
+          />
+        )}
 
-            {showCollaborators && tree && currentUser && (
-              <CollaboratorList
-                nodes={tree.nodes}
-                currentUserEmail={currentUser.email}
-                canToggle={!!isAuthorized}
-                onToggleEditor={handleToggleEditor}
-                onSetDefaultTree={handleSetDefaultTreeForUser}
-                onClose={handleManualClose}
-              />
-            )}
+        {showFindRelation && tree && (
+          <FindRelation
+            nodes={tree.nodes}
+            onMemberClick={(nodeId) => {
+              setSelectedNodeId(nodeId);
+              setShowFindRelation(false);
+            }}
+            onClose={handleManualClose}
+            initialPerson1Id={findRelationIds.p1}
+            initialPerson2Id={findRelationIds.p2}
+          />
+        )}
 
-            {showFindRelation && tree && (
-              <FindRelation
-                nodes={tree.nodes}
-                onMemberClick={(nodeId) => {
-                  setSelectedNodeId(nodeId);
-                  setShowFindRelation(false);
-                }}
-                onClose={handleManualClose}
-                initialPerson1Id={findRelationIds.p1}
-                initialPerson2Id={findRelationIds.p2}
-              />
-            )}
+        {showVersionHistory && tree && (
+          <VersionHistory
+            summary={tree.summary}
+            nodes={tree.nodes}
+            onClose={handleManualClose}
+            onSelectNode={(nodeId) => {
+              setShowVersionHistory(false);
+              setSelectedNodeId(nodeId);
+            }}
+            filterNodeId={historyFilterNodeId}
+          />
+        )}
 
-            {showVersionHistory && tree && (
-              <VersionHistory
-                summary={tree.summary}
-                nodes={tree.nodes}
-                onClose={handleManualClose}
-                onSelectNode={(nodeId) => {
-                  setShowVersionHistory(false);
-                  setSelectedNodeId(nodeId);
-                }}
-                filterNodeId={historyFilterNodeId}
-              />
-            )}
+        {showDashboard && tree && (
+          <Dashboard tree={tree} onClose={handleManualClose} />
+        )}
 
-            {showDashboard && tree && (
-              <Dashboard tree={tree} onClose={handleManualClose} />
-            )}
+        {/* TreePicker removed */}
 
-            {/* TreePicker removed */}
+        {selectedNodeId && tree && tree.nodes[selectedNodeId] && (
+          <PersonDetail
+            node={tree.nodes[selectedNodeId]}
+            tree={tree}
+            currentUser={currentUser}
+            onClose={handleManualClose}
+            onEdit={handleEditClick}
+            onDelete={handleDeleteMember}
 
-            {selectedNodeId && tree && tree.nodes[selectedNodeId] && (
-              <PersonDetail
-                node={tree.nodes[selectedNodeId]}
-                tree={tree}
-                currentUser={currentUser}
-                onClose={handleManualClose}
-                onEdit={handleEditClick}
-                onDelete={handleDeleteMember}
+            onNodeClick={handleNodeClick}
+            onFindRelation={handleFindRelation}
+            onViewHistory={handleViewHistory}
+          />
+        )}
 
-                onNodeClick={handleNodeClick}
-                onFindRelation={handleFindRelation}
-                onViewHistory={handleViewHistory}
-              />
-            )}
-
-            {editorMode && currentUser && (
-              <MemberEditor
-                currentUserEmail={currentUser.email}
-                mode={editorMode}
-                initialData={editorMode === 'edit' && editingNodeId && tree ? tree.nodes[editingNodeId] : undefined}
-                existingNodes={tree ? tree.nodes : {}}
-                onSave={handleSaveMember}
-                onCancel={handleManualClose}
-                onDelete={(nodeId) => {
-                  handleDeleteMember(nodeId);
-                  handleManualClose();
-                }}
-              />
-            )}
-          </main>
+        {editorMode && currentUser && (
+          <MemberEditor
+            currentUserEmail={currentUser.email}
+            mode={editorMode}
+            initialData={editorMode === 'edit' && editingNodeId && tree ? tree.nodes[editingNodeId] : undefined}
+            existingNodes={tree ? tree.nodes : {}}
+            onSave={handleSaveMember}
+            onCancel={handleManualClose}
+            onDelete={(nodeId) => {
+              handleDeleteMember(nodeId);
+              handleManualClose();
+            }}
+          />
+        )}
+      </main>
     </div>
   );
 }
