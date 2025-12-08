@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { PersonNode } from '../logic/types';
 import { getISTTimestamp, deriveDobFromAge, calculateAge } from '../logic/dateUtils';
 import { isAncestor } from '../logic/relationshipUtils';
-import { uploadImage, getPhotoUrl } from '../services/drive';
+import { uploadImage, getPhotoUrl, deleteFile } from '../services/drive';
 import { GlobalTreeService, type SearchResult } from '../services/GlobalTreeService';
 import { CloseButton } from './CloseButton';
 import './MemberEditor.css';
@@ -379,6 +379,15 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
         try {
             let imageUrl = initialData?.imageUrl || null;
             if (imageFile) {
+                // If there was an old image, delete it to prevent duplicates
+                if (initialData?.imageUrl) {
+                    try {
+                        await deleteFile(initialData.imageUrl);
+                    } catch (e) {
+                        console.warn("Failed to delete old image file", e);
+                        // Continue anyway, don't block save
+                    }
+                }
                 imageUrl = await uploadImage(imageFile);
             }
 
