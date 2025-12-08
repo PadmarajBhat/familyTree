@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, updateUserPreference, grantWritePermission } from './services/drive';
+import { GlobalTreeService } from './services/GlobalTreeService';
 import type { TreeDocument, PersonNode } from './logic/types';
 import { mergeTrees } from './logic/merge';
 import { TreeView } from './components/TreeView';
@@ -129,6 +130,25 @@ function App() {
       setTree(null);
     }
   }, [isSignedIn, isGapiReady]);
+
+  // Sync GlobalTreeService with shortlisted trees for Unified Search
+  useEffect(() => {
+    if (currentUser?.email && isGapiReady && isSignedIn) {
+      const shortlistKey = `shortlist_${currentUser.email}`;
+      const storedShortlist = localStorage.getItem(shortlistKey);
+      if (storedShortlist) {
+        try {
+          const shortlist = JSON.parse(storedShortlist);
+          if (Array.isArray(shortlist) && shortlist.length > 0) {
+            console.log("Pre-loading shortlisted trees for Unified Search...");
+            GlobalTreeService.loadShortlistedTrees(shortlist);
+          }
+        } catch (e) {
+          console.error("Failed to parse shortlist for GlobalTreeService", e);
+        }
+      }
+    }
+  }, [currentUser, isGapiReady, isSignedIn]);
 
   useEffect(() => {
     if (!isSignedIn || !isGapiReady || !currentUser) return;

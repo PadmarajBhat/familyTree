@@ -570,13 +570,26 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                 placeholder="Search for father..."
                             />
                             {showFatherSuggestions && suggestedFathers.length > 0 && (
-                                <ul className="suggestions-list">
+                                <div className="suggestions-dropdown">
+                                    <div className="suggestions-header">Search Results</div>
                                     {suggestedFathers.map((res, idx) => (
-                                        <li key={`${res.node.nodeId}-${idx}`} onClick={() => handleFatherSelect(res)}>
-                                            {res.node.name} <small>({res.treeName})</small>
-                                        </li>
+                                        <div
+                                            key={`${res.node.nodeId}-${idx}`}
+                                            className="suggestion-item"
+                                            onClick={() => handleFatherSelect(res)}
+                                        >
+                                            <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: res.node.imageUrl ? `url(${getPhotoUrl(res.node.imageUrl)})` : 'none' }}>
+                                                {!res.node.imageUrl && '?'}
+                                            </div>
+                                            <div className="suggestion-info">
+                                                <div className="suggestion-name">{res.node.name} <span className="tree-badge">({res.treeName})</span></div>
+                                                <div className="suggestion-details">
+                                                    {res.parentName ? `${res.node.gender === 'female' ? 'D/o' : 'S/o'} ${res.parentName}` : 'No parent info'}
+                                                </div>
+                                            </div>
+                                        </div>
                                     ))}
-                                </ul>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -606,13 +619,26 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                 placeholder="Search to add spouse..."
                             />
                             {showSpouseSuggestions && suggestedSpouses.length > 0 && (
-                                <ul className="suggestions-list">
+                                <div className="suggestions-dropdown">
+                                    <div className="suggestions-header">Search Results</div>
                                     {suggestedSpouses.map((res, idx) => (
-                                        <li key={`${res.node.nodeId}-${idx}`} onClick={() => handleSpouseSelect(res)}>
-                                            {res.node.name} <small>({res.treeName})</small>
-                                        </li>
+                                        <div
+                                            key={`${res.node.nodeId}-${idx}`}
+                                            className="suggestion-item"
+                                            onClick={() => handleSpouseSelect(res)}
+                                        >
+                                            <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: res.node.imageUrl ? `url(${getPhotoUrl(res.node.imageUrl)})` : 'none' }}>
+                                                {!res.node.imageUrl && '?'}
+                                            </div>
+                                            <div className="suggestion-info">
+                                                <div className="suggestion-name">{res.node.name} <span className="tree-badge">({res.treeName})</span></div>
+                                                <div className="suggestion-details">
+                                                    {res.parentName ? `${res.node.gender === 'female' ? 'D/o' : 'S/o'} ${res.parentName}` : 'No parent info'}
+                                                </div>
+                                            </div>
+                                        </div>
                                     ))}
-                                </ul>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -686,13 +712,26 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                 placeholder="Search to add child..."
                             />
                             {showChildSuggestions && suggestedChildren.length > 0 && (
-                                <ul className="suggestions-list">
+                                <div className="suggestions-dropdown">
+                                    <div className="suggestions-header">Search Results</div>
                                     {suggestedChildren.map((res, idx) => (
-                                        <li key={`${res.node.nodeId}-${idx}`} onClick={() => handleChildSelect(res)}>
-                                            {res.node.name} <small>({res.treeName})</small>
-                                        </li>
+                                        <div
+                                            key={`${res.node.nodeId}-${idx}`}
+                                            className="suggestion-item"
+                                            onClick={() => handleChildSelect(res)}
+                                        >
+                                            <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: res.node.imageUrl ? `url(${getPhotoUrl(res.node.imageUrl)})` : 'none' }}>
+                                                {!res.node.imageUrl && '?'}
+                                            </div>
+                                            <div className="suggestion-info">
+                                                <div className="suggestion-name">{res.node.name} <span className="tree-badge">({res.treeName})</span></div>
+                                                <div className="suggestion-details">
+                                                    {res.parentName ? `${res.node.gender === 'female' ? 'D/o' : 'S/o'} ${res.parentName}` : 'No parent info'}
+                                                </div>
+                                            </div>
+                                        </div>
                                     ))}
-                                </ul>
+                                </div>
                             )}
                         </div>
                     </div>
