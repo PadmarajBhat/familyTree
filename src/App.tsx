@@ -1075,6 +1075,35 @@ function App() {
                       <button
                         className="menu-item"
                         onClick={() => {
+                          setShowSearch(true);
+                          setIsMenuOpen(false);
+                        }}
+                      >
+                        Search Members
+                      </button>
+                      <button
+                        className="menu-item"
+                        onClick={() => {
+                          handleFindRelation("");
+                          setIsMenuOpen(false);
+                        }}
+                      >
+                        Find Relationship
+                      </button>
+                      {currentUser && (
+                        <button
+                          className="menu-item"
+                          onClick={() => {
+                            setShowCollaborators(true);
+                            setIsMenuOpen(false);
+                          }}
+                        >
+                          Editors
+                        </button>
+                      )}
+                      <button
+                        className="menu-item"
+                        onClick={() => {
                           setIsMenuOpen(false);
                         }}
                       >
@@ -1095,6 +1124,16 @@ function App() {
                         }}
                       >
                         Dashboard
+                      </button>
+                      <button
+                        className="menu-item"
+                        onClick={() => {
+                          setViewState('home');
+                          setTree(null);
+                          setIsMenuOpen(false);
+                        }}
+                      >
+                        Change Tree
                       </button>
                     </>
                   )}
@@ -1206,21 +1245,7 @@ function App() {
           </div>
         )}
 
-        {!loading && !tree && !currentUser && (
-          <div className="welcome-screen">
-            <div className="landing-content">
-              <h1>Family Tree</h1>
-              <p className="subtitle">Connect with your past, build your future.</p>
-              <button
-                className="cta-button"
-                onClick={signIn}
-                disabled={!isGapiReady}
-              >
-                {isGapiReady ? 'Sign In with Google' : 'Initializing...'}
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Welcome Screen Removed */}
 
         {viewState === 'home' && currentUser && (
           <Home
