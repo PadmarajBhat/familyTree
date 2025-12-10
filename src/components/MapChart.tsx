@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, GeoJSON } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { PersonNode } from '../logic/types';
@@ -28,11 +28,22 @@ const ChangeView = ({ bounds }: { bounds: L.LatLngBoundsExpression | null }) => 
     return null;
 };
 
+// Define types for GeoJSON data to avoid TS errors
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type GeoJSONType = any;
+
 export const MapChart: React.FC<MapChartProps> = ({ nodes }) => {
     const [locations, setLocations] = useState<LocationData[]>([]);
     const [loading, setLoading] = useState(true);
+    const [indiaGeoJson, setIndiaGeoJson] = useState<GeoJSONType | null>(null);
 
     useEffect(() => {
+        // Fetch the India GeoJSON
+        fetch('/india_boundary.json')
+            .then(res => res.json())
+            .then(data => setIndiaGeoJson(data))
+            .catch(err => console.error("Failed to load India map", err));
+
         const fetchLocations = async () => {
             setLoading(true);
             const locMap: Record<string, PersonNode[]> = {};
@@ -73,6 +84,7 @@ export const MapChart: React.FC<MapChartProps> = ({ nodes }) => {
             const keys = Object.keys(locMap);
 
             // Process sequentially to respect rate limiting in getCoordinates
+            // TODO: optimize this with Promise.all and rate limit handling if needed
             for (const key of keys) {
                 const coords = await getCoordinates(key);
                 if (coords) {
@@ -97,14 +109,10 @@ export const MapChart: React.FC<MapChartProps> = ({ nodes }) => {
         return L.latLngBounds(locations.map(l => [l.lat, l.lon]));
     }, [locations]);
 
-    const center: [number, number] = [20.5937, 78.9629]; // Default to India if no data
+    const center: [number, number] = [22.0, 78.9629]; // Adjusted center for India
 
     if (loading) {
         return <div style={{ height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading Map Data...</div>;
-    }
-
-    if (locations.length === 0) {
-        return <div style={{ height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>No location data found.</div>;
     }
 
     return (
@@ -115,6 +123,19 @@ export const MapChart: React.FC<MapChartProps> = ({ nodes }) => {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
+
+                {indiaGeoJson && (
+                    <GeoJSON
+                        data={indiaGeoJson}
+                        style={{
+                            color: '#135c13', // Deep India Green
+                            weight: 2,
+                            fillColor: '#ff9933', // Saffron tint
+                            fillOpacity: 0.1
+                        }}
+                    />
+                )}
+
                 {locations.map((loc, idx) => (
                     <Marker
                         key={idx}
