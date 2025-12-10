@@ -28,6 +28,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Loading...");
   const [error, setError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const [isGapiReady, setIsGapiReady] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -214,6 +215,7 @@ function App() {
   const loadTree = async (returnOnly = false, specificFileId?: string): Promise<TreeDocument | null> => {
     if (!returnOnly) setLoading(true);
     setError(null);
+    setAccessDenied(false);
     try {
       const files = await listTreeFiles();
       if (files && files.length > 0) {
@@ -307,10 +309,7 @@ function App() {
           const isEmpty = nodes.length === 0;
 
           if (!isMember && !isCreator && !isEmpty) {
-            alert("Access Denied: Your email is not listed in this family tree. Please contact Narasimha Bhat (Chokkadi) @+91 9342748992 to add you to family tree");
-            await signOut();
-            setIsSignedIn(false);
-            setCurrentUser(null);
+            setAccessDenied(true);
             setTree(null);
             return null;
           }
@@ -1222,7 +1221,26 @@ function App() {
         {loading && <LoadingOverlay message={loadingMessage} />}
         {error && <div className="error">{error}</div>}
 
-        {tree && !loading && !error && !showDashboard && (
+        {accessDenied && (
+          <div className="access-denied-container" style={{ textAlign: 'center', marginTop: '50px' }}>
+            <h2>Access Denied</h2>
+            <p>Contact Narasimha Bhat - 9342748992</p>
+            <button
+              className="menu-item"
+              style={{ marginTop: '20px', padding: '10px 20px', cursor: 'pointer' }}
+              onClick={() => {
+                signOut();
+                setAccessDenied(false);
+                setIsSignedIn(false);
+                setCurrentUser(null);
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        )}
+
+        {tree && !loading && !error && !accessDenied && !showDashboard && (
           <div className="view-toggle-bar" style={{ display: 'flex', justifyContent: 'center', padding: '10px', background: '#fff', borderBottom: '1px solid #eee' }}>
             <div style={{ display: 'flex', gap: '10px', background: '#f0f0f0', padding: '5px', borderRadius: '20px' }}>
               <button
@@ -1257,7 +1275,7 @@ function App() {
           </div>
         )}
 
-        {tree && !loading && !error && !showDashboard && viewState === 'tree' && (
+        {tree && !loading && !error && !accessDenied && !showDashboard && viewState === 'tree' && (
           <>
             {treeViewType === 'standard' ? (
               <div className="tree-container">
