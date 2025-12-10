@@ -117,19 +117,15 @@ export function buildPathTree(
         return { rootId: '', filteredNodes: {} };
     }
 
-    const pathSet = new Set(path);
-    const filteredNodes: Record<string, PersonNode> = {};
     const nodeList = Array.isArray(nodes) ? nodes : Object.values(nodes);
+    const mergedMap: Record<string, PersonNode> = {};
 
-    // Create filtered nodes. We must merge data if multiple nodes share the same ID.
-    // This ensures that if Node A is in Tree 1 (with child B) and Tree 2 (with parent C),
-    // the merged node has both child B and parent C.
+    // 1. Merge nodes first to ensure we have full relationship data (cross-tree)
     path.forEach(nodeId => {
-        // Find all instances of this node
         const instances = nodeList.filter(n => n.nodeId === nodeId);
         if (instances.length === 0) return;
 
-        // Base node: prefer the one that is NOT an external link (real node), or just the first one
+        // Base node
         const realNode = instances.find(n => !n.externalLink) || instances[0];
 
         // Merge relationships
@@ -140,31 +136,67 @@ export function buildPathTree(
         instances.forEach(inst => {
             inst.childrenIds.forEach(c => allChildren.add(c));
             inst.spouseIds.forEach(s => allSpouses.add(s));
-            // Improve parent finding? If one has parent and other doesn't?
             if (inst.parentId) parentId = inst.parentId;
         });
 
-        filteredNodes[nodeId] = {
+        mergedMap[nodeId] = {
             ...realNode,
             parentId: parentId,
-            spouseIds: Array.from(allSpouses).filter(id => pathSet.has(id)),
-            // Only include children that are in the path
-            childrenIds: Array.from(allChildren).filter(childId => pathSet.has(childId))
+            spouseIds: Array.from(allSpouses),
+            childrenIds: Array.from(allChildren)
         };
     });
 
-    // Find the root (the node with no parent in the path, or the actual root)
-    let rootId = path[0];
-    for (const nodeId of path) {
-        const node = filteredNodes[nodeId];
-        // If node has no parent, OR its parent is not in the path -> It's a root candidate for this view
-        if (!node.parentId || !pathSet.has(node.parentId)) {
-            rootId = nodeId;
-            break;
+    const filteredNodes: Record<string, PersonNode> = {};
+
+    // 2. Build Linear Visual Chain
+    // We treat the path as a linear tree: path[0] -> path[1] -> ... -> path[n]
+    for (let i = 0; i < path.length; i++) {
+        const nodeId = path[i];
+        const rawNode = mergedMap[nodeId];
+        if (!rawNode) continue;
+
+        // Clone and strip relationships for visual clarity
+        // We will manually link them via childrenIds in the chain
+        filteredNodes[nodeId] = {
+            ...rawNode,
+            childrenIds: [],
+            spouseIds: [],
+            parentId: i > 0 ? path[i - 1] : null // Set parent to previous node in path for consistency
+        };
+
+        // Link to next node in path
+        if (i < path.length - 1) {
+            filteredNodes[nodeId].childrenIds = [path[i + 1]];
+        }
+
+        // Add relationship label to the name (except for root)
+        if (i > 0) {
+            const prevId = path[i - 1];
+            const prevRaw = mergedMap[prevId];
+
+            let rel = 'Related';
+
+            // Check biological relationship
+            if (prevRaw.spouseIds.includes(nodeId) || rawNode.spouseIds.includes(prevId)) {
+                rel = 'Spouse';
+            } else if (prevRaw.childrenIds.includes(nodeId)) {
+                rel = rawNode.gender === 'female' ? 'Daughter' : 'Son';
+            } else if (rawNode.childrenIds.includes(prevId)) { // If current is parent of previous
+                rel = rawNode.gender === 'female' ? 'Mother' : 'Father';
+            } else if (prevRaw.parentId === nodeId) {
+                rel = rawNode.gender === 'female' ? 'Mother' : 'Father';
+            }
+
+            // Add label
+            filteredNodes[nodeId].name = `${rawNode.name} (${rel})`;
+        } else {
+            // Root node
+            filteredNodes[nodeId].name = `${rawNode.name} (Start)`;
         }
     }
 
-    return { rootId, filteredNodes };
+    return { rootId: path[0], filteredNodes };
 }
 
 /**
