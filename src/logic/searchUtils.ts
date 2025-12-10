@@ -6,13 +6,44 @@ export type SortOrder = 'asc' | 'desc';
 export const searchMembers = (nodes: PersonNode[], query: string): PersonNode[] => {
     if (!query) return nodes;
 
-    const lowerQuery = query.toLowerCase();
-    
-    // Basic fuzzy search: check if name includes query
-    // TODO: Add more advanced fuzzy matching or transliteration if needed
+    // Smart search implementation
+    const lowerQuery = query.toLowerCase().trim();
+
+    // Check for "orphan" keyword
+    if (lowerQuery === 'orphan') {
+        return nodes.filter(node => {
+            const hasParents = !!node.parentId;
+            const hasChildren = node.childrenIds && node.childrenIds.length > 0;
+            const hasSpouse = node.spouseIds && node.spouseIds.length > 0;
+            return !hasParents && !hasChildren && !hasSpouse;
+        });
+    }
+
     return nodes.filter(node => {
+        // 1. Name match
         const name = node.name?.toLowerCase() || '';
-        return name.includes(lowerQuery);
+        if (name.includes(lowerQuery)) return true;
+
+        // 2. Phone match (check both raw and normalized)
+        if (node.phone?.includes(lowerQuery)) return true;
+        if (node.phoneE164?.includes(lowerQuery)) return true;
+
+        // 3. Address / Date Logic match
+        // Address freeform
+        if (node.address?.freeform?.toLowerCase().includes(lowerQuery)) return true;
+
+        // Location fields
+        if (node.location) {
+            if (node.location.zipcode?.toLowerCase().includes(lowerQuery)) return true;
+            if (node.location.district?.toLowerCase().includes(lowerQuery)) return true;
+            if (node.location.state?.toLowerCase().includes(lowerQuery)) return true;
+            if (node.location.country?.toLowerCase().includes(lowerQuery)) return true;
+        }
+
+        // 4. Hobbies match
+        if (node.hobbies && node.hobbies.some(hobby => hobby.toLowerCase().includes(lowerQuery))) return true;
+
+        return false;
     });
 };
 
@@ -35,12 +66,12 @@ export const sortMembers = (nodes: PersonNode[], sortBy: SortOption, order: Sort
                 // Let's normalize to "birth timestamp" (approx).
                 // Smaller timestamp = Older.
                 // Larger timestamp = Younger.
-                
+
                 // Actually, let's just use the derived age logic or simple comparison
                 // If we sort by "Age", usually people mean 0 -> 100.
                 // So 'asc' = 0, 1, 2...
                 // 'desc' = 100, 99...
-                
+
                 // We need a helper to get "comparable age"
                 valA = getComparableAge(a);
                 valB = getComparableAge(b);
