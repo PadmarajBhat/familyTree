@@ -21,6 +21,21 @@
 
 .find-relation-header h2 {
     color: #333;
+    flex: 1;
+    /* Allow title to take available space */
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 10px;
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-shrink: 0;
+    /* Prevent buttons from shrinking/overlapping */
 }
 
 .search-inputs.compact {

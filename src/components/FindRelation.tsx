@@ -141,7 +141,7 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
             <div className="find-relation-header">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <h2 style={{ margin: 0, fontSize: '18px' }}>Find Relation</h2>
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                    <div className="button-group">
                         <button onClick={handleReset} className="reset-button-small">
                             Reset
                         </button>
