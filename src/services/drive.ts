@@ -132,13 +132,43 @@ export const listTreeFiles = async () => {
     try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await (gapi.client as any).drive.files.list({
-            q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name contains 'json' and not name contains 'lock_' and name != 'preferences.json'`,
+            // Filter out files that start with 'delete_' or 'backup_' (or contain them, but ideally start with)
+            // Drive API query 'not name contains' is safer for general filtering.
+            q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name contains 'json' and not name contains 'lock_' and not name contains 'delete_' and not name contains 'backup_' and name != 'preferences.json'`,
             fields: 'nextPageToken, files(id, name, createdTime, modifiedTime, description)',
             orderBy: 'createdTime desc', // Load latest created file
         });
         return response.result.files;
     } catch (err) {
         console.error("Error listing files", err);
+        throw err;
+    }
+};
+
+export const renameFile = async (fileId: string, newName: string): Promise<void> => {
+    const metadata = {
+        name: newName,
+    };
+
+    const accessToken = gapi.auth.getToken().access_token;
+
+    try {
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+            method: 'PATCH',
+            headers: new Headers({
+                'Authorization': 'Bearer ' + accessToken,
+                'Content-Type': 'application/json'
+            }),
+            body: JSON.stringify(metadata),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to rename file: ${response.statusText}`);
+        }
+
+        console.log(`File ${fileId} renamed to ${newName}`);
+    } catch (err) {
+        console.error("Error renaming file", err);
         throw err;
     }
 };

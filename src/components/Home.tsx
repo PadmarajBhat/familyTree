@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { listTreeFiles, saveTreeFile, deleteFile } from '../services/drive';
+import { listTreeFiles, saveTreeFile, deleteFile, renameFile } from '../services/drive';
 import { getISTTimestamp } from '../logic/dateUtils';
 import type { TreeDocument } from '../logic/types';
 import { getTreeNameFromFilename, generateFilename } from '../logic/fileUtils';
@@ -125,39 +125,9 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         if (!confirm(`Are you sure you want to delete tree "${name}"? This cannot be undone.`)) return;
 
         try {
-            // Security Check: Only allow if it's "Today's" version.
-            // listTreeFiles returns metadata. "modifiedTime" is ISO string.
-            // We need to fetch the file metadata again or use what we have? We have it in `trees`.
-            const treeFile = trees.find(t => t.id === id);
-            if (!treeFile) return;
-
-            // Check if "modifiedTime" is "Today" in IST
-            const fileDate = new Date(treeFile.modifiedTime);
-            // IST is UTC+5:30.
-            // Let's get "Today" in IST.
-            const now = new Date();
-            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-            const istNow = new Date(utc + (3600000 * 5.5));
-
-            const fileUtc = fileDate.getTime() + (fileDate.getTimezoneOffset() * 60000);
-            const fileIst = new Date(fileUtc + (3600000 * 5.5));
-
-            const isSameDay = istNow.getDate() === fileIst.getDate() &&
-                istNow.getMonth() === fileIst.getMonth() &&
-                istNow.getFullYear() === fileIst.getFullYear();
-
-            if (!isSameDay) {
-                alert("Safety Lock: You can only delete versions created or modified TODAY.\n\nHistorical versions must be preserved. To delete older files, please use Google Drive directly.");
-                return;
-            }
-
-            await deleteFile(id);
+            await renameFile(id, `delete_${name}`);
 
             // Also remove from shortlist if present
-            // Note: Shortlist uses file IDs currently. If file ID changes daily, shortlist breaks?
-            // Issue: Shortlist logic stores 'id'. If ID changes daily, the shortlist will point to old files.
-            // We should ideally shortlist by 'Tree Name'.
-            // For now, removing the ID is correct for THIS file.
             if (shortlistedIds.includes(id)) {
                 const newIds = shortlistedIds.filter(sid => sid !== id);
                 setShortlistedIds(newIds);

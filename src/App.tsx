@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, updateUserPreference, grantWritePermission } from './services/drive';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, updateUserPreference, grantWritePermission, renameFile } from './services/drive';
 import { GlobalTreeService } from './services/GlobalTreeService';
 import type { TreeDocument, PersonNode } from './logic/types';
 import { mergeTrees } from './logic/merge';
@@ -310,7 +310,7 @@ function App() {
           const isEmpty = nodes.length === 0;
 
           if (!isMember && !isCreator && !isEmpty) {
-            alert("Access Denied: Your email is not listed in this family tree.");
+            alert("Access Denied: Your email is not listed in this family tree. Please contact Narasimha Bhat (Chokkadi) @+91 9342748992 to add you to family tree");
             await signOut();
             setIsSignedIn(false);
             setCurrentUser(null);
@@ -496,6 +496,39 @@ function App() {
       return mergedTree;
     } else {
       console.log("Creating new file for today...", todayFileName);
+
+      // BACKUP LOGIC:
+      // If we are creating a new file, it means 'todaysFile' was not found.
+      // We likely have an OLD file loaded (currentTreeId).
+      // If currentTreeId is set, and it corresponds to the SAME tree name, we should rename it to "backup_"
+      // so it doesn't show up in the Home list (which shows latest only anyway, but user wants strict hiding).
+      // Wait, Home.tsx logic: "For each group, pick the latest one".
+      // So if we leave the old file, Home picks the NEW one (today) as latest, and old one is ignored.
+      // But user requested: "old file has to be renamed as backup_<existing filename> and these backupfiles should not be loaded".
+      // "should not be loaded" implies filter (which we did in listTreeFiles).
+      // So we MUST rename it.
+
+      if (currentTreeId) {
+        // Need to verify this ID belongs to the same tree family?
+        // We know 'currentTreeName' matches.
+        // We can just rename the file currently pointed to by currentTreeId.
+        // BUT, we need to know its filename. We don't have it handy in the state variable 'currentTreeId'.
+        // We can find it in 'files'.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const oldFile = files.find((f: any) => f.id === currentTreeId);
+        if (oldFile) {
+          // Rename it
+          const backupName = `backup_${oldFile.name}`;
+          console.log(`Renaming old file ${oldFile.name} to ${backupName}`);
+          try {
+            await renameFile(oldFile.id, backupName);
+          } catch (e) {
+            console.error("Failed to rename backup file", e);
+            // Non-blocking? User might want to proceed saving data even if backup fails.
+          }
+        }
+      }
+
       const newFile = await saveTreeFile(todayFileName, localTree, summaryText);
       if (newFile && newFile.id) {
         setCurrentTreeId(newFile.id);
@@ -1040,129 +1073,148 @@ function App() {
     setSelectedNodeId(null); // Close Person Detail
   };
 
+  if (!isSignedIn) {
+    return (
+      <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center', background: '#f5f7fa', height: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <button
+            onClick={signIn}
+            disabled={!isGapiReady}
+            style={{
+              padding: '1rem 2rem',
+              fontSize: '1.2rem',
+              backgroundColor: '#0984e3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '50px',
+              cursor: 'pointer',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+            }}
+          >
+            {isGapiReady ? 'Sign In' : 'Loading...'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       <header className="app-header">
         <h1>{currentTreeName && tree ? `${currentTreeName}'s Family Tree` : (viewState === 'home' && currentUser ? "Family Tree Dashboard" : "Family Tree")}</h1>
         <div className="auth-controls">
-          {isSignedIn ? (
-            <div className="menu-container">
-              <button
-                className="menu-button"
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                aria-label="Menu"
-              >
-                ☰
-              </button>
-              {isMenuOpen && (
-                <div className="dropdown-menu">
-                  <div className="menu-item user-label">{currentUser?.name}</div>
-                  <div className="menu-divider"></div>
-                  {tree && (
-                    <>
-                      <div className="menu-item">
-                        <label>Generations: </label>
-                        <select
-                          value={viewDepth === null ? 'all' : viewDepth}
-                          onChange={(e) => setViewDepth(e.target.value === 'all' ? null : Number(e.target.value))}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <option value="all">All</option>
-                          <option value="5">5</option>
-                          <option value="7">7</option>
-                        </select>
-                      </div>
-                      <button
-                        className="menu-item"
-                        onClick={() => {
-                          setShowSearch(true);
-                          setIsMenuOpen(false);
-                        }}
-                      >
-                        Search Members
-                      </button>
-                      <button
-                        className="menu-item"
-                        onClick={() => {
-                          handleFindRelation("");
-                          setIsMenuOpen(false);
-                        }}
-                      >
-                        Find Relationship
-                      </button>
-                      {currentUser && (
-                        <button
-                          className="menu-item"
-                          onClick={() => {
-                            setShowCollaborators(true);
-                            setIsMenuOpen(false);
-                          }}
-                        >
-                          Editors
-                        </button>
-                      )}
-                      <button
-                        className="menu-item"
-                        onClick={() => {
-                          setIsMenuOpen(false);
-                        }}
-                      >
-                        Version History
-                      </button>
-                      <button
-                        className="menu-item"
-                        onClick={() => {
-                          // Reload tree data to ensure freshness
-                          setLoading(true);
-                          setLoadingMessage("Loading Dashboard...");
-                          loadTree(true).then(() => {
-                            setShowDashboard(true);
-                            setIsMenuOpen(false);
-                            setLoading(false);
-                            setLoadingMessage("Loading...");
-                          });
-                        }}
-                      >
-                        Dashboard
-                      </button>
-                      <button
-                        className="menu-item"
-                        onClick={() => {
-                          setViewState('home');
-                          setTree(null);
-                          setIsMenuOpen(false);
-                        }}
-                      >
-                        Change Tree
-                      </button>
-                    </>
-                  )}
-                  <button
-                    className="menu-item"
-                    onClick={() => {
-                      setViewMode(prev => prev === 'user' ? 'sample' : 'user');
-                      setIsMenuOpen(false);
-                    }}
-                  >
-                    {viewMode === 'user' ? 'View Sample Tree' : 'View My Tree'}
-                  </button>
-                  <button
-                    className="menu-item"
-                    onClick={() => {
-                      signOut();
-                      setIsMenuOpen(false);
-                    }}
-                  >
-                    Sign Out
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <button onClick={signIn} disabled={!isGapiReady}>
-              {isGapiReady ? 'Sign In' : '...'}
+          <div className="menu-container">
+            <button
+              className="menu-button"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              aria-label="Menu"
+            >
+              ☰
             </button>
-          )}
+            {isMenuOpen && (
+              <div className="dropdown-menu">
+                <div className="menu-item user-label">{currentUser?.name}</div>
+                <div className="menu-divider"></div>
+                {tree && (
+                  <>
+                    <div className="menu-item">
+                      <label>Generations: </label>
+                      <select
+                        value={viewDepth === null ? 'all' : viewDepth}
+                        onChange={(e) => setViewDepth(e.target.value === 'all' ? null : Number(e.target.value))}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <option value="all">All</option>
+                        <option value="5">5</option>
+                        <option value="7">7</option>
+                      </select>
+                    </div>
+                    <button
+                      className="menu-item"
+                      onClick={() => {
+                        setShowSearch(true);
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      Search Members
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => {
+                        handleFindRelation("");
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      Find Relationship
+                    </button>
+                    {currentUser && (
+                      <button
+                        className="menu-item"
+                        onClick={() => {
+                          setShowCollaborators(true);
+                          setIsMenuOpen(false);
+                        }}
+                      >
+                        Editors
+                      </button>
+                    )}
+                    <button
+                      className="menu-item"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      Version History
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => {
+                        // Reload tree data to ensure freshness
+                        setLoading(true);
+                        setLoadingMessage("Loading Dashboard...");
+                        loadTree(true).then(() => {
+                          setShowDashboard(true);
+                          setIsMenuOpen(false);
+                          setLoading(false);
+                          setLoadingMessage("Loading...");
+                        });
+                      }}
+                    >
+                      Dashboard
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => {
+                        setViewState('home');
+                        setTree(null);
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      Change Tree
+                    </button>
+                  </>
+                )}
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    setViewMode(prev => prev === 'user' ? 'sample' : 'user');
+                    setIsMenuOpen(false);
+                  }}
+                >
+                  {viewMode === 'user' ? 'View Sample Tree' : 'View My Tree'}
+                </button>
+                <button
+                  className="menu-item"
+                  onClick={() => {
+                    signOut();
+                    setIsMenuOpen(false);
+                  }}
+                >
+                  Sign Out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
       <main>
