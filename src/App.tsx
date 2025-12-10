@@ -464,7 +464,7 @@ function App() {
     setEditorMode('add');
   };
 
-  const saveWithMerge = async (localTree: TreeDocument, summaryText: string) => {
+  const saveWithMerge = async (localTree: TreeDocument, summaryText: string, explicitDeletions: string[] = []) => {
     const todayFileName = generateFilename(currentTreeName);
     const files = await listTreeFiles();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -475,6 +475,18 @@ function App() {
 
       const remoteContent = await getFileContent(todaysFile.id) as TreeDocument;
       const { mergedTree } = mergeTrees(localTree, remoteContent);
+
+      // Enforce explicit deletions to prevent resurrection by merge
+      if (explicitDeletions.length > 0) {
+        explicitDeletions.forEach(delId => {
+          if (mergedTree.nodes[delId]) {
+            console.log(`Enforcing deletion of ${delId} after merge.`);
+            delete mergedTree.nodes[delId];
+            mergedTree.meta.nodeCount = Object.keys(mergedTree.nodes).length;
+          }
+        });
+      }
+
       const latestSummary = mergedTree.summary.length > 0 ? mergedTree.summary[0].changes : summaryText;
 
       await updateTreeFile(todaysFile.id, mergedTree, latestSummary, false);
@@ -918,7 +930,7 @@ function App() {
 
       try {
         setLoading(true);
-        const savedTree = await saveWithMerge(updatedTree, updatedTree.summary[0]?.changes || "Deleted member");
+        const savedTree = await saveWithMerge(updatedTree, updatedTree.summary[0]?.changes || "Deleted member", [nodeId]);
 
         setTree(savedTree);
         setSelectedNodeId(null); // Close detail view
