@@ -1076,23 +1076,62 @@ function App() {
 
   if (!isSignedIn) {
     return (
-      <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center', background: '#f5f7fa', height: '100vh' }}>
-        <div style={{ textAlign: 'center' }}>
+      <div className="app-container" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        background: 'linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%)',
+        height: '100vh',
+        fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+      }}>
+        <div style={{
+          textAlign: 'center',
+          padding: '40px',
+          background: 'rgba(255, 255, 255, 0.8)',
+          borderRadius: '20px',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+          maxWidth: '400px',
+          width: '90%'
+        }}>
+          <h1 style={{
+            color: '#2c3e50',
+            marginBottom: '10px',
+            fontSize: '2.5rem',
+            fontWeight: '700'
+          }}>
+            Family Tree
+          </h1>
+          <p style={{
+            color: '#7f8c8d',
+            marginBottom: '40px',
+            fontSize: '1.1rem',
+            lineHeight: '1.5'
+          }}>
+            Protect and preserve your family legacy across generations.
+            <br />
+            <span style={{ fontSize: '0.9rem', opacity: 0.8 }}>Secure. Private. Forever.</span>
+          </p>
+
           <button
             onClick={signIn}
             disabled={!isGapiReady}
             style={{
-              padding: '1rem 2rem',
-              fontSize: '1.2rem',
+              padding: '12px 35px',
+              fontSize: '1.1rem',
               backgroundColor: '#0984e3',
               color: 'white',
               border: 'none',
               borderRadius: '50px',
               cursor: 'pointer',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+              boxShadow: '0 4px 15px rgba(9, 132, 227, 0.3)',
+              transition: 'transform 0.2s',
+              fontWeight: '600'
             }}
+            onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
           >
-            {isGapiReady ? 'Sign In' : 'Loading...'}
+            {isGapiReady ? 'Sign In with Google' : 'Loading...'}
           </button>
         </div>
       </div>

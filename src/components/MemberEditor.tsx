@@ -403,6 +403,11 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     // State to hold the remote image URL during linking (to prevent wiping it on save)
     const [linkedImageUrl, setLinkedImageUrl] = useState<string | null>(null);
 
+    const getNodeName = (id: string) => {
+        const node = existingNodes[id] || pendingShadowNodes.find(n => n.nodeId === id);
+        return node?.name || 'Unknown';
+    };
+
     const handleDuplicateSelect = (result: SearchResult) => {
         // Mandatory Live Link
         setExternalLink({ treeId: result.treeId, nodeId: result.node.nodeId, treeName: result.treeName });
@@ -690,10 +695,9 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         <label>Spouses</label>
                         <div className="children-list">
                             {spouseIds.map(id => {
-                                const node = existingNodes[id];
                                 return (
                                     <div key={id} className="child-tag">
-                                        <span>{node?.name || 'Unknown'}</span>
+                                        <span>{getNodeName(id)}</span>
                                         <button type="button" onClick={() => handleRemoveSpouse(id)}>×</button>
                                     </div>
                                 );
@@ -741,10 +745,9 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                             <>
                                 <div className="children-list">
                                     {siblingIds.map(id => {
-                                        const node = existingNodes[id];
                                         return (
                                             <div key={id} className="child-tag">
-                                                <span>{node?.name || 'Unknown'}</span>
+                                                <span>{getNodeName(id)}</span>
                                                 <button type="button" onClick={() => handleRemoveSibling(id)}>×</button>
                                             </div>
                                         );
@@ -783,10 +786,9 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         <label>Children</label>
                         <div className="children-list">
                             {childrenIds.map(childId => {
-                                const child = existingNodes[childId];
                                 return (
                                     <div key={childId} className="child-tag">
-                                        <span>{child?.name || 'Unknown'}</span>
+                                        <span>{getNodeName(childId)}</span>
                                         <button type="button" onClick={() => handleRemoveChild(childId)}>×</button>
                                     </div>
                                 );

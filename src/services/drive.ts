@@ -452,6 +452,12 @@ export const releaseLock = async (lockFileId: string): Promise<void> => {
         await deleteFile(lockFileId);
         console.log("Lock released.");
     } catch (err) {
+        // Ignore 404 (File not found), as it means lock is already released
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((err as any)?.result?.error?.code === 404 || (err as any)?.status === 404) {
+            console.log("Lock file already deleted.");
+            return;
+        }
         console.error("Error releasing lock", err);
     }
 };
