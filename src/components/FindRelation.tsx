@@ -37,7 +37,7 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
                 const options = results.map(res => ({
                     node: res.node,
                     label: `${res.node.name} (${res.treeName})`,
-                    disambiguationInfo: getDisambiguationInfo(res.node, nodes) // Note: this uses local nodes for disambiguation info... might be slightly off for external nodes but OK for now
+                    disambiguationInfo: getDisambiguationInfo(res.node, nodes)
                 })).slice(0, 10);
                 setPerson1Options(options);
             } else {
@@ -71,22 +71,14 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
     // Calculate path
     const path = useMemo(() => {
         if (!selectedPerson1 || !selectedPerson2) return null;
-        // Use ALL loaded nodes from GlobalTreeService to find path across trees
         const allNodes = GlobalTreeService.getAllNodesFlat();
         return findPath(allNodes, selectedPerson1, selectedPerson2);
-    }, [selectedPerson1, selectedPerson2, nodes]); // Keep 'nodes' in dep if it signals local update, but mainly relying on GlobalTree state? 
-    // GlobalTreeService isn't reactive here. But 'nodes' prop changes when current tree updates.
-    // Ideally we should listen to GlobalTree updates. 
-    // But since FindRelation is a modal, it's likely fine to just fetch when it renders or inputs change.
-    // 'allNodes' above is fetched inside memo, which runs on render. 
-    // If GlobalTreeService cache changes, this won't re-run unless dependencies change.
-    // 'nodes' changes on local edit. 'selectedPerson' changes on user input.
+    }, [selectedPerson1, selectedPerson2, nodes]);
 
     // Build tree structure for rendering
     const pathTreeData = useMemo(() => {
         if (!path || path.length === 0) return null;
 
-        // Use global nodes for building the tree as well
         const allNodes = GlobalTreeService.getAllNodesFlat();
         const { rootId, filteredNodes } = buildPathTree(allNodes, path);
 

@@ -80,10 +80,12 @@ export const GlobalTreeService = {
      * Get all nodes from all loaded trees as a flat list
      * Useful for building global relationship graphs
      */
-    getAllNodesFlat(): PersonNode[] {
-        const allNodes: PersonNode[] = [];
+    getAllNodesFlat(): Record<string, PersonNode> {
+        const allNodes: Record<string, PersonNode> = {};
         Object.values(loadedTreesCache).forEach(tree => {
-            allNodes.push(...Object.values(tree.nodes));
+            Object.values(tree.nodes).forEach(node => {
+                allNodes[node.nodeId] = node;
+            });
         });
         return allNodes;
     },
