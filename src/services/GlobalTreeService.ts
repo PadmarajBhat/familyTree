@@ -79,12 +79,13 @@ export const GlobalTreeService = {
     /**
      * Get all nodes from all loaded trees as a flat list
      * Useful for building global relationship graphs
+     * Returns an array to preserve duplicate nodes (e.g. shadow nodes) from different trees
      */
-    getAllNodesFlat(): Record<string, PersonNode> {
-        const allNodes: Record<string, PersonNode> = {};
+    getAllNodesFlat(): PersonNode[] {
+        const allNodes: PersonNode[] = [];
         Object.values(loadedTreesCache).forEach(tree => {
             Object.values(tree.nodes).forEach(node => {
-                allNodes[node.nodeId] = node;
+                allNodes.push(node);
             });
         });
         return allNodes;
