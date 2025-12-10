@@ -17,7 +17,7 @@ import { LoadingOverlay } from './components/LoadingOverlay';
 import { canEdit } from './logic/accessControl';
 import { canEditNode, isGlobalEditor } from './logic/permissions';
 import { getISTTimestamp } from './logic/dateUtils';
-import { generateSampleTree } from './logic/sampleData';
+
 import { getTreeNameFromFilename, generateFilename } from './logic/fileUtils';
 import './App.css';
 
@@ -33,7 +33,8 @@ function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editorMode, setEditorMode] = useState<'add' | 'edit' | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'user' | 'sample'>('user');
+  // viewMode state removed
+
   const [treeViewType, setTreeViewType] = useState<'standard' | 'hourglass'>('standard');
   const [fanRootId, setFanRootId] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -156,62 +157,57 @@ function App() {
   useEffect(() => {
     if (!isSignedIn || !isGapiReady || !currentUser) return;
 
-    if (viewMode === 'user') {
-      // Logic for First Run / Default Tree
-      const checkShortlistAndLoad = async () => {
-        const shortlistKey = `shortlist_${currentUser.email}`;
-        const storedShortlist = localStorage.getItem(shortlistKey);
+    // Logic for First Run / Default Tree
+    const checkShortlistAndLoad = async () => {
+      const shortlistKey = `shortlist_${currentUser.email}`;
+      const storedShortlist = localStorage.getItem(shortlistKey);
 
-        let shouldLoadHome = true;
+      let shouldLoadHome = true;
 
-        if (storedShortlist) {
-          const shortlist = JSON.parse(storedShortlist) as string[];
-          if (shortlist.length === 1) {
-            // Auto-load the single shortlisted tree
-            await loadTree(false, shortlist[0]);
+      if (storedShortlist) {
+        const shortlist = JSON.parse(storedShortlist) as string[];
+        if (shortlist.length === 1) {
+          // Auto-load the single shortlisted tree
+          await loadTree(false, shortlist[0]);
+          shouldLoadHome = false;
+        } else if (shortlist.length > 1) {
+          // Multiple trees, show Home (which filters by default)
+          shouldLoadHome = true;
+        } else {
+          // Empty shortlist, show Home with all
+          shouldLoadHome = true;
+        }
+      } else {
+        // First Run: No shortlist found
+        // Fetch trees to see if we can default to one
+        try {
+          const files = await listTreeFiles();
+          if (files && files.length > 0) {
+            // Auto-select the first one
+            const firstTree = files[0];
+            localStorage.setItem(shortlistKey, JSON.stringify([firstTree.id]));
+            await loadTree(false, firstTree.id);
             shouldLoadHome = false;
-          } else if (shortlist.length > 1) {
-            // Multiple trees, show Home (which filters by default)
-            shouldLoadHome = true;
           } else {
-            // Empty shortlist, show Home with all
+            // No trees at all, show Home (which allows creating)
             shouldLoadHome = true;
           }
-        } else {
-          // First Run: No shortlist found
-          // Fetch trees to see if we can default to one
-          try {
-            const files = await listTreeFiles();
-            if (files && files.length > 0) {
-              // Auto-select the first one
-              const firstTree = files[0];
-              localStorage.setItem(shortlistKey, JSON.stringify([firstTree.id]));
-              await loadTree(false, firstTree.id);
-              shouldLoadHome = false;
-            } else {
-              // No trees at all, show Home (which allows creating)
-              shouldLoadHome = true;
-            }
-          } catch (e) {
-            console.error("Error checking trees for first run", e);
-            shouldLoadHome = true;
-          }
+        } catch (e) {
+          console.error("Error checking trees for first run", e);
+          shouldLoadHome = true;
         }
+      }
 
-        if (shouldLoadHome) {
-          setViewState('home');
-          setTree(null); // Ensure no tree is shown
-        } else {
-          setViewState('tree');
-        }
-      };
+      if (shouldLoadHome) {
+        setViewState('home');
+        setTree(null); // Ensure no tree is shown
+      } else {
+        setViewState('tree');
+      }
+    };
 
-      checkShortlistAndLoad();
-    } else {
-      handleLoadSampleTree();
-      setViewState('tree');
-    }
-  }, [isSignedIn, isGapiReady, viewMode, currentUser]);
+    checkShortlistAndLoad();
+  }, [isSignedIn, isGapiReady, currentUser]);
 
 
 
@@ -453,10 +449,7 @@ function App() {
   };
 
   const handleEditClick = () => {
-    if (viewMode === 'sample') {
-      alert("Editing is disabled in Sample Mode.");
-      return;
-    }
+    // Edit click logic
     if (selectedNodeId && tree) {
       if (!canEditNode(tree, currentUser?.email, selectedNodeId)) {
         alert("You do not have permission to edit this member.");
@@ -468,10 +461,7 @@ function App() {
   };
 
   const handleAddClick = () => {
-    if (viewMode === 'sample') {
-      alert("Adding members is disabled in Sample Mode.");
-      return;
-    }
+    // Add logic
     setEditorMode('add');
   };
 
@@ -548,7 +538,7 @@ function App() {
     newSiblingIds: string[],
     shadowNodes: PersonNode[] = []
   ) => {
-    if (viewMode === 'sample') return;
+    // save logic
 
     const userViewNode = editorMode === 'edit' && tree ? tree.nodes[personData.nodeId] : null;
 
@@ -869,32 +859,13 @@ function App() {
     });
   };
 
-  const handleLoadSampleTree = async () => {
-    console.log("handleLoadSampleTree called. CurrentUser:", currentUser);
-    if (!currentUser) {
-      console.warn("User not logged in, cannot generate sample tree.");
-      return;
-    }
-    setLoading(true);
-    try {
-      console.log("Generating sample tree...");
-      const sampleTree = generateSampleTree(currentUser.email);
-      setTree(sampleTree);
-    } catch (err) {
-      console.error("Failed to load sample tree:", err);
-      alert("Failed to create sample tree.");
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   const isAuthorized = currentUser && canEdit(currentUser.email);
 
   const handleDeleteMember = async (nodeId: string) => {
-    if (viewMode === 'sample') {
-      alert("Deletion is disabled in Sample Mode.");
-      return;
-    }
+    // Delete logic
+
     if (!tree) return;
     if (!currentUser) {
       alert("You must be signed in to delete members.");
@@ -961,10 +932,7 @@ function App() {
   };
 
   const handleToggleEditor = async (nodeId: string, newStatus: boolean, updates?: { email?: string; phone?: string }) => {
-    if (viewMode === 'sample') {
-      alert("Editing is disabled in Sample Mode.");
-      return;
-    }
+
 
     if (!currentUser || !tree) return;
 
@@ -1235,15 +1203,7 @@ function App() {
                     </button>
                   </>
                 )}
-                <button
-                  className="menu-item"
-                  onClick={() => {
-                    setViewMode(prev => prev === 'user' ? 'sample' : 'user');
-                    setIsMenuOpen(false);
-                  }}
-                >
-                  {viewMode === 'user' ? 'View Sample Tree' : 'View My Tree'}
-                </button>
+
                 <button
                   className="menu-item"
                   onClick={() => {
@@ -1320,7 +1280,7 @@ function App() {
                 />
               </div>
             )}
-            {isAuthorized && viewMode === 'user' && (
+            {isAuthorized && (
               <button
                 className="fab-add"
                 onClick={handleAddClick}
@@ -1332,11 +1292,7 @@ function App() {
           </>
         )}
 
-        {viewMode === 'sample' && (
-          <div className="sample-banner" style={{ background: '#ff9800', color: 'white', padding: '10px', textAlign: 'center' }}>
-            Sample Mode (Read Only)
-          </div>
-        )}
+
 
         {/* Welcome Screen Removed */}
 
