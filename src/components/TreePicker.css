@@ -153,3 +153,39 @@
         border-color: #666;
     }
 }
+
+.empty-state {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+}
+
+.contact-admin {
+    margin-top: 1.5rem;
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.contact-admin p {
+    margin-bottom: 0.5rem;
+}
+
+.contact-admin strong {
+    display: block;
+    font-size: 1.2rem;
+    color: #333;
+    margin-bottom: 0.5rem;
+}
+
+.contact-admin a {
+    color: #4CAF50;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.contact-admin a:hover {
+    text-decoration: underline;
+}

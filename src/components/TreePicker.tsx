@@ -111,7 +111,14 @@ export const TreePicker: React.FC<TreePickerProps> = ({ currentTreeId, defaultTr
 
                             <div className="tree-list">
                                 {groups.length === 0 ? (
-                                    <p>No family trees found.</p>
+                                    <div className="empty-state">
+                                        <p>No family trees found.</p>
+                                        <div className="contact-admin">
+                                            <p>Please contact:</p>
+                                            <strong>Narasimha Bhat</strong>
+                                            <a href="tel:+919342748992">+919342748992</a>
+                                        </div>
+                                    </div>
                                 ) : (
                                     groups.map(group => (
                                         <div key={group.treeName} className={`tree-item ${group.latestFile.id === currentTreeId ? 'current' : ''}`}>
