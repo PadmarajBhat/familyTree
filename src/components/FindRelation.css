@@ -38,6 +38,19 @@
     /* Prevent buttons from shrinking/overlapping */
 }
 
+/* Override default absolute positioning of CloseButton */
+.find-relation-header .common-close-button {
+    position: static;
+    top: auto;
+    right: auto;
+    background: transparent;
+    border: 1px solid #eee;
+}
+
+.find-relation-header .common-close-button:hover {
+    background: #f0f0f0;
+}
+
 .search-inputs.compact {
     display: flex;
     gap: 8px;
