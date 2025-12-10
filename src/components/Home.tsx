@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { listTreeFiles, saveTreeFile, renameFile } from '../services/drive';
 import { getISTTimestamp } from '../logic/dateUtils';
 import type { TreeDocument } from '../logic/types';
@@ -28,6 +28,7 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
     const [showAll, setShowAll] = useState(false);
     const [creating, setCreating] = useState(false);
     const [newTreeName, setNewTreeName] = useState('');
+    const autoloadAttempted = useRef(false);
 
     useEffect(() => {
         loadTrees();
@@ -42,11 +43,14 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
     // Autoload Logic
     useEffect(() => {
         if (enableAutoload && !loading && trees.length > 0 && starredTreeNames.size === 1) {
+            if (autoloadAttempted.current) return;
+
             const targetName = Array.from(starredTreeNames)[0];
             const targetTree = trees.find(t => t.name === targetName);
 
             if (targetTree) {
                 console.log("Autoloading single shortlisted tree:", targetTree.name);
+                autoloadAttempted.current = true;
                 onSelectTree(targetTree.id);
             }
         }
