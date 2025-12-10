@@ -3,6 +3,7 @@ import { listTreeFiles, saveTreeFile, renameFile } from '../services/drive';
 import { getISTTimestamp } from '../logic/dateUtils';
 import type { TreeDocument } from '../logic/types';
 import { getTreeNameFromFilename, generateFilename } from '../logic/fileUtils';
+import { GlobalTreeService } from '../services/GlobalTreeService';
 
 interface HomeProps {
     userEmail: string;
@@ -119,6 +120,14 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         });
         setStarredTreeNames(newStarredNames);
     }, [shortlistedIds, treeIdMap]);
+
+    // Sync GlobalTreeService with ALL available trees for Unified Search (using fresh IDs from Home)
+    useEffect(() => {
+        if (trees.length > 0) {
+            const allIds = trees.map(t => t.id);
+            GlobalTreeService.loadShortlistedTrees(allIds);
+        }
+    }, [trees]);
 
     const toggleShortlist = (tree: TreeFile, e: React.MouseEvent) => {
         e.stopPropagation();
