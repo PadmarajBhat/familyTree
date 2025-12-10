@@ -39,8 +39,17 @@ export const MapChart: React.FC<MapChartProps> = ({ nodes }) => {
 
     useEffect(() => {
         // Fetch the India GeoJSON
-        fetch('/india_boundary.json')
-            .then(res => res.json())
+        // Use import.meta.env.BASE_URL to handle deployment in subdirectories (like GitHub Pages)
+        const baseUrl = import.meta.env.BASE_URL;
+        const jsonPath = `${baseUrl}india_boundary.json`.replace('//', '/'); // Avoid double slashes if BASE_URL ends with / having a starting / in file path
+
+        fetch(jsonPath)
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                return res.json();
+            })
             .then(data => setIndiaGeoJson(data))
             .catch(err => console.error("Failed to load India map", err));
 

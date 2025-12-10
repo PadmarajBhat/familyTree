@@ -1180,6 +1180,7 @@ function App() {
                     <button
                       className="menu-item"
                       onClick={() => {
+                        setShowVersionHistory(true);
                         setIsMenuOpen(false);
                       }}
                     >
