@@ -34,6 +34,12 @@ export const GlobalTreeService = {
             const fileMeta = files.find((f: any) => f.id === fileId);
             if (!fileMeta) return;
 
+            // Extra Safety: Filter out backup/delete files if API query leaked them
+            if (fileMeta.name.startsWith('backup_') || fileMeta.name.startsWith('delete_')) {
+                console.warn(`Skipping loading of excluded file: ${fileMeta.name}`);
+                return;
+            }
+
             try {
                 const content = await getFileContent(fileId);
                 if (content && typeof content === 'object' && 'nodes' in content) {
