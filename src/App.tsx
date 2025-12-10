@@ -49,6 +49,7 @@ function App() {
 
   const [viewDepth, setViewDepth] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [homeAutoloadEnabled, setHomeAutoloadEnabled] = useState(true);
 
   // --- History / Back Button Logic ---
   const isAnyModalOpen = showSearch || showCollaborators || showFindRelation || showVersionHistory || showDashboard || !!selectedNodeId || !!editorMode;
@@ -1187,6 +1188,7 @@ function App() {
                       onClick={() => {
                         setViewState('home');
                         setTree(null);
+                        setHomeAutoloadEnabled(false);
                         setIsMenuOpen(false);
                       }}
                     >
@@ -1308,6 +1310,7 @@ function App() {
             }}
             currentTreeId={currentTreeId}
             isEditor={canEdit(currentUser?.email)}
+            enableAutoload={homeAutoloadEnabled}
           />
         )}
 

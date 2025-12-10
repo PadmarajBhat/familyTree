@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { listTreeFiles, saveTreeFile, deleteFile, renameFile } from '../services/drive';
+import { listTreeFiles, saveTreeFile, renameFile } from '../services/drive';
 import { getISTTimestamp } from '../logic/dateUtils';
 import type { TreeDocument } from '../logic/types';
 import { getTreeNameFromFilename, generateFilename } from '../logic/fileUtils';
@@ -9,6 +9,7 @@ interface HomeProps {
     onSelectTree: (treeId: string) => void;
     currentTreeId: string | null;
     isEditor: boolean;
+    enableAutoload?: boolean;
 }
 
 interface TreeFile {
@@ -18,7 +19,7 @@ interface TreeFile {
     description?: string;
 }
 
-export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTreeId, isEditor }) => {
+export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTreeId, isEditor, enableAutoload = true }) => {
     const [trees, setTrees] = useState<TreeFile[]>([]);
     const [loading, setLoading] = useState(false);
     const [shortlistedIds, setShortlistedIds] = useState<string[]>([]);
@@ -37,6 +38,19 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
             setShortlistedIds([]);
         }
     }, [userEmail]);
+
+    // Autoload Logic
+    useEffect(() => {
+        if (enableAutoload && !loading && trees.length > 0 && shortlistedIds.length === 1) {
+            const targetId = shortlistedIds[0];
+            // Ensure the shortlisted tree actually exists in our filtered list
+            const targetTree = trees.find(t => t.id === targetId);
+            if (targetTree) {
+                console.log("Autoloading single shortlisted tree:", targetTree.name);
+                onSelectTree(targetId);
+            }
+        }
+    }, [trees, shortlistedIds, loading, enableAutoload, onSelectTree]);
 
     const loadTrees = async () => {
         setLoading(true);
