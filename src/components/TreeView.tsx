@@ -9,6 +9,7 @@ interface TreeViewProps {
     onNodeLongPress: (nodeId: string) => void;
     maxDepth?: number | null;
     isExporting?: boolean;
+    compact?: boolean;
 }
 
 interface HierarchyPersonNode extends PersonNode {
@@ -22,7 +23,7 @@ interface ExtendedHierarchyNode extends d3.HierarchyNode<HierarchyPersonNode> {
     y0?: number;
 }
 
-export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth, isExporting }) => {
+export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth, isExporting, compact }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -58,13 +59,13 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
 
         // If exporting, we don't constrain by container dimensions initially
         const { width, height } = (dimensions.width > 0 && !isExporting) ? dimensions : {
-            width: wrapperRef.current.clientWidth || 1000, // Fallback width
+            width: wrapperRef.current.clientWidth || 1000,
             height: wrapperRef.current.clientHeight || 800
         };
 
         if (width === 0 || height === 0) return;
 
-        // Clear previous
+        // Clear previous runs
         d3.select(svgRef.current).selectAll("*").remove();
 
         const svg = d3.select(svgRef.current)
@@ -77,33 +78,25 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
             g.attr("transform", event.transform);
         });
 
-        // Only enable zoom if not exporting
         if (!isExporting) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             svg.call(zoom as any);
         }
 
-        // --- Build Hierarchy with Direct Children Count ---
+        // --- Build Hierarchy ---
         const buildHierarchy = (nodeId: string, path: Set<string> = new Set()): HierarchyPersonNode | null => {
-            // Cycle detection
             if (path.has(nodeId)) {
-                console.error(`Cycle detected at node ${nodeId}. Path:`, Array.from(path));
                 return null;
             }
             const newPath = new Set(path).add(nodeId);
-
             const node = data.nodes[nodeId];
-            if (!node) {
-                console.error(`Node ${nodeId} not found in data.nodes`);
-                return null;
-            }
+            if (!node) return null;
 
             const children = node.childrenIds
                 .map(childId => buildHierarchy(childId, newPath))
                 .filter((n): n is HierarchyPersonNode => n !== null);
 
-            // Use actualChildrenCount if available (from PersonDetail filtering),
-            // otherwise use the calculated children count
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const childCount = (node as any).actualChildrenCount ?? children.length;
 
             return {
@@ -113,19 +106,13 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
             };
         };
 
-        console.log('Building tree hierarchy from rootNodeId:', data.rootNodeId);
         const hierarchyData = buildHierarchy(data.rootNodeId);
-        if (!hierarchyData) {
-            console.error('Failed to build hierarchy! Check logs above for cycle or missing node errors.');
-            return;
-        }
-        console.log('Hierarchy built successfully:', hierarchyData);
+        if (!hierarchyData) return;
 
         const root = d3.hierarchy(hierarchyData) as ExtendedHierarchyNode;
         root.x0 = width / 2;
         root.y0 = 0;
 
-        // Apply maxDepth if specified
         if (maxDepth) {
             root.descendants().forEach((d) => {
                 if (d.depth >= maxDepth) {
@@ -133,19 +120,18 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
                         d._children = d.children;
                         d.children = undefined;
                     }
-                } else {
-                    // Ensure expanded if within depth (in case of re-render with different depth)
-                    if (d._children) {
-                        d.children = d._children;
-                        d._children = undefined;
-                    }
+                } else if (d._children) {
+                    d.children = d._children;
+                    d._children = undefined;
                 }
             });
         }
 
-        const treeLayout = d3.tree<HierarchyPersonNode>().nodeSize([160, 200]); // Increased spacing
+        const nodeWidth = compact ? 100 : 160;
+        const nodeHeight = compact ? 120 : 200;
+        const treeLayout = d3.tree<HierarchyPersonNode>().nodeSize([nodeWidth, nodeHeight]);
 
-        // Safe link generator to handle NaN coordinates
+        // Safe link generator
         const safeLink = d3.linkVertical()
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .x((d: any) => (d.x === undefined || isNaN(d.x)) ? 0 : d.x)
@@ -165,21 +151,22 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
                 .attr("class", "node")
                 .attr("transform", () => `translate(${source.x0},${source.y0})`);
 
-            // Main Click Area (Profile Pic) -> Open Details
-            const mainGroup = nodeEnter.append("g")
-                .style("cursor", "pointer")
-                .on("click", (event, d) => {
-                    event.stopPropagation();
-                    onNodeClick(d.data.nodeId);
-                });
+            nodeEnter.each(function (d) {
+                if (d.data.nodeId === 'VIRTUAL_ROOT') return;
 
-            // --- Profile Pictures & Patterns ---
-            mainGroup.each(function (d) {
+                const mainGroup = d3.select(this).append("g")
+                    .style("cursor", "pointer")
+                    .on("click", (event) => {
+                        event.stopPropagation();
+                        onNodeClick(d.data.nodeId);
+                    });
+
                 const mainNodeId = d.data.nodeId;
                 const spouseId = d.data.spouseIds && d.data.spouseIds.length > 0 ? d.data.spouseIds[0] : null;
                 const spouseNode = spouseId ? data.nodes[spouseId] : null;
 
                 const defs = d3.select(this).append("defs");
+                const circleRadius = compact ? 20 : 30;
 
                 // 1. Main Person Pattern
                 if (d.data.imageUrl) {
@@ -208,115 +195,102 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
                         .attr("preserveAspectRatio", "none")
                         .attr("href", getPhotoUrl(spouseNode.imageUrl));
                 }
-            });
-
-            // --- Render Circles ---
-            mainGroup.each(function (d) {
-                const group = d3.select(this);
-                const spouseId = d.data.spouseIds && d.data.spouseIds.length > 0 ? d.data.spouseIds[0] : null;
-                const spouseNode = spouseId ? data.nodes[spouseId] : null;
 
                 if (spouseNode) {
-                    // --- Couple Rendering ---
-
                     // Spouse Circle
-                    group.append("circle")
+                    mainGroup.append("circle")
                         .attr("class", "node-circle-spouse")
-                        .attr("cx", 20)
-                        .attr("r", 30)
+                        .attr("cx", compact ? 15 : 20)
+                        .attr("r", circleRadius)
                         .style("fill", spouseNode.imageUrl ? `url(#pattern-${spouseNode.nodeId})` : "#fff")
                         .style("stroke", "pink")
                         .style("stroke-width", "3px");
 
                     // Main Person Circle
-                    group.append("circle")
+                    mainGroup.append("circle")
                         .attr("class", "node-circle-main")
-                        .attr("cx", -20)
-                        .attr("r", 30)
+                        .attr("cx", compact ? -15 : -20)
+                        .attr("r", circleRadius)
                         .style("fill", d.data.imageUrl ? `url(#pattern-${d.data.nodeId})` : "#fff")
                         .style("stroke", "steelblue")
                         .style("stroke-width", "3px");
-
                 } else {
-                    // --- Single Person Rendering ---
-                    group.append("circle")
+                    // Single Person Rendering
+                    mainGroup.append("circle")
                         .attr("class", "node-circle-main")
-                        .attr("r", 30)
+                        .attr("r", circleRadius)
                         .style("fill", d.data.imageUrl ? `url(#pattern-${d.data.nodeId})` : "#fff")
                         .style("stroke", "steelblue")
                         .style("stroke-width", "3px");
                 }
-            });
 
-            // Children Count Badge
-            const badgeGroup = mainGroup.append("g")
-                .attr("class", "badge")
-                .attr("transform", (d) => {
-                    const hasSpouse = d.data.spouseIds && d.data.spouseIds.length > 0;
-                    return hasSpouse ? "translate(40, -20)" : "translate(20, -20)";
-                })
-                .style("display", (d) => (d.data.childrenCount || 0) > 0 ? "block" : "none");
+                // Children Count Badge
+                const hasSpouse = d.data.spouseIds && d.data.spouseIds.length > 0;
+                const xOffset = compact ? (hasSpouse ? 30 : 15) : (hasSpouse ? 40 : 20);
+                const yOffset = compact ? -15 : -20;
 
-            badgeGroup.append("circle")
-                .attr("r", 10)
-                .style("fill", "red")
-                .style("stroke", "white");
+                const badgeGroup = mainGroup.append("g")
+                    .attr("class", "badge")
+                    .attr("transform", `translate(${xOffset}, ${yOffset})`)
+                    .style("display", (d.data.childrenCount || 0) > 0 ? "block" : "none");
 
-            badgeGroup.append("text")
-                .attr("dy", ".35em")
-                .style("text-anchor", "middle")
-                .style("fill", "white")
-                .style("font-size", "10px")
-                .style("font-weight", "bold")
-                .text((d) => d.data.childrenCount ?? "");
+                badgeGroup.append("circle")
+                    .attr("r", compact ? 8 : 10)
+                    .style("fill", "red")
+                    .style("stroke", "white");
 
-            // --- Names ---
-            mainGroup.each(function (d) {
-                const group = d3.select(this);
-                const spouseId = d.data.spouseIds && d.data.spouseIds.length > 0 ? d.data.spouseIds[0] : null;
-                const spouseNode = spouseId ? data.nodes[spouseId] : null;
+                badgeGroup.append("text")
+                    .attr("dy", ".35em")
+                    .style("text-anchor", "middle")
+                    .style("fill", "white")
+                    .style("font-size", compact ? "8px" : "10px")
+                    .style("font-weight", "bold")
+                    .text(d.data.childrenCount ?? "");
+
+                // Names
+                const nameY = compact ? 30 : 45;
+                const spouseNameY = compact ? 42 : 60;
+                const nameSize = compact ? "10px" : "12px";
+                const spouseNameSize = compact ? "9px" : "11px";
 
                 if (spouseNode) {
-                    // Main Name
-                    group.append("text")
+                    mainGroup.append("text")
                         .attr("dy", ".35em")
-                        .attr("y", 45)
+                        .attr("y", nameY)
                         .style("text-anchor", "middle")
                         .text(`${d.data.name || "Unknown"}`)
-                        .style("font-size", "12px")
+                        .style("font-size", nameSize)
                         .style("fill", "#333")
                         .style("font-weight", "bold")
                         .style("text-shadow", "0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff");
 
-                    // Spouse Name
-                    group.append("text")
+                    mainGroup.append("text")
                         .attr("dy", ".35em")
-                        .attr("y", 60) // Below main name
+                        .attr("y", spouseNameY)
                         .style("text-anchor", "middle")
                         .text(`& ${spouseNode.name || "Unknown"}`)
-                        .style("font-size", "11px")
+                        .style("font-size", spouseNameSize)
                         .style("fill", "#555")
                         .style("text-shadow", "0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff");
-
                 } else {
-                    group.append("text")
+                    mainGroup.append("text")
                         .attr("dy", ".35em")
-                        .attr("y", 45)
+                        .attr("y", nameY)
                         .style("text-anchor", "middle")
                         .text(d.data.name || "Unknown")
-                        .style("font-size", "12px")
+                        .style("font-size", nameSize)
                         .style("fill", "#333")
+                        .style("font-weight", "bold")
                         .style("text-shadow", "0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff");
                 }
             });
 
-            // --- Toggle Button (Collapse/Expand) ---
-            // Only show if children exist (either in children or _children)
+            // Toggle Button
             const toggleButton = nodeEnter.append("g")
                 .attr("class", "toggle-btn")
                 .attr("transform", (d) => {
                     const hasSpouse = d.data.spouseIds && d.data.spouseIds.length > 0;
-                    return hasSpouse ? "translate(0, 75)" : "translate(0, 55)"; // Adjust based on names height
+                    return hasSpouse ? "translate(0, 75)" : "translate(0, 55)";
                 })
                 .style("cursor", "pointer")
                 .style("display", (d) => (d.children || d._children) ? "block" : "none")
@@ -346,17 +320,14 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
                 .style("fill", "steelblue")
                 .text((d) => d._children ? "+" : "-");
 
-            // Transition nodes to their new position
+            // Update transitions
             const nodeUpdate = nodeEnter.merge(node);
-
-            nodeUpdate.transition()
-                .duration(200)
+            nodeUpdate.transition().duration(200)
                 .attr("transform", (d) => `translate(${d.x},${d.y})`);
 
-            // Update Toggle Button State (Text and Visibility)
+            // Update specific elements
             nodeUpdate.select(".toggle-btn")
                 .style("display", (d) => (d.children || d._children) ? "block" : "none");
-
             nodeUpdate.select(".toggle-btn text")
                 .text((d) => d._children ? "+" : "-");
 
@@ -381,7 +352,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
             nodeExit.select("circle")
                 .attr("r", 1e-6);
 
-            // --- Links ---
+            // Links
             const link = g.selectAll<SVGPathElement, d3.HierarchyPointLink<HierarchyPersonNode>>(".link")
                 .data(links, (d) => d.target.data.nodeId);
 
@@ -396,20 +367,16 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
                 .style("stroke-width", "2px");
 
             const linkUpdate = linkEnter.merge(link);
+            linkUpdate.transition().duration(200).attr("d", safeLink);
 
-            linkUpdate.transition()
-                .duration(200)
-                .attr("d", safeLink);
-
-            link.exit().transition()
-                .duration(200)
+            link.exit().transition().duration(200)
                 .attr("d", () => {
                     const o = { x: source.x || 0, y: source.y || 0 };
                     return safeLink({ source: o, target: o });
                 })
                 .remove();
 
-            // Store the old positions for transition
+            // Stash positions
             nodes.forEach((d) => {
                 d.x0 = d.x;
                 d.y0 = d.y;
@@ -419,73 +386,46 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
         // Initial update
         update(root);
 
-        // Calculate bounds to fit screen
+        // Center Tree
         const nodes = root.descendants() as ExtendedHierarchyNode[];
-        let minX = Infinity;
-        let maxX = -Infinity;
-        let minY = Infinity;
-        let maxY = -Infinity;
-
+        let minX = Infinity, maxX = -Infinity;
         nodes.forEach((d) => {
             if (d.x !== undefined) {
                 minX = Math.min(minX, d.x);
                 maxX = Math.max(maxX, d.x);
             }
-            if (d.y !== undefined) {
-                minY = Math.min(minY, d.y);
-                maxY = Math.max(maxY, d.y);
-            }
         });
 
+        // Use treeWidth/scale centering
         const padding = 50;
+        const treeWidth = maxX - minX;
 
         if (isExporting) {
-            // --- EXPORT MODE: Fit to content ---
-            const treeWidth = (maxX - minX) + padding * 2;
-            const treeHeight = (maxY - minY) + padding * 2;
-
-            // Resize SVG to fit the entire tree
-            svg.attr("width", treeWidth)
-                .attr("height", treeHeight);
-
-            // Center the tree within the new dimensions
-            // We shift by -minX to align left edge to 0, then add padding
-            const translateX = -minX + padding;
-            const translateY = -minY + padding;
-
-            const exportTransform = d3.zoomIdentity
-                .translate(translateX, translateY)
-                .scale(1);
-
-            // Apply transform directly
-            g.attr("transform", exportTransform.toString());
-
+            // ... strict export centering logic ...
+            let minY = Infinity, maxY = -Infinity;
+            nodes.forEach(d => {
+                if (d.y !== undefined) {
+                    minY = Math.min(minY, d.y);
+                    maxY = Math.max(maxY, d.y);
+                }
+            });
+            const tH = (maxY - minY) + padding * 2;
+            const tW = (maxX - minX) + padding * 2;
+            svg.attr("width", tW).attr("height", tH);
+            g.attr("transform", `translate(${-minX + padding},${-minY + padding})`);
         } else {
-            // --- NORMAL MODE: Fit to screen ---
-            const treeWidth = maxX - minX;
-            // const treeHeight = maxY - minY; 
-
-            // Calculate scale to fit width (with some limits)
             const availableWidth = width - padding * 2;
             const scaleX = availableWidth / (treeWidth || 1);
-
-            // Limit scale to be reasonable
             const scale = Math.min(Math.max(scaleX, 0.2), 1.2);
 
-            // Center horizontally based on the tree's center
             const centerX = (minX + maxX) / 2;
             const translateX = width / 2 - centerX * scale;
-            const translateY = 50; // Fixed top padding
-
-            const initialTransform = d3.zoomIdentity
-                .translate(translateX, translateY)
-                .scale(scale);
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            svg.call(zoom.transform as any, initialTransform);
+            svg.call(zoom.transform as any, d3.zoomIdentity.translate(translateX, 50).scale(scale));
         }
 
-    }, [data, maxDepth, dimensions, isExporting]);
+    }, [data, maxDepth, dimensions, isExporting, compact]);
 
     return (
         <div ref={wrapperRef} style={{

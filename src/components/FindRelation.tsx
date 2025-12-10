@@ -65,8 +65,7 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
         return () => clearTimeout(timer);
     }, [person2Search, nodes]);
 
-    const selectedPerson1Node = selectedPerson1 ? nodes[selectedPerson1] : null;
-    const selectedPerson2Node = selectedPerson2 ? nodes[selectedPerson2] : null;
+
 
     // Calculate path
     const path = useMemo(() => {
@@ -124,18 +123,22 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
     return (
         <div className="find-relation-container">
             <div className="find-relation-header">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2>Find Relation</h2>
-                    <CloseButton onClick={onClose} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <h2 style={{ margin: 0, fontSize: '18px' }}>Find Relation</h2>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button onClick={handleReset} className="reset-button-small">
+                            Reset
+                        </button>
+                        <CloseButton onClick={onClose} />
+                    </div>
                 </div>
 
-                <div className="search-inputs">
+                <div className="search-inputs compact">
                     <div className="input-group">
-                        <label>Person 1</label>
                         <div className="autocomplete-wrapper">
                             <input
                                 type="text"
-                                placeholder="Search by name..."
+                                placeholder="Person 1..."
                                 value={person1Search}
                                 onChange={(e) => {
                                     setPerson1Search(e.target.value);
@@ -162,12 +165,13 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
                         </div>
                     </div>
 
+                    <span className="search-arrow">→</span>
+
                     <div className="input-group">
-                        <label>Person 2</label>
                         <div className="autocomplete-wrapper">
                             <input
                                 type="text"
-                                placeholder="Search by name..."
+                                placeholder="Person 2..."
                                 value={person2Search}
                                 onChange={(e) => {
                                     setPerson2Search(e.target.value);
@@ -193,39 +197,20 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
                             )}
                         </div>
                     </div>
-
-                    <button onClick={handleReset} className="reset-button">
-                        Reset
-                    </button>
                 </div>
-
-                {selectedPerson1Node && selectedPerson2Node && (
-                    <div className="selected-persons">
-                        <div className="selected-person">
-                            <strong>{selectedPerson1Node.name}</strong>
-                            <span>{getDisambiguationInfo(selectedPerson1Node, nodes)}</span>
-                        </div>
-                        <span className="arrow">→</span>
-                        <div className="selected-person">
-                            <strong>{selectedPerson2Node.name}</strong>
-                            <span>{getDisambiguationInfo(selectedPerson2Node, nodes)}</span>
-                        </div>
-                    </div>
-                )}
             </div>
 
             <div className="path-result">
                 {selectedPerson1 && selectedPerson2 && path === null && (
                     <div className="no-path-message">
-                        <p>❌ No relationship path found</p>
-                        <p className="hint">These people are not connected in the family tree.</p>
+                        <p>❌ No relationship found</p>
                     </div>
                 )}
 
                 {path && path.length > 0 && (
                     <div className="path-found">
-                        <div className="path-info">
-                            ✅ Path found! Connection through {path.length} {path.length === 1 ? 'person' : 'people'}
+                        <div className="path-info-compact">
+                            <span>Connection through {path.length} people</span>
                         </div>
                         {pathTreeData && (
                             <div className="path-tree-view">
@@ -237,6 +222,7 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
                                     }}
                                     onNodeLongPress={() => { }}
                                     maxDepth={null}
+                                    compact={true}
                                 />
                             </div>
                         )}
@@ -245,8 +231,7 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
 
                 {!selectedPerson1 && !selectedPerson2 && (
                     <div className="empty-state">
-                        <p>👨‍👩‍👧‍👦 Select two people to find their relationship</p>
-                        <p className="hint">Start typing names in the fields above</p>
+                        <p>Select two people to see how they are related</p>
                     </div>
                 )}
             </div>

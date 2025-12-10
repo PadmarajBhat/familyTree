@@ -121,11 +121,14 @@ export function buildPathTree(
     const mergedMap: Record<string, PersonNode> = {};
 
     // 1. Merge nodes first to ensure we have full relationship data (cross-tree)
+    // We only care about nodes IN the path
+    const pathSet = new Set(path);
+
     path.forEach(nodeId => {
         const instances = nodeList.filter(n => n.nodeId === nodeId);
         if (instances.length === 0) return;
 
-        // Base node
+        // Base node - prioritize local version
         const realNode = instances.find(n => !n.externalLink) || instances[0];
 
         // Merge relationships
@@ -136,7 +139,14 @@ export function buildPathTree(
         instances.forEach(inst => {
             inst.childrenIds.forEach(c => allChildren.add(c));
             inst.spouseIds.forEach(s => allSpouses.add(s));
-            if (inst.parentId) parentId = inst.parentId;
+            // If any instance has a parent that is ALSO in the path, use that as parent
+            // This is crucial for cross-tree links where parent might be defined in one tree but not another
+            if (inst.parentId && pathSet.has(inst.parentId)) {
+                parentId = inst.parentId;
+            } else if (!parentId && inst.parentId) {
+                // Keep valid parent even if not in path (will be filtered later)
+                parentId = inst.parentId;
+            }
         });
 
         mergedMap[nodeId] = {
@@ -147,56 +157,86 @@ export function buildPathTree(
         };
     });
 
+    // 2. Build Filtered Map (Genealogical Structure)
+    // We only include children that are IN the path.
     const filteredNodes: Record<string, PersonNode> = {};
+    const localRoots = new Set<string>();
 
-    // 2. Build Linear Visual Chain
-    // We treat the path as a linear tree: path[0] -> path[1] -> ... -> path[n]
-    for (let i = 0; i < path.length; i++) {
-        const nodeId = path[i];
+    path.forEach(nodeId => {
         const rawNode = mergedMap[nodeId];
-        if (!rawNode) continue;
+        if (!rawNode) return;
 
-        // Clone and strip relationships for visual clarity
-        // We will manually link them via childrenIds in the chain
+        // Filter children: only keep those that are in the path
+        const filteredChildren = rawNode.childrenIds.filter(cid => pathSet.has(cid));
+
+        // Check if parent is in path
+        const parentInPath = rawNode.parentId && pathSet.has(rawNode.parentId);
+
         filteredNodes[nodeId] = {
             ...rawNode,
-            childrenIds: [],
-            spouseIds: [],
-            parentId: i > 0 ? path[i - 1] : null // Set parent to previous node in path for consistency
+            childrenIds: filteredChildren,
+            // We keep spouse links for visualization if both spouses are in path
+            spouseIds: rawNode.spouseIds.filter(sid => pathSet.has(sid)),
+            parentId: parentInPath ? rawNode.parentId : null // Remove parent if not in path (making this a local root)
         };
 
-        // Link to next node in path
-        if (i < path.length - 1) {
-            filteredNodes[nodeId].childrenIds = [path[i + 1]];
+        if (!parentInPath) {
+            localRoots.add(nodeId);
+        }
+    });
+
+    // 3. Determine Root
+    let rootId = '';
+
+    // If we have spouse pairs at the top level, we might have multiple local roots that are actually connected horizontally.
+    // However, for the tree visualizer, we need a single entry point unless we use a virtual root.
+
+    if (localRoots.size === 1) {
+        rootId = Array.from(localRoots)[0];
+    } else {
+        // Check if the roots are spouses of each other. If so, pick one as primary (usually male or first found).
+        const rootsArr = Array.from(localRoots);
+        let reducedRoots = [...rootsArr];
+
+        // Simple reduction: if A and B are roots and spouses, remove B (A will show B as spouse)
+        // But only if B is NOT already a child of someone else (which it shouldn't be if it's a root)
+        for (const rId of rootsArr) {
+            const node = filteredNodes[rId];
+            if (!node) continue;
+            for (const sId of node.spouseIds) {
+                if (localRoots.has(sId)) {
+                    // They are both roots and spouses.
+                    // To avoid double counting, we pick the one that is 'primary' (e.g. alphabetical or node logic)
+                    // For now, let's just keep the one that comes first in iteration and remove the other
+                    if (reducedRoots.includes(rId) && reducedRoots.includes(sId)) {
+                        reducedRoots = reducedRoots.filter(id => id !== sId);
+                    }
+                }
+            }
         }
 
-        // Add relationship label to the name (except for root)
-        if (i > 0) {
-            const prevId = path[i - 1];
-            const prevRaw = mergedMap[prevId];
-
-            let rel = 'Related';
-
-            // Check biological relationship
-            if (prevRaw.spouseIds.includes(nodeId) || rawNode.spouseIds.includes(prevId)) {
-                rel = 'Spouse';
-            } else if (prevRaw.childrenIds.includes(nodeId)) {
-                rel = rawNode.gender === 'female' ? 'Daughter' : 'Son';
-            } else if (rawNode.childrenIds.includes(prevId)) { // If current is parent of previous
-                rel = rawNode.gender === 'female' ? 'Mother' : 'Father';
-            } else if (prevRaw.parentId === nodeId) {
-                rel = rawNode.gender === 'female' ? 'Mother' : 'Father';
-            }
-
-            // Add label
-            filteredNodes[nodeId].name = `${rawNode.name} (${rel})`;
+        if (reducedRoots.length === 1) {
+            rootId = reducedRoots[0];
         } else {
-            // Root node
-            filteredNodes[nodeId].name = `${rawNode.name} (Start)`;
+            // Truly disjoint roots or multiple family lines (Handshake scenario)
+            // Create a Virtual Root
+            rootId = 'VIRTUAL_ROOT';
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            filteredNodes[rootId] = {
+                nodeId: rootId,
+                name: 'Family Connections',
+                gender: 'male',
+                parents: [],
+                childrenIds: reducedRoots,
+                spouseIds: [],
+                parentId: null,
+                attributes: {},
+                treeId: 'virtual'
+            } as any;
         }
     }
 
-    return { rootId: path[0], filteredNodes };
+    return { rootId, filteredNodes };
 }
 
 /**
