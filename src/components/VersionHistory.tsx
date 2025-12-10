@@ -23,7 +23,7 @@ interface GroupedLog {
     }[];
 }
 
-export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary, nodes, onClose, onSelectNode, filterNodeId }) => {
+export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary = [], nodes, onClose, onSelectNode, filterNodeId }) => {
     const [viewMode, setViewMode] = React.useState<'date' | 'author'>('date');
     const [expandedSections, setExpandedSections] = React.useState<Set<string>>(new Set(['date-Today']));
 
