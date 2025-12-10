@@ -16,6 +16,7 @@ interface HomeProps {
 interface TreeFile {
     id: string;
     name: string;
+    originalFilename: string;
     modifiedTime: string;
     description?: string;
 }
@@ -76,6 +77,7 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                 groupedFiles[treeName].push({
                     id: f.id,
                     name: treeName,
+                    originalFilename: f.name,
                     modifiedTime: f.modifiedTime,
                     description: f.description
                 });
@@ -184,12 +186,13 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         }
     };
 
-    const handleDeleteTree = async (id: string, name: string, e: React.MouseEvent) => {
+    const handleDeleteTree = async (id: string, originalFilename: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!confirm(`Are you sure you want to delete tree "${name}"? This cannot be undone.`)) return;
+        if (!confirm(`Are you sure you want to delete tree "${originalFilename}"? This cannot be undone.`)) return;
 
         try {
-            await renameFile(id, `delete_${name}`);
+            // Prefix delete_ to the FULL original filename
+            await renameFile(id, `delete_${originalFilename}`);
 
             // Also remove from shortlist if present
             // We should remove all IDs for this tree? Or just let them be orphaned?
@@ -279,7 +282,7 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                                     {isEditor && (
                                         <button
                                             className="delete-btn"
-                                            onClick={(e) => handleDeleteTree(tree.id, tree.name, e)}
+                                            onClick={(e) => handleDeleteTree(tree.id, tree.originalFilename, e)}
                                             title="Delete Today's Version"
                                         >
                                             🗑️
