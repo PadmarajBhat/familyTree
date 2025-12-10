@@ -265,6 +265,7 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
                                     onNodeLongPress={() => { }}
                                     maxDepth={null}
                                     compact={true}
+                                    path={path}
                                 />
                             </div>
                         )}

@@ -11,6 +11,7 @@ interface TreeViewProps {
     maxDepth?: number | null;
     isExporting?: boolean;
     compact?: boolean;
+    path?: string[] | null;
 }
 
 interface HierarchyPersonNode extends PersonNode {
@@ -24,7 +25,7 @@ interface ExtendedHierarchyNode extends d3.HierarchyNode<HierarchyPersonNode> {
     y0?: number;
 }
 
-export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth, isExporting, compact }) => {
+export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth, isExporting, compact, path }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -154,7 +155,46 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
         const update = (source: ExtendedHierarchyNode) => {
             const treeData = treeLayout(root);
             const nodes = treeData.descendants() as ExtendedHierarchyNode[];
-            const links = treeData.links();
+            const links = treeData.links().filter(l => l.source.data.nodeId !== 'VIRTUAL_ROOT');
+
+            // --- Apply Custom Jump Links (Green Lines) ---
+            // Identify path connections that are NOT in 'links'
+            const jumpLinks: { source: { x: number, y: number }, target: { x: number, y: number } }[] = [];
+
+            if (path && path.length > 1) {
+                const nodeMap = new Map<string, ExtendedHierarchyNode>();
+                nodes.forEach(n => nodeMap.set(n.data.nodeId, n));
+
+                for (let i = 0; i < path.length - 1; i++) {
+                    const uId = path[i];
+                    const vId = path[i + 1];
+                    const u = nodeMap.get(uId);
+                    const v = nodeMap.get(vId);
+
+                    if (u && v && u.x !== undefined && u.y !== undefined && v.x !== undefined && v.y !== undefined) {
+                        // Check if a direct parent-child link exists in D3 tree
+                        const isConnected = links.some(l =>
+                            (l.source.data.nodeId === uId && l.target.data.nodeId === vId) ||
+                            (l.source.data.nodeId === vId && l.target.data.nodeId === uId)
+                        );
+
+                        if (!isConnected) {
+                            // This is a jump connection (e.g. cross-tree, or spouse, or linked node)
+                            // User wants a Green Line
+                            // Anchor adjustment: Spouses?
+                            // Simple center-to-center or bottom-to-top
+                            // We'll use bottom of source to top of target if vertically aligned, or just center?
+                            // Let's use standard tree link anchors (bottom source, top target) if Y increases
+                            // Else just direct curve.
+                            jumpLinks.push({
+                                source: { x: u.x, y: u.y },
+                                target: { x: v.x, y: v.y }
+                            });
+                        }
+                    }
+                }
+            }
+
 
             // --- Nodes ---
             const node = g.selectAll<SVGGElement, ExtendedHierarchyNode>(".node")
@@ -365,7 +405,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
             nodeExit.select("circle")
                 .attr("r", 1e-6);
 
-            // Links
+            // Links (Standard Tree)
             const link = g.selectAll<SVGPathElement, d3.HierarchyPointLink<HierarchyPersonNode>>(".link")
                 .data(links, (d) => d.target.data.nodeId);
 
@@ -388,6 +428,48 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
                     return safeLink({ source: o, target: o });
                 })
                 .remove();
+
+            // --- Custom Jump Links (Green) ---
+            const jumpLink = g.selectAll<SVGPathElement, typeof jumpLinks[0]>(".jump-link")
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .data(jumpLinks, (d: any) => `${d.source.x}-${d.source.y}-${d.target.x}-${d.target.y}`);
+
+            const jumpLinkEnter = jumpLink.enter().insert("path", "g")
+                .attr("class", "jump-link")
+                .attr("d", (d) => {
+                    // Initial position logic can be refined for animation
+                    // For now, just draw
+                    return d3.linkHorizontal()
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        .x((pt: any) => pt.x)
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        .y((pt: any) => pt.y)
+                        ({ source: d.source, target: d.target });
+                })
+                .style("fill", "none")
+                .style("stroke", "#2ecc71") // Green
+                .style("stroke-width", "3px")
+                .style("stroke-dasharray", "5,5");
+
+            jumpLink.merge(jumpLinkEnter)
+                .transition().duration(200)
+                .attr("d", (d) => {
+                    // Use curveBundle or just standard link
+                    // Since they might be horizontal siblings, linkHorizontal might be better?
+                    // Or linkVertical if they are stacked.
+                    // The safeLink is Vertical.
+                    // Let's use a generic curve.
+                    // Simple quadratic bezier for "Jump"
+                    // Curve down deeply to differentiate from hierarchy links? 
+                    // Or curve based on distance?
+                    // const dx = d.target.x - d.source.x;
+                    // const dy = d.target.y - d.source.y;
+
+                    return `M${d.source.x},${d.source.y} Q${(d.source.x + d.target.x) / 2},${d.target.y + 100} ${d.target.x},${d.target.y}`;
+                });
+
+            jumpLink.exit().remove();
+
 
             // Stash positions
             nodes.forEach((d) => {
