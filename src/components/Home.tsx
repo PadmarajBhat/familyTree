@@ -23,6 +23,8 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
     const [trees, setTrees] = useState<TreeFile[]>([]);
     const [loading, setLoading] = useState(false);
     const [shortlistedIds, setShortlistedIds] = useState<string[]>([]);
+    const [starredTreeNames, setStarredTreeNames] = useState<Set<string>>(new Set());
+    const [treeIdMap, setTreeIdMap] = useState<Record<string, string[]>>({});
     const [showAll, setShowAll] = useState(false);
     const [creating, setCreating] = useState(false);
     const [newTreeName, setNewTreeName] = useState('');
@@ -33,24 +35,22 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         if (storedShortlist) {
             setShortlistedIds(JSON.parse(storedShortlist));
         } else {
-            // First run will be handled by App.tsx, but if we are here, we might want to default to all?
-            // Or just empty.
             setShortlistedIds([]);
         }
     }, [userEmail]);
 
     // Autoload Logic
     useEffect(() => {
-        if (enableAutoload && !loading && trees.length > 0 && shortlistedIds.length === 1) {
-            const targetId = shortlistedIds[0];
-            // Ensure the shortlisted tree actually exists in our filtered list
-            const targetTree = trees.find(t => t.id === targetId);
+        if (enableAutoload && !loading && trees.length > 0 && starredTreeNames.size === 1) {
+            const targetName = Array.from(starredTreeNames)[0];
+            const targetTree = trees.find(t => t.name === targetName);
+
             if (targetTree) {
                 console.log("Autoloading single shortlisted tree:", targetTree.name);
-                onSelectTree(targetId);
+                onSelectTree(targetTree.id);
             }
         }
-    }, [trees, shortlistedIds, loading, enableAutoload, onSelectTree]);
+    }, [trees, starredTreeNames, loading, enableAutoload, onSelectTree]);
 
     const loadTrees = async () => {
         setLoading(true);
@@ -59,12 +59,14 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
 
             // Group files by Tree Name
             const groupedFiles: Record<string, TreeFile[]> = {};
+            const idMap: Record<string, string[]> = {};
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             files.forEach((f: any) => {
                 const treeName = getTreeNameFromFilename(f.name);
                 if (!groupedFiles[treeName]) {
                     groupedFiles[treeName] = [];
+                    idMap[treeName] = [];
                 }
                 groupedFiles[treeName].push({
                     id: f.id,
@@ -72,7 +74,20 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                     modifiedTime: f.modifiedTime,
                     description: f.description
                 });
+                idMap[treeName].push(f.id);
             });
+
+            setTreeIdMap(idMap);
+
+            // Determine starred tree names based on persistent shortlistedIds (history)
+            // We do this inside loadTrees to ensure we have the file list to cross-reference
+            // However, shortlistedIds needs to be read from state or storage. 
+            // Since loadTrees is async and called from useEffect, verify we have latest shortlistedIds?
+            // State shortlistedIds might be empty on first render when this is called.
+            // Let's read localStorage directly here to be safe and dependent on userEmail, 
+            // OR rely on shortlistedIds dependency in a separate effect.
+            // Better: Just update starredNames whenever shortlistedIds OR treeIdMap changes.
+            // But let's finish calculating latestTrees first.
 
             // For each group, pick the latest one
             const latestTrees: TreeFile[] = [];
@@ -82,7 +97,6 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                 latestTrees.push(group[0]);
             });
 
-            // Set trees state to these latest versions
             setTrees(latestTrees);
         } catch (error) {
             console.error("Failed to list trees", error);
@@ -91,11 +105,34 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         }
     };
 
-    const toggleShortlist = (id: string, e: React.MouseEvent) => {
+    // Recalculate starred names whenever shortlistedIds or treeIdMap changes
+    useEffect(() => {
+        const newStarredNames = new Set<string>();
+        Object.entries(treeIdMap).forEach(([name, ids]) => {
+            if (ids.some(id => shortlistedIds.includes(id))) {
+                newStarredNames.add(name);
+            }
+        });
+        setStarredTreeNames(newStarredNames);
+    }, [shortlistedIds, treeIdMap]);
+
+    const toggleShortlist = (tree: TreeFile, e: React.MouseEvent) => {
         e.stopPropagation();
-        const newIds = shortlistedIds.includes(id)
-            ? shortlistedIds.filter(sid => sid !== id)
-            : [...shortlistedIds, id];
+
+        const isStarred = starredTreeNames.has(tree.name);
+
+        let newIds = [...shortlistedIds];
+
+        if (isStarred) {
+            // Unstar: Remove ALL IDs associated with this tree name
+            const idsToRemove = treeIdMap[tree.name] || [];
+            newIds = newIds.filter(id => !idsToRemove.includes(id));
+        } else {
+            // Star: Add current ID
+            if (!newIds.includes(tree.id)) {
+                newIds.push(tree.id);
+            }
+        }
 
         setShortlistedIds(newIds);
         localStorage.setItem(`shortlist_${userEmail}`, JSON.stringify(newIds));
@@ -142,6 +179,8 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
             await renameFile(id, `delete_${name}`);
 
             // Also remove from shortlist if present
+            // We should remove all IDs for this tree? Or just let them be orphaned?
+            // Safer to just remove current.
             if (shortlistedIds.includes(id)) {
                 const newIds = shortlistedIds.filter(sid => sid !== id);
                 setShortlistedIds(newIds);
@@ -155,10 +194,8 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
     };
 
     // Filter displayed trees logic
-    // If we have a shortlist and Show All is false, show only shortlist.
-    // If shortlist is empty or Show All is true, show all.
-    const displayedTrees = (shortlistedIds.length > 0 && !showAll)
-        ? trees.filter(t => shortlistedIds.includes(t.id))
+    const displayedTrees = (starredTreeNames.size > 0 && !showAll)
+        ? trees.filter(t => starredTreeNames.has(t.name))
         : trees;
 
     return (
@@ -215,9 +252,9 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                                 <div className="card-header">
                                     <h3>{tree.name}</h3>
                                     <button
-                                        className={`star-btn ${shortlistedIds.includes(tree.id) ? 'starred' : ''}`}
-                                        onClick={(e) => toggleShortlist(tree.id, e)}
-                                        title={shortlistedIds.includes(tree.id) ? "Remove from shortlist" : "Add to shortlist"}
+                                        className={`star-btn ${starredTreeNames.has(tree.name) ? 'starred' : ''}`}
+                                        onClick={(e) => toggleShortlist(tree, e)}
+                                        title={starredTreeNames.has(tree.name) ? "Remove from shortlist" : "Add to shortlist"}
                                     >
                                         ★
                                     </button>
