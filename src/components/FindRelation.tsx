@@ -17,6 +17,10 @@ interface FindRelationProps {
 interface PersonOption {
     node: PersonNode;
     label: string;
+    treeName: string;
+    parentName?: string | null;
+    imageUrl?: string;
+    gender?: string;
     disambiguationInfo: string;
 }
 
@@ -34,11 +38,17 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
         const timer = setTimeout(() => {
             if (person1Search && person1Search.length > 2) {
                 const results = GlobalTreeService.searchAllTrees(person1Search);
-                const options = results.map(res => ({
+                const options: PersonOption[] = results.map(res => ({
                     node: res.node,
-                    label: `${res.node.name} (${res.treeName})`,
+                    label: res.node.name || 'Unknown', // Just name here, we show tree separately
+                    treeName: res.treeName,
+                    parentName: res.parentName || undefined,
+                    imageUrl: res.node.imageUrl || undefined,
+                    gender: res.node.gender || undefined,
                     disambiguationInfo: getDisambiguationInfo(res.node, nodes)
                 })).slice(0, 10);
+
+                console.log(`Search for ${person1Search} found ${results.length} results`);
                 setPerson1Options(options);
             } else {
                 setPerson1Options([]);
@@ -52,11 +62,17 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
         const timer = setTimeout(() => {
             if (person2Search && person2Search.length > 2) {
                 const results = GlobalTreeService.searchAllTrees(person2Search);
-                const options = results.map(res => ({
+                const options: PersonOption[] = results.map(res => ({
                     node: res.node,
-                    label: `${res.node.name} (${res.treeName})`,
+                    label: res.node.name || 'Unknown',
+                    treeName: res.treeName,
+                    parentName: res.parentName || undefined,
+                    imageUrl: res.node.imageUrl || undefined,
+                    gender: res.node.gender || undefined,
                     disambiguationInfo: getDisambiguationInfo(res.node, nodes)
                 })).slice(0, 10);
+
+                console.log(`Search for ${person2Search} found ${results.length} results`);
                 setPerson2Options(options);
             } else {
                 setPerson2Options([]);
@@ -156,8 +172,21 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
                                             className="suggestion-item"
                                             onClick={() => handleSelectPerson1(option.node.nodeId, option.label)}
                                         >
-                                            <div className="suggestion-name">{option.label}</div>
-                                            <div className="suggestion-info">{option.disambiguationInfo}</div>
+                                            <div className="suggestion-avatar" style={{
+                                                backgroundImage: option.imageUrl ? `url(${option.imageUrl})` : 'none',
+                                                backgroundColor: option.imageUrl ? 'transparent' : (option.gender === 'female' ? '#fce4ec' : '#e3f2fd')
+                                            }}>
+                                                {!option.imageUrl && (
+                                                    <span>{option.label.charAt(0)}</span>
+                                                )}
+                                            </div>
+                                            <div className="suggestion-details">
+                                                <div className="suggestion-main">{option.label}</div>
+                                                <div className="suggestion-sub">
+                                                    {option.treeName}
+                                                    {option.parentName && ` • Father: ${option.parentName}`}
+                                                </div>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -189,8 +218,21 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
                                             className="suggestion-item"
                                             onClick={() => handleSelectPerson2(option.node.nodeId, option.label)}
                                         >
-                                            <div className="suggestion-name">{option.label}</div>
-                                            <div className="suggestion-info">{option.disambiguationInfo}</div>
+                                            <div className="suggestion-avatar" style={{
+                                                backgroundImage: option.imageUrl ? `url(${option.imageUrl})` : 'none',
+                                                backgroundColor: option.imageUrl ? 'transparent' : (option.gender === 'female' ? '#fce4ec' : '#e3f2fd')
+                                            }}>
+                                                {!option.imageUrl && (
+                                                    <span>{option.label.charAt(0)}</span>
+                                                )}
+                                            </div>
+                                            <div className="suggestion-details">
+                                                <div className="suggestion-main">{option.label}</div>
+                                                <div className="suggestion-sub">
+                                                    {option.treeName}
+                                                    {option.parentName && ` • Father: ${option.parentName}`}
+                                                </div>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
