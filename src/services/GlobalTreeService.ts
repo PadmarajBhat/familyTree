@@ -70,6 +70,18 @@ export const GlobalTreeService = {
         return results;
     },
 
+    /**
+     * Get all nodes from all loaded trees as a flat list
+     * Useful for building global relationship graphs
+     */
+    getAllNodesFlat(): PersonNode[] {
+        const allNodes: PersonNode[] = [];
+        Object.values(loadedTreesCache).forEach(tree => {
+            allNodes.push(...Object.values(tree.nodes));
+        });
+        return allNodes;
+    },
+
     // Get a specific node from cache
     getNode(treeId: string, nodeId: string): PersonNode | null {
         const tree = loadedTreesCache[treeId];
