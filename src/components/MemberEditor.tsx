@@ -514,17 +514,54 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     }, [initialData]);
 
     // Debounced Location Search
+
+
+    // Ref to prevent auto-search when user selects a suggestion
+    const isSelectingRef = useRef(false);
+
+    // Debounced Location Search
     useEffect(() => {
         const timer = setTimeout(async () => {
+            // If we are merely setting the text due to selection, don't search again
+            if (isSelectingRef.current) {
+                isSelectingRef.current = false;
+                return;
+            }
+
             if (!locationSearchText || locationSearchText.length < 3) {
                 setLocationSuggestions([]);
                 setShowLocationSuggestions(false);
                 return;
             }
 
+            const cleanText = locationSearchText.trim();
+            const isSixDigitPincode = /^\d{6}$/.test(cleanText);
+
             try {
-                // Use Photon API (Komoot) which is CORS-friendly
-                const response = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(locationSearchText)}&limit=5`);
+                if (isSixDigitPincode) {
+                    // Priority 1: Indian Post API for 6-digit numbers (More accurate for India)
+                    const response = await fetch(`https://api.postalpincode.in/pincode/${cleanText}`);
+                    const data = await response.json();
+                    if (data && data[0].Status === "Success") {
+                        const mapped = data[0].PostOffice.map((po: any) => ({
+                            display_name: `${po.Name}, ${po.District}, ${po.State}, India`,
+                            address: {
+                                postcode: po.Pincode,
+                                city: po.District, // Use District as City/Main location
+                                town: po.Name,
+                                village: po.Block,
+                                state: po.State,
+                                country: 'India'
+                            }
+                        }));
+                        setLocationSuggestions(mapped);
+                        setShowLocationSuggestions(true);
+                        return;
+                    }
+                }
+
+                // Priority 2: Photon API (Komoot) for text search or non-Indian/invalid pincodes
+                const response = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(cleanText)}&limit=5`);
 
                 if (response.ok) {
                     const data = await response.json();
@@ -558,6 +595,9 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     }, [locationSearchText]);
 
     const handleLocationSelect = (place: any) => {
+        // Prevent the search effect from firing due to this update
+        isSelectingRef.current = true;
+
         const addr = place.address;
         const newZip = addr.postcode || '';
         const district = addr.city || addr.town || addr.village || addr.county || addr.state_district || '';
