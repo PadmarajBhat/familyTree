@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { PersonNode } from '../logic/types';
-import { getISTTimestamp, deriveDobFromAge, calculateAge } from '../logic/dateUtils';
+import { getISTTimestamp, deriveDobFromAge, calculateAge, formatDateToDDMMYYYY, parseDateFromDDMMYYYY } from '../logic/dateUtils';
 import { isAncestor } from '../logic/relationshipUtils';
 import { uploadImage, getPhotoUrl, deleteFile } from '../services/drive';
 import { GlobalTreeService, type SearchResult } from '../services/GlobalTreeService';
@@ -31,8 +31,10 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     // const [gender, setGender] = useState<'male' | 'female' | 'other'>('male'); // TODO: Add gender to PersonNode if needed, currently not in interface but useful for UI
     const [isAlive, setIsAlive] = useState(initialData ? !initialData.dod : true);
     const [dob, setDob] = useState(initialData?.dob || '');
+    const [dobInput, setDobInput] = useState(formatDateToDDMMYYYY(initialData?.dob || null));
     const [age, setAge] = useState(initialData?.ageProvided?.toString() || '');
     const [dod, setDod] = useState(initialData?.dod || '');
+    const [dodInput, setDodInput] = useState(formatDateToDDMMYYYY(initialData?.dod || null));
     const [phone, setPhone] = useState(initialData?.phone || '');
     const [email, setEmail] = useState(initialData?.email || '');
     const [address, setAddress] = useState(initialData?.address?.freeform || '');
@@ -132,13 +134,14 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
         }
     };
 
-    const fetchLocation = async () => {
-        if (!zipcode || zipcode.length < 4) {
-            alert("Please enter a valid zipcode.");
+    const fetchLocation = async (zip: string) => {
+        if (!zip || zip.length < 4) {
+            // Clear location if too short
+            setLocationData({ district: null, state: null, country: null });
             return;
         }
 
-        const cleanZip = zipcode.trim();
+        const cleanZip = zip.trim();
         const len = cleanZip.length;
 
         try {
@@ -180,15 +183,21 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                     return;
                 }
             }
-
-            // Fallback if specific length checks failed or API returned error
-            alert("Could not fetch location details. Please enter manually.");
-
+            // Silent fail for auto-fetch
         } catch (error) {
             console.error("Error fetching location:", error);
-            alert("Error fetching location.");
         }
     };
+
+    // Auto-fetch location effect
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (zipcode && zipcode.length >= 4) {
+                fetchLocation(zipcode);
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [zipcode]);
 
     // Use an effect for searching to handle async GlobalTreeService if needed (though it's sync for now if loaded)
     // Actually GlobalTreeService.searchAllTrees is sync on cache.
@@ -418,7 +427,10 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
         }
 
         setName(result.node.name || '');
-        if (result.node.dob) setDob(result.node.dob);
+        if (result.node.dob) {
+            setDob(result.node.dob);
+            setDobInput(formatDateToDDMMYYYY(result.node.dob));
+        }
         if (result.node.gender) setGender(result.node.gender || 'other');
 
         setShowNameSuggestions(false);
@@ -554,6 +566,8 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         <small>Edits made here will update the source tree automatically.</small>
                     </div>
                 )}
+
+
                 <form onSubmit={(e) => handleSubmit(e, false)}>
                     <div className="form-actions top-actions">
                         <button type="submit" disabled={uploading} className="primary-btn">
@@ -588,6 +602,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         />
                     </div>
 
+                    {/* 1. Name */}
                     <div className="form-group" style={{ position: 'relative' }}>
                         <label>Name</label>
                         <input
@@ -622,6 +637,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         )}
                     </div>
 
+                    {/* 2. Gender */}
                     <div className="form-group">
                         <label>Gender</label>
                         <div className="toggle-group">
@@ -652,6 +668,13 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         </div>
                     </div>
 
+                    {/* 3. Phone */}
+                    <div className="form-group">
+                        <label>Phone</label>
+                        <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
+                    </div>
+
+                    {/* 4. Father */}
                     <div className="form-group">
                         <label>Father (Parent)</label>
                         <div className="autocomplete">
@@ -691,6 +714,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         </div>
                     </div>
 
+                    {/* 5. Spouses */}
                     <div className="form-group">
                         <label>Spouses</label>
                         <div className="children-list">
@@ -739,6 +763,178 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         </div>
                     </div>
 
+                    {/* 6. Zipcode */}
+                    <div className="form-group">
+                        <label>Location (Zipcode)</label>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <input
+                                type="text"
+                                value={zipcode}
+                                onChange={e => setZipcode(e.target.value)}
+                                placeholder="Zipcode/Pincode (Auto-search)"
+                                style={{ flex: 1 }}
+                            />
+                            {/* Fetch button removed */}
+                        </div>
+                        {locationData.district && (
+                            <div style={{ marginTop: '10px', fontSize: '0.9em', color: '#555' }}>
+                                {locationData.district}, {locationData.state}, {locationData.country}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* 7. Status */}
+                    <div className="form-group">
+                        <label>Status</label>
+                        <div className="toggle-group">
+                            <label>
+                                <input
+                                    type="radio"
+                                    checked={isAlive}
+                                    onChange={() => setIsAlive(true)}
+                                /> Alive
+                            </label>
+                            <label>
+                                <input
+                                    type="radio"
+                                    checked={!isAlive}
+                                    onChange={() => setIsAlive(false)}
+                                /> Deceased
+                            </label>
+                        </div>
+                    </div>
+
+                    {/* 8. DOB / Age / DOD */}
+                    <div className="form-group">
+                        <label>Date of Birth (DD-MM-YYYY)</label>
+                        <input
+                            type="text"
+                            value={dobInput}
+                            placeholder="DD-MM-YYYY"
+                            inputMode="numeric"
+                            onChange={e => {
+                                const val = e.target.value;
+                                setDobInput(val);
+                                const parsed = parseDateFromDDMMYYYY(val);
+                                if (parsed) {
+                                    setDob(parsed);
+                                    setAge('');
+                                } else if (val === '') {
+                                    setDob('');
+                                }
+                            }}
+                        />
+                    </div>
+
+                    {
+                        !dob && (
+                            <div className="form-group">
+                                <label>Or Age (approx)</label>
+                                <input type="number" value={age} onChange={e => { setAge(e.target.value); setDob(''); setDobInput(''); }} placeholder="Years" />
+                            </div>
+                        )
+                    }
+
+                    {
+                        !isAlive && (
+                            <div className="form-group">
+                                <label>Date of Death (DD-MM-YYYY)</label>
+                                <input
+                                    type="text"
+                                    value={dodInput}
+                                    placeholder="DD-MM-YYYY"
+                                    inputMode="numeric"
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setDodInput(val);
+                                        const parsed = parseDateFromDDMMYYYY(val);
+                                        if (parsed) {
+                                            setDod(parsed);
+                                        } else if (val === '') {
+                                            setDod('');
+                                        }
+                                    }}
+                                />
+                            </div>
+                        )
+                    }
+
+                    {/* 9. Email */}
+                    <div className="form-group">
+                        <label>Email {(initialData?.isEditor) && <span style={{ color: 'red' }}>*</span>}</label>
+                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required={initialData?.isEditor || false} />
+                    </div>
+
+                    {/* 10. Address */}
+                    <div className="form-group">
+                        <label>Address</label>
+                        <textarea value={address} onChange={e => setAddress(e.target.value)} rows={3} />
+                    </div>
+
+                    {/* 11. Education */}
+                    <div className="form-group">
+                        <label>Education</label>
+                        {education.map((edu, index) => (
+                            <div key={index} style={{ display: 'flex', gap: '10px', marginBottom: '5px' }}>
+                                <input
+                                    type="text"
+                                    placeholder="Degree"
+                                    value={edu.degree}
+                                    onChange={e => {
+                                        const newEdu = [...education];
+                                        newEdu[index].degree = e.target.value;
+                                        setEducation(newEdu);
+                                    }}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Major"
+                                    value={edu.major}
+                                    onChange={e => {
+                                        const newEdu = [...education];
+                                        newEdu[index].major = e.target.value;
+                                        setEducation(newEdu);
+                                    }}
+                                />
+                                <button type="button" onClick={() => {
+                                    setEducation(education.filter((_, i) => i !== index));
+                                }}>×</button>
+                            </div>
+                        ))}
+                        <button type="button" onClick={() => setEducation([...education, { degree: '', major: '' }])} style={{ fontSize: '0.8em' }}>+ Add Education</button>
+                    </div>
+
+                    {/* 12. Occupation */}
+                    <div className="form-group">
+                        <label>Occupation</label>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <input
+                                type="text"
+                                placeholder="Role"
+                                value={occupation?.role || ''}
+                                onChange={e => setOccupation({ ...occupation, role: e.target.value, organization: occupation?.organization || '' })}
+                            />
+                            <input
+                                type="text"
+                                placeholder="Organization"
+                                value={occupation?.organization || ''}
+                                onChange={e => setOccupation({ ...occupation, role: occupation?.role || '', organization: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    {/* 13. Hobbies */}
+                    <div className="form-group">
+                        <label>Hobbies</label>
+                        <input
+                            type="text"
+                            value={hobbies.join(', ')}
+                            onChange={e => setHobbies(e.target.value.split(',').map(s => s.trim()).filter(s => s))}
+                            placeholder="Reading, Traveling, etc."
+                        />
+                    </div>
+
+                    {/* 14. Siblings */}
                     <div className="form-group">
                         <label>Siblings {(!parentId) && <span style={{ fontSize: '0.8em', color: '#888' }}>(Requires Parent)</span>}</label>
                         {parentId ? (
@@ -782,6 +978,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         )}
                     </div>
 
+                    {/* 15. Children */}
                     <div className="form-group">
                         <label>Children</label>
                         <div className="children-list">
@@ -830,149 +1027,14 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         </div>
                     </div>
 
-                    <div className="form-group">
-                        <label>Status</label>
-                        <div className="toggle-group">
-                            <label>
-                                <input
-                                    type="radio"
-                                    checked={isAlive}
-                                    onChange={() => setIsAlive(true)}
-                                /> Alive
-                            </label>
-                            <label>
-                                <input
-                                    type="radio"
-                                    checked={!isAlive}
-                                    onChange={() => setIsAlive(false)}
-                                /> Deceased
-                            </label>
-                        </div>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Date of Birth</label>
-                        <input type="date" value={dob} onChange={e => { setDob(e.target.value); setAge(''); }} />
-                    </div>
-
-                    {
-                        !dob && (
-                            <div className="form-group">
-                                <label>Or Age (approx)</label>
-                                <input type="number" value={age} onChange={e => { setAge(e.target.value); setDob(''); }} placeholder="Years" />
-                            </div>
-                        )
-                    }
-
-                    {
-                        !isAlive && (
-                            <div className="form-group">
-                                <label>Date of Death</label>
-                                <input type="date" value={dod} onChange={e => setDod(e.target.value)} />
-                            </div>
-                        )
-                    }
-
-                    <div className="form-group">
-                        <label>Phone</label>
-                        <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Email {(initialData?.isEditor) && <span style={{ color: 'red' }}>*</span>}</label>
-                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required={initialData?.isEditor || false} />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Address</label>
-                        <textarea value={address} onChange={e => setAddress(e.target.value)} rows={3} />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Location (Zipcode)</label>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <input
-                                type="text"
-                                value={zipcode}
-                                onChange={e => setZipcode(e.target.value)}
-                                placeholder="Zipcode/Pincode"
-                                style={{ flex: 1 }}
-                            />
-                            <button type="button" onClick={fetchLocation} style={{ padding: '0 15px' }}>Fetch</button>
-                        </div>
-                        {locationData.district && (
-                            <div style={{ marginTop: '10px', fontSize: '0.9em', color: '#555' }}>
-                                {locationData.district}, {locationData.state}, {locationData.country}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="form-group">
-                        <label>Education</label>
-                        {education.map((edu, index) => (
-                            <div key={index} style={{ display: 'flex', gap: '10px', marginBottom: '5px' }}>
-                                <input
-                                    type="text"
-                                    placeholder="Degree"
-                                    value={edu.degree}
-                                    onChange={e => {
-                                        const newEdu = [...education];
-                                        newEdu[index].degree = e.target.value;
-                                        setEducation(newEdu);
-                                    }}
-                                />
-                                <input
-                                    type="text"
-                                    placeholder="Major"
-                                    value={edu.major}
-                                    onChange={e => {
-                                        const newEdu = [...education];
-                                        newEdu[index].major = e.target.value;
-                                        setEducation(newEdu);
-                                    }}
-                                />
-                                <button type="button" onClick={() => {
-                                    setEducation(education.filter((_, i) => i !== index));
-                                }}>×</button>
-                            </div>
-                        ))}
-                        <button type="button" onClick={() => setEducation([...education, { degree: '', major: '' }])} style={{ fontSize: '0.8em' }}>+ Add Education</button>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Occupation</label>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <input
-                                type="text"
-                                placeholder="Role"
-                                value={occupation?.role || ''}
-                                onChange={e => setOccupation({ ...occupation, role: e.target.value, organization: occupation?.organization || '' })}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Organization"
-                                value={occupation?.organization || ''}
-                                onChange={e => setOccupation({ ...occupation, role: occupation?.role || '', organization: e.target.value })}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Hobbies</label>
-                        <input
-                            type="text"
-                            value={hobbies.join(', ')}
-                            onChange={e => setHobbies(e.target.value.split(',').map(s => s.trim()).filter(s => s))}
-                            placeholder="Reading, Traveling, etc."
-                        />
-                    </div>
-
+                    {/* 16. Notes */}
                     <div className="form-group">
                         <label>Notes</label>
                         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Random remarks..." />
                     </div>
 
                 </form >
+
             </div >
         </div >
     );
