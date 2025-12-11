@@ -9,6 +9,7 @@ interface VersionHistoryProps {
     onClose: () => void;
     onSelectNode: (nodeId: string) => void;
     filterNodeId?: string | null;
+    treeName?: string;
 }
 
 interface GroupedLog {
@@ -23,10 +24,9 @@ interface GroupedLog {
     }[];
 }
 
-export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary = [], nodes, onClose, onSelectNode, filterNodeId }) => {
+export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary = [], nodes, onClose, onSelectNode, filterNodeId, treeName }) => {
     const [viewMode, setViewMode] = React.useState<'date' | 'author'>('date');
     const [expandedSections, setExpandedSections] = React.useState<Set<string>>(new Set(['date-Today']));
-
     const toggleSection = (id: string) => {
         const newSet = new Set(expandedSections);
         if (newSet.has(id)) {
@@ -36,7 +36,6 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary = [], no
         }
         setExpandedSections(newSet);
     };
-
     // Filter logs if filterNodeId is provided
     const filteredSummary = useMemo(() => {
         if (!filterNodeId) return summary;
@@ -323,7 +322,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary = [], no
                             )}
                             <div className="author-logs">
                                 {authorGroup.logs.map((log, idx) => {
-                                    const rootNodeLink = log.rootNodeName ? findNodeByName(log.rootNodeName) : null;
+                                    // Removed root node display logic here
                                     return (
                                         <div key={idx} className="log-entry">
                                             <div className="log-time">
@@ -331,24 +330,6 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary = [], no
                                             </div>
                                             <div className="log-content">
                                                 <LogMessage log={log} />
-                                                {log.rootNodeName && (
-                                                    <div className="log-root">
-                                                        Root: {rootNodeLink ? (
-                                                            <span
-                                                                className="clickable-link"
-                                                                onClick={() => {
-                                                                    onSelectNode(rootNodeLink.nodeId);
-                                                                }}
-                                                                title="View Profile"
-                                                                style={{ cursor: 'pointer', color: '#2196f3', textDecoration: 'underline' }}
-                                                            >
-                                                                {log.rootNodeName}
-                                                            </span>
-                                                        ) : (
-                                                            log.rootNodeName
-                                                        )}
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
                                     );
@@ -396,12 +377,15 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary = [], no
         <div className="version-history-container">
             <div style={{ padding: '16px 20px 0 20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h2 style={{ margin: 0 }}>
-                        {filterNodeId && nodes[filterNodeId]
-                            ? `History for ${nodes[filterNodeId].name}`
-                            : "Version History"
-                        }
-                    </h2>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        {treeName && <h4 style={{ margin: '0 0 4px 0', color: '#666', fontWeight: 'normal' }}>{treeName}</h4>}
+                        <h2 style={{ margin: 0 }}>
+                            {filterNodeId && nodes[filterNodeId]
+                                ? `History for ${nodes[filterNodeId].name}`
+                                : "Version History"
+                            }
+                        </h2>
+                    </div>
                     <CloseButton onClick={onClose} />
                 </div>
 

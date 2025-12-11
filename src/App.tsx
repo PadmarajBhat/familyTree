@@ -1379,6 +1379,9 @@ function App() {
           <VersionHistory
             summary={tree.summary}
             nodes={tree.nodes}
+            // Note: tree.treeName might be available in the tree object itself, but currentTreeName is state managed.
+            // Using currentTreeName from App state is safer as it comes from filename/load logic.
+            treeName={currentTreeName || tree.treeName || 'Family Tree'}
             onClose={handleManualClose}
             onSelectNode={(nodeId) => {
               setShowVersionHistory(false);
