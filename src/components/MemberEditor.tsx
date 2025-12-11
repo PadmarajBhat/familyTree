@@ -522,22 +522,30 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                 return;
             }
 
-            // Don't search if the text matches the current zipcode (avoid re-searching on selection)
-            // Actually, we can't easily check this. Let's just relying on user interaction.
-            // A flag 'isSelectors' might be better, or just search.
-
             try {
-                // Determine if it looks like a zipcode or text
-                // Nominatim handles both with 'q='
-                const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationSearchText)}&format=json&addressdetails=1&limit=5`, {
-                    headers: {
-                        'User-Agent': 'FamilyTreeApp/1.0' // Nominatim requires a user agent
-                    }
-                });
+                // Use Photon API (Komoot) which is CORS-friendly
+                const response = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(locationSearchText)}&limit=5`);
 
                 if (response.ok) {
                     const data = await response.json();
-                    setLocationSuggestions(data);
+                    // Photon returns GeoJSON features. Map them to our expected format.
+                    const mapped = data.features.map((f: any) => {
+                        const p = f.properties;
+                        return {
+                            display_name: [p.name, p.city, p.state, p.country].filter(Boolean).join(', '),
+                            address: {
+                                postcode: p.postcode,
+                                city: p.city,
+                                town: p.town,
+                                village: p.village,
+                                county: p.county,
+                                state_district: p.state, // Photon puts state in 'state' usually
+                                state: p.state,
+                                country: p.country
+                            }
+                        };
+                    });
+                    setLocationSuggestions(mapped);
                     setShowLocationSuggestions(true);
                 }
             } catch (err) {
