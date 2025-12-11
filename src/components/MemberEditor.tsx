@@ -134,70 +134,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
         }
     };
 
-    const fetchLocation = async (zip: string) => {
-        if (!zip || zip.length < 4) {
-            // Clear location if too short
-            setLocationData({ district: null, state: null, country: null });
-            return;
-        }
 
-        const cleanZip = zip.trim();
-        const len = cleanZip.length;
-
-        try {
-            if (len === 6) {
-                // Try Indian API
-                const response = await fetch(`https://api.postalpincode.in/pincode/${cleanZip}`);
-                const data = await response.json();
-                if (data && data[0].Status === "Success") {
-                    const details = data[0].PostOffice[0];
-                    setLocationData({
-                        district: details.District,
-                        state: details.State,
-                        country: details.Country
-                    });
-                    return;
-                }
-            } else if (len === 4) {
-                // Try Australia (Zippopotam.us)
-                const response = await fetch(`https://api.zippopotam.us/au/${cleanZip}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setLocationData({
-                        district: data.places[0]['place name'],
-                        state: data.places[0]['state'],
-                        country: data.country
-                    });
-                    return;
-                }
-            } else if (len === 5) {
-                // Try US (Zippopotam.us)
-                const response = await fetch(`https://api.zippopotam.us/us/${cleanZip}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setLocationData({
-                        district: data.places[0]['place name'],
-                        state: data.places[0]['state'],
-                        country: data.country
-                    });
-                    return;
-                }
-            }
-            // Silent fail for auto-fetch
-        } catch (error) {
-            console.error("Error fetching location:", error);
-        }
-    };
-
-    // Auto-fetch location effect
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (zipcode && zipcode.length >= 4) {
-                fetchLocation(zipcode);
-            }
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [zipcode]);
 
     // Use an effect for searching to handle async GlobalTreeService if needed (though it's sync for now if loaded)
     // Actually GlobalTreeService.searchAllTrees is sync on cache.
@@ -554,6 +491,81 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
         }
     };
 
+    // Location Search State (Nominatim)
+    const [locationSearchText, setLocationSearchText] = useState('');
+    const [locationSuggestions, setLocationSuggestions] = useState<any[]>([]);
+    const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
+
+    // Initialize location search text from existing data
+    useEffect(() => {
+        if (initialData?.location) {
+            const parts = [
+                initialData.location.district,
+                initialData.location.state,
+                initialData.location.country
+            ].filter(Boolean).join(', ');
+
+            if (parts) {
+                setLocationSearchText(parts + (initialData.location.zipcode ? ` (${initialData.location.zipcode})` : ''));
+            } else if (initialData.location.zipcode) {
+                setLocationSearchText(initialData.location.zipcode);
+            }
+        }
+    }, [initialData]);
+
+    // Debounced Location Search
+    useEffect(() => {
+        const timer = setTimeout(async () => {
+            if (!locationSearchText || locationSearchText.length < 3) {
+                setLocationSuggestions([]);
+                setShowLocationSuggestions(false);
+                return;
+            }
+
+            // Don't search if the text matches the current zipcode (avoid re-searching on selection)
+            // Actually, we can't easily check this. Let's just relying on user interaction.
+            // A flag 'isSelectors' might be better, or just search.
+
+            try {
+                // Determine if it looks like a zipcode or text
+                // Nominatim handles both with 'q='
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationSearchText)}&format=json&addressdetails=1&limit=5`, {
+                    headers: {
+                        'User-Agent': 'FamilyTreeApp/1.0' // Nominatim requires a user agent
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    setLocationSuggestions(data);
+                    setShowLocationSuggestions(true);
+                }
+            } catch (err) {
+                console.error("Location search failed", err);
+            }
+
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [locationSearchText]);
+
+    const handleLocationSelect = (place: any) => {
+        const addr = place.address;
+        const newZip = addr.postcode || '';
+        const district = addr.city || addr.town || addr.village || addr.county || addr.state_district || '';
+        const state = addr.state || '';
+        const country = addr.country || '';
+
+        setZipcode(newZip);
+        setLocationData({ district, state, country });
+
+        // Update display text
+        const displayParts = [district, state, country].filter(Boolean).join(', ');
+        setLocationSearchText(displayParts + (newZip ? ` (${newZip})` : ''));
+
+        setShowLocationSuggestions(false);
+    };
+
     return (
         <div className="member-editor-modal">
             <div className="member-editor-content">
@@ -566,7 +578,6 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         <small>Edits made here will update the source tree automatically.</small>
                     </div>
                 )}
-
 
                 <form onSubmit={(e) => handleSubmit(e, false)}>
                     <div className="form-actions top-actions">
@@ -763,25 +774,47 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         </div>
                     </div>
 
-                    {/* 6. Zipcode */}
-                    <div className="form-group">
-                        <label>Location (Zipcode)</label>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <input
-                                type="text"
-                                value={zipcode}
-                                onChange={e => setZipcode(e.target.value)}
-                                placeholder="Zipcode/Pincode (Auto-search)"
-                                style={{ flex: 1 }}
-                            />
-                            {/* Fetch button removed */}
-                        </div>
-                        {locationData.district && (
-                            <div style={{ marginTop: '10px', fontSize: '0.9em', color: '#555' }}>
-                                {locationData.district}, {locationData.state}, {locationData.country}
+                    {/* 6. Location (Name/Zipcode) */}
+                    <div className="form-group" style={{ position: 'relative' }}>
+                        <label>Location (City/Village or Zipcode)</label>
+                        <input
+                            type="text"
+                            value={locationSearchText}
+                            onChange={e => {
+                                setLocationSearchText(e.target.value);
+                                // If user manually clears it, we should verify if we clear data? 
+                                // Let's keep it robust. If they type, we search.
+                            }}
+                            onFocus={() => locationSearchText.length > 2 && setShowLocationSuggestions(true)}
+                            onBlur={() => setTimeout(() => setShowLocationSuggestions(false), 200)}
+                            placeholder="e.g. Mulgund or 582117"
+                        />
+                        {showLocationSuggestions && locationSuggestions.length > 0 && (
+                            <div className="suggestions-dropdown">
+                                <div className="suggestions-header">Locations (OpenStreetMap)</div>
+                                {locationSuggestions.map((place, idx) => (
+                                    <div
+                                        key={idx}
+                                        className="suggestion-item"
+                                        onClick={() => handleLocationSelect(place)}
+                                    >
+                                        <div className="suggestion-info">
+                                            <div className="suggestion-name">{place.display_name}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {/* Hidden/Read-only debug view or simple info if needed */}
+                        {(locationData.district || zipcode) && (
+                            <div style={{ marginTop: '5px', fontSize: '0.85em', color: '#666' }}>
+                                <strong>Stored:</strong> {locationData.district}{locationData.state ? `, ${locationData.state}` : ''}{locationData.country ? `, ${locationData.country}` : ''}
+                                {zipcode ? ` (${zipcode})` : ''}
                             </div>
                         )}
                     </div>
+
+
 
                     {/* 7. Status */}
                     <div className="form-group">
