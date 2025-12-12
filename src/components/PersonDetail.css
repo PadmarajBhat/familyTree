@@ -2,8 +2,8 @@
     position: fixed;
     top: 0;
     left: 0;
-    right: 0;
-    bottom: 0;
+    width: 100vw;
+    height: 100vh;
     background: #f9f9f9;
     z-index: 3000;
     /* Ensure it's on top of everything including app header */
