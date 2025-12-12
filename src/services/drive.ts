@@ -309,7 +309,12 @@ export const deleteFile = async (fileId: string): Promise<void> => {
             fileId: fileId,
         });
         console.log(`File ${fileId} deleted successfully`);
-    } catch (err) {
+    } catch (err: any) {
+        // Ignore 404 (File not found), treat as success (idempotent)
+        if (err?.result?.error?.code === 404 || err?.status === 404) {
+            console.log(`File ${fileId} already deleted (404).`);
+            return;
+        }
         console.error("Error deleting file", err);
         throw err;
     }
