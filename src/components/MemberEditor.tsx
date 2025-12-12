@@ -496,9 +496,14 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     const [locationSuggestions, setLocationSuggestions] = useState<any[]>([]);
     const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
 
+    // Ref to prevent auto-search when user selects a suggestion (or initially loads data)
+    const isSelectingRef = useRef(false);
+
     // Initialize location search text from existing data
     useEffect(() => {
         if (initialData?.location) {
+            // Prevent search trigger on initial load
+            isSelectingRef.current = true;
             const parts = [
                 initialData.location.district,
                 initialData.location.state,
@@ -516,8 +521,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     // Debounced Location Search
 
 
-    // Ref to prevent auto-search when user selects a suggestion
-    const isSelectingRef = useRef(false);
+
 
     // Debounced Location Search
     useEffect(() => {
