@@ -9,14 +9,14 @@ const PrivacyPolicy: React.FC = () => {
 
       <h2>1. Introduction</h2>
       <p>
-        Welcome to our Family Tree Application. This is a private, closed-group platform designed exclusively for family members to connect, 
+        Welcome to our Family Tree Application. This is a private, closed-group platform designed exclusively for family members to connect,
         share, and preserve our shared history. We value the privacy of our family members above all else.
       </p>
 
       <h2>2. A Closed Group Environment</h2>
       <p>
-        This application is not open to the general public. Access is strictly restricted to family members who have been verified and 
-        authorized by the administrators. 
+        This application is not open to the general public. Access is strictly restricted to family members who have been verified and
+        authorized by the administrators.
       </p>
       <ul>
         <li><strong>Strict Access Control:</strong> Only users with a pre-configured email address in their profile can access the application.</li>
@@ -60,8 +60,11 @@ const PrivacyPolicy: React.FC = () => {
       </p>
 
       <div style={{ marginTop: '40px', textAlign: 'center' }}>
-        <button 
-          onClick={() => window.location.href = '/'}
+        <button
+          onClick={() => {
+            window.location.hash = '';
+            window.location.reload();
+          }}
           style={{
             padding: '10px 20px',
             backgroundColor: '#007bff',

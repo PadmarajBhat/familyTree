@@ -76,10 +76,11 @@ function App() {
   }, [isAnyModalOpen]);
 
   useEffect(() => {
-    const path = window.location.pathname;
-    if (path === '/privacy-policy') {
+    // Use hash-based routing for GitHub Pages compatibility (avoids 404s on sub-paths)
+    const hash = window.location.hash;
+    if (hash === '#privacy-policy') {
       setStaticPage('privacy');
-    } else if (path === '/terms-of-service') {
+    } else if (hash === '#terms-of-service') {
       setStaticPage('terms');
     }
   }, []);

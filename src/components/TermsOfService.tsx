@@ -52,7 +52,10 @@ const TermsOfService: React.FC = () => {
 
             <div style={{ marginTop: '40px', textAlign: 'center' }}>
                 <button
-                    onClick={() => window.location.href = '/'}
+                    onClick={() => {
+                        window.location.hash = '';
+                        window.location.reload();
+                    }}
                     style={{
                         padding: '10px 20px',
                         backgroundColor: '#007bff',
