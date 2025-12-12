@@ -378,10 +378,10 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ summary = [], no
             <div style={{ padding: '16px 20px 0 20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        {treeName && <h4 style={{ margin: '0 0 4px 0', color: '#666', fontWeight: 'normal' }}>{treeName}</h4>}
                         <h2 style={{ margin: 0 }}>
+                            {treeName ? `${treeName}: ` : ''}
                             {filterNodeId && nodes[filterNodeId]
-                                ? `History for ${nodes[filterNodeId].name}`
+                                ? `History of ${nodes[filterNodeId].name}`
                                 : "Version History"
                             }
                         </h2>
