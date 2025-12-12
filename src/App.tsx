@@ -1133,6 +1133,12 @@ function App() {
           >
             {isGapiReady ? 'Sign In with Google' : 'Loading...'}
           </button>
+
+          <div style={{ marginTop: '30px', fontSize: '0.85rem', color: '#7f8c8d' }}>
+            <a href="#privacy-policy" style={{ color: '#0984e3', textDecoration: 'none', margin: '0 10px' }}>Privacy Policy</a>
+            |
+            <a href="#terms-of-service" style={{ color: '#0984e3', textDecoration: 'none', margin: '0 10px' }}>Terms of Service</a>
+          </div>
         </div>
       </div>
     );
