@@ -10,6 +10,7 @@ import { getPhotoUrl } from '../services/drive';
 interface DashboardProps {
     tree: TreeDocument;
     onClose: () => void;
+    onNodeClick: (nodeId: string) => void;
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1'];
@@ -24,7 +25,7 @@ interface DashboardData {
     birthsByMonthData: any[];
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [data, setData] = useState<DashboardData | null>(null);
 
@@ -83,16 +84,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
             }
 
 
-            // 3. Age Plot
-            const exclusiveBuckets = [
-                { name: '<5', value: 0 },
-                { name: '5-22', value: 0 },
-                { name: '22-35', value: 0 },
-                { name: '35-60', value: 0 },
-                { name: '60-70', value: 0 },
-                { name: '70-80', value: 0 },
-                { name: '80-90', value: 0 },
-                { name: '>90', value: 0 },
+            // 3. Age Plot (with members)
+            const exclusiveBuckets: { name: string, value: number, members: PersonNode[] }[] = [
+                { name: '<5', value: 0, members: [] },
+                { name: '5-22', value: 0, members: [] },
+                { name: '22-35', value: 0, members: [] },
+                { name: '35-60', value: 0, members: [] },
+                { name: '60-70', value: 0, members: [] },
+                { name: '70-80', value: 0, members: [] },
+                { name: '80-90', value: 0, members: [] },
+                { name: '>90', value: 0, members: [] },
             ];
 
             nodes.forEach(node => {
@@ -106,78 +107,86 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
                 }
 
                 if (age !== null && age !== undefined) {
-                    if (age < 5) exclusiveBuckets[0].value++;
-                    else if (age <= 22) exclusiveBuckets[1].value++;
-                    else if (age <= 35) exclusiveBuckets[2].value++;
-                    else if (age <= 60) exclusiveBuckets[3].value++;
-                    else if (age <= 70) exclusiveBuckets[4].value++;
-                    else if (age <= 80) exclusiveBuckets[5].value++;
-                    else if (age <= 90) exclusiveBuckets[6].value++;
-                    else exclusiveBuckets[7].value++;
+                    if (age < 5) { exclusiveBuckets[0].value++; exclusiveBuckets[0].members.push(node); }
+                    else if (age <= 22) { exclusiveBuckets[1].value++; exclusiveBuckets[1].members.push(node); }
+                    else if (age <= 35) { exclusiveBuckets[2].value++; exclusiveBuckets[2].members.push(node); }
+                    else if (age <= 60) { exclusiveBuckets[3].value++; exclusiveBuckets[3].members.push(node); }
+                    else if (age <= 70) { exclusiveBuckets[4].value++; exclusiveBuckets[4].members.push(node); }
+                    else if (age <= 80) { exclusiveBuckets[5].value++; exclusiveBuckets[5].members.push(node); }
+                    else if (age <= 90) { exclusiveBuckets[6].value++; exclusiveBuckets[6].members.push(node); }
+                    else { exclusiveBuckets[7].value++; exclusiveBuckets[7].members.push(node); }
                 }
             });
 
 
             // 4. Occupation Chart
-            const occCounts: Record<string, number> = {};
+            const occCounts: Record<string, { value: number, members: PersonNode[] }> = {};
             nodes.forEach(node => {
                 if (node.occupation?.role) {
-                    occCounts[node.occupation.role] = (occCounts[node.occupation.role] || 0) + 1;
+                    if (!occCounts[node.occupation.role]) occCounts[node.occupation.role] = { value: 0, members: [] };
+                    occCounts[node.occupation.role].value++;
+                    occCounts[node.occupation.role].members.push(node);
                 }
             });
             const occupationData = Object.entries(occCounts)
-                .map(([name, value]) => ({ name, value }))
+                .map(([name, data]) => ({ name, value: data.value, members: data.members }))
                 .sort((a, b) => b.value - a.value)
                 .slice(0, 15);
 
 
             // 5. Hobbies Plot
-            const hobCounts: Record<string, number> = {};
+            const hobCounts: Record<string, { value: number, members: PersonNode[] }> = {};
             nodes.forEach(node => {
                 if (node.hobbies && Array.isArray(node.hobbies)) {
                     node.hobbies.forEach(hobby => {
-                        hobCounts[hobby] = (hobCounts[hobby] || 0) + 1;
+                        if (!hobCounts[hobby]) hobCounts[hobby] = { value: 0, members: [] };
+                        hobCounts[hobby].value++;
+                        hobCounts[hobby].members.push(node);
                     });
                 }
             });
             const hobbiesData = Object.entries(hobCounts)
-                .map(([name, value]) => ({ name, value }))
+                .map(([name, data]) => ({ name, value: data.value, members: data.members }))
                 .sort((a, b) => b.value - a.value)
                 .slice(0, 15);
 
 
             // 6. Organization Wordcloud (Treemap as proxy)
-            const orgCounts: Record<string, number> = {};
+            const orgCounts: Record<string, { value: number, members: PersonNode[] }> = {};
             nodes.forEach(node => {
                 if (node.occupation?.organization) {
-                    orgCounts[node.occupation.organization] = (orgCounts[node.occupation.organization] || 0) + 1;
+                    if (!orgCounts[node.occupation.organization]) orgCounts[node.occupation.organization] = { value: 0, members: [] };
+                    orgCounts[node.occupation.organization].value++;
+                    orgCounts[node.occupation.organization].members.push(node);
                 }
             });
             const orgData = Object.entries(orgCounts)
-                .map(([name, value]) => ({ name, value }))
+                .map(([name, data]) => ({ name, value: data.value, members: data.members }))
                 .sort((a, b) => b.value - a.value)
                 .slice(0, 20);
 
 
             // 7. Education Plot
-            const eduCounts: Record<string, number> = {};
+            const eduCounts: Record<string, { value: number, members: PersonNode[] }> = {};
             nodes.forEach(node => {
                 if (node.education && Array.isArray(node.education)) {
                     node.education.forEach(edu => {
                         if (edu.degree) {
-                            eduCounts[edu.degree] = (eduCounts[edu.degree] || 0) + 1;
+                            if (!eduCounts[edu.degree]) eduCounts[edu.degree] = { value: 0, members: [] };
+                            eduCounts[edu.degree].value++;
+                            eduCounts[edu.degree].members.push(node);
                         }
                     });
                 }
             });
             const educationData = Object.entries(eduCounts)
-                .map(([name, value]) => ({ name, value }))
+                .map(([name, data]) => ({ name, value: data.value, members: data.members }))
                 .sort((a, b) => b.value - a.value);
 
 
             // 8. Happy Plots - Births by Month
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const monthCounts = new Array(12).fill(0);
+            const monthCounts: { value: number, members: PersonNode[] }[] = new Array(12).fill(null).map(() => ({ value: 0, members: [] }));
 
             nodes.forEach(node => {
                 let month = null;
@@ -188,10 +197,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
                 }
 
                 if (month !== null && month >= 0 && month < 12) {
-                    monthCounts[month]++;
+                    monthCounts[month].value++;
+                    monthCounts[month].members.push(node);
                 }
             });
-            const birthsByMonthData = months.map((name, index) => ({ name, value: monthCounts[index] }));
+            const birthsByMonthData = months.map((name, index) => ({ name, value: monthCounts[index].value, members: monthCounts[index].members }));
 
             setData({
                 memberGrowthData,
@@ -245,7 +255,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
                                 dataKey="count"
                                 name="Total Members"
                                 stroke="#8884d8"
-                                dot={<CustomDot />}
+                                dot={(props) => <CustomDot {...props} onNodeClick={onNodeClick} />}
                                 activeDot={{ r: 8 }}
                                 isAnimationActive={false}
                             />
@@ -257,7 +267,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
                 <div className="chart-card" style={cardStyle}>
                     <h3>Member Locations</h3>
                     {/* Force remount when tree updates to clear potential stale state */}
-                    <MapChart key={tree.timestamp} nodes={Object.values(tree.nodes)} />
+                    <MapChart key={tree.timestamp} nodes={Object.values(tree.nodes)} onNodeClick={onNodeClick} />
                 </div>
 
                 {/* 3. Age Distribution */}
@@ -268,7 +278,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis allowDecimals={false} />
-                            <Tooltip />
+                            <Tooltip content={<CustomTooltip />} />
                             <Legend />
                             <Bar dataKey="value" fill="#82ca9d">
                                 {data.ageData.map((_, index) => (
@@ -298,7 +308,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                             </Pie>
-                            <Tooltip />
+                            <Tooltip content={<CustomTooltip />} />
                         </PieChart>
                     </ResponsiveContainer>
                 </div>
@@ -311,7 +321,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis allowDecimals={false} />
-                            <Tooltip />
+                            <Tooltip content={<CustomTooltip />} />
                             <Legend />
                             <Bar dataKey="value" fill="#FFBB28" />
                         </BarChart>
@@ -328,7 +338,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
                             aspectRatio={4 / 3}
                             stroke="#fff"
                             fill="#8884d8"
-                        />
+                        >
+                            <Tooltip content={<CustomTooltip />} />
+                        </Treemap>
                     </ResponsiveContainer>
                 </div>
 
@@ -350,7 +362,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                             </Pie>
-                            <Tooltip />
+                            <Tooltip content={<CustomTooltip />} />
                             <Legend />
                         </PieChart>
                     </ResponsiveContainer>
@@ -364,7 +376,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose }) => {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis allowDecimals={false} />
-                            <Tooltip />
+                            <Tooltip content={<CustomTooltip />} />
                             <Bar dataKey="value" fill="#FF8042" />
                         </BarChart>
                     </ResponsiveContainer>
@@ -386,7 +398,7 @@ const cardStyle = {
 
 // Custom Dot to render image of person born that year
 const CustomDot = (props: any) => {
-    const { cx, cy, payload } = props;
+    const { cx, cy, payload, onNodeClick } = props;
     if (!payload.births || payload.births.length === 0) {
         return <circle cx={cx} cy={cy} r={4} stroke="#8884d8" strokeWidth={2} fill="#fff" />;
     }
@@ -415,13 +427,19 @@ const CustomDot = (props: any) => {
                             width={size}
                             height={size}
                             href={imgUrl}
-                            style={{ clipPath: 'circle(50%)' }}
+                            style={{ clipPath: 'circle(50%)', cursor: 'pointer' }}
+                            onClick={() => onNodeClick && onNodeClick(m.nodeId)}
                         />
                     );
                 }
                 // Fallback to circle with initial
                 return (
-                    <g key={m.nodeId} transform={`translate(${xPos}, ${yPos})`}>
+                    <g
+                        key={m.nodeId}
+                        transform={`translate(${xPos}, ${yPos})`}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => onNodeClick && onNodeClick(m.nodeId)}
+                    >
                         <circle cx={size / 2} cy={size / 2} r={size / 2} fill="#2196f3" stroke="white" strokeWidth="1" />
                         <text x={size / 2} y={size / 2} dy=".3em" textAnchor="middle" fill="white" fontSize="10">{m.name?.charAt(0)}</text>
                     </g>
@@ -434,18 +452,25 @@ const CustomDot = (props: any) => {
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
+        // Handle explicit births array (growth chart) or generic members array
+        const members: PersonNode[] = data.births || data.members || [];
+        const deaths = data.deaths; // Only for growth chart
+
         return (
-            <div style={{ background: 'white', padding: '10px', border: '1px solid #ccc', borderRadius: '4px' }}>
-                <p><strong>Year: {label}</strong></p>
-                <p>Total Members: {data.count}</p>
-                <p>Births: {data.births.length}</p>
-                <p>Deaths: {data.deaths}</p>
-                {data.births.length > 0 && (
+            <div style={{ background: 'white', padding: '10px', border: '1px solid #ccc', borderRadius: '4px', maxWidth: '250px', zIndex: 1000 }}>
+                <p><strong>{label ? `Label: ${label}` : data.name}</strong></p>
+                {data.year && <p>Year: {data.year}</p>}
+                <p>Value: {data.value || data.count}</p>
+                {deaths !== undefined && <p>Deaths: {deaths}</p>}
+
+                {members.length > 0 && (
                     <div style={{ marginTop: '5px' }}>
-                        <p style={{ fontSize: '0.9em', fontWeight: 'bold' }}>Born:</p>
-                        <ul style={{ margin: 0, paddingLeft: '15px', fontSize: '0.8em', maxHeight: '100px', overflowY: 'auto' }}>
-                            {data.births.map((m: PersonNode) => (
-                                <li key={m.nodeId}>{m.name}</li>
+                        <p style={{ fontSize: '0.9em', fontWeight: 'bold' }}>Members ({members.length}):</p>
+                        <ul style={{ margin: 0, paddingLeft: '15px', fontSize: '0.8em', maxHeight: '150px', overflowY: 'auto' }}>
+                            {members.map((m: PersonNode) => (
+                                <li key={m.nodeId} style={{ marginBottom: '4px' }}>
+                                    <span style={{ fontWeight: '500' }}>{m.name}</span>
+                                </li>
                             ))}
                         </ul>
                     </div>

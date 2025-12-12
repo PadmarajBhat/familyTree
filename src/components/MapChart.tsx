@@ -8,6 +8,7 @@ import { getPhotoUrl } from '../services/drive';
 
 interface MapChartProps {
     nodes: PersonNode[];
+    onNodeClick?: (nodeId: string) => void;
 }
 
 interface LocationData {
@@ -32,7 +33,7 @@ const ChangeView = ({ bounds }: { bounds: L.LatLngBoundsExpression | null }) => 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type GeoJSONType = any;
 
-export const MapChart: React.FC<MapChartProps> = ({ nodes }) => {
+export const MapChart: React.FC<MapChartProps> = ({ nodes, onNodeClick }) => {
     const [locations, setLocations] = useState<LocationData[]>([]);
     const [loading, setLoading] = useState(true);
     const [indiaGeoJson, setIndiaGeoJson] = useState<GeoJSONType | null>(null);
@@ -156,7 +157,16 @@ export const MapChart: React.FC<MapChartProps> = ({ nodes }) => {
                                 <strong>{loc.name}</strong>
                                 <div style={{ marginTop: '5px', display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                                     {loc.members.map(m => (
-                                        <div key={m.nodeId} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
+                                        <div
+                                            key={m.nodeId}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px',
+                                                cursor: onNodeClick ? 'pointer' : 'default', padding: '2px', borderRadius: '4px'
+                                            }}
+                                            onClick={() => onNodeClick && onNodeClick(m.nodeId)}
+                                            onMouseOver={(e) => e.currentTarget.style.background = '#f0f0f0'}
+                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                        >
                                             {m.imageUrl ? (
                                                 <img src={m.imageUrl} alt={m.name || '?'} style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} />
                                             ) : (
@@ -164,7 +174,7 @@ export const MapChart: React.FC<MapChartProps> = ({ nodes }) => {
                                                     {m.name?.charAt(0) || '?'}
                                                 </div>
                                             )}
-                                            <span>{m.name}</span>
+                                            <span style={{ textDecoration: onNodeClick ? 'underline' : 'none', color: onNodeClick ? '#2196f3' : 'inherit' }}>{m.name}</span>
                                         </div>
                                     ))}
                                 </div>

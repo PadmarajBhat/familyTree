@@ -1419,7 +1419,11 @@ function App() {
         )}
 
         {showDashboard && tree && (
-          <Dashboard tree={tree} onClose={handleManualClose} />
+          <Dashboard
+            tree={tree}
+            onClose={handleManualClose}
+            onNodeClick={handleNodeClick}
+          />
         )}
 
         {/* TreePicker removed */}

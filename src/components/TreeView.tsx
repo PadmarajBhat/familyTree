@@ -575,7 +575,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
     return (
         <div ref={wrapperRef} style={{
             width: isExporting ? 'auto' : '100%',
-            height: isExporting ? 'auto' : '100vh',
+            height: isExporting ? 'auto' : '100%',
             overflow: isExporting ? 'visible' : 'hidden',
             background: '#f9f9f9',
             minHeight: isExporting ? '100px' : undefined, // Ensure some height

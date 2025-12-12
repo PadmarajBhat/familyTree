@@ -1,13 +1,12 @@
 .person-detail-overlay {
     position: fixed;
-    top: 50px;
-    /* Below header/banner */
+    top: 0;
     left: 0;
     right: 0;
     bottom: 0;
     background: #f9f9f9;
-    z-index: 2000;
-    /* Ensure it's on top of everything */
+    z-index: 3000;
+    /* Ensure it's on top of everything including app header */
     display: flex;
     flex-direction: column;
     overflow: hidden;
