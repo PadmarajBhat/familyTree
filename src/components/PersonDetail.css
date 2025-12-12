@@ -5,7 +5,7 @@
     width: 100vw;
     height: 100vh;
     background: #f9f9f9;
-    z-index: 3000;
+    z-index: 1100;
     /* Ensure it's on top of everything including app header */
     display: flex;
     flex-direction: column;
