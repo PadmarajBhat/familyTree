@@ -17,6 +17,8 @@ import { LoadingOverlay } from './components/LoadingOverlay';
 import { canEdit } from './logic/accessControl';
 import { canEditNode, isGlobalEditor } from './logic/permissions';
 import { getISTTimestamp } from './logic/dateUtils';
+import PrivacyPolicy from './components/PrivacyPolicy';
+import TermsOfService from './components/TermsOfService';
 
 import { getTreeNameFromFilename, generateFilename } from './logic/fileUtils';
 import './App.css';
@@ -52,6 +54,7 @@ function App() {
   const [viewDepth, setViewDepth] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [homeAutoloadEnabled, setHomeAutoloadEnabled] = useState(true);
+  const [staticPage, setStaticPage] = useState<'privacy' | 'terms' | null>(null);
 
   // --- History / Back Button Logic ---
   const isAnyModalOpen = showSearch || showCollaborators || showFindRelation || showVersionHistory || showDashboard || !!selectedNodeId || !!editorMode;
@@ -71,6 +74,15 @@ function App() {
       }
     }
   }, [isAnyModalOpen]);
+
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path === '/privacy-policy') {
+      setStaticPage('privacy');
+    } else if (path === '/terms-of-service') {
+      setStaticPage('terms');
+    }
+  }, []);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -1053,6 +1065,14 @@ function App() {
     setSelectedNodeId(null); // Close Person Detail
   };
 
+  if (staticPage === 'privacy') {
+    return <PrivacyPolicy />;
+  }
+
+  if (staticPage === 'terms') {
+    return <TermsOfService />;
+  }
+
   if (!isSignedIn) {
     return (
       <div className="app-container" style={{
@@ -1429,6 +1449,7 @@ function App() {
       </main>
     </div>
   );
+
 }
 
 export default App;
