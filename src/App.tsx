@@ -1,5 +1,6 @@
+
 import { useEffect, useState } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, updateUserPreference, getPreferences, grantWritePermission, renameFile } from './services/drive';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, updateUserPreference, getPreferences, grantWritePermission, grantLockFilePermission, renameFile } from './services/drive';
 import { useTranslation } from 'react-i18next';
 import { GlobalTreeService } from './services/GlobalTreeService';
 import type { TreeDocument, PersonNode } from './logic/types';
@@ -154,7 +155,7 @@ function App() {
   // Sync GlobalTreeService with shortlisted trees for Unified Search
   useEffect(() => {
     if (currentUser?.email && isGapiReady && isSignedIn) {
-      const shortlistKey = `shortlist_${currentUser.email}`;
+      const shortlistKey = `shortlist_${currentUser.email} `;
       const storedShortlist = localStorage.getItem(shortlistKey);
       if (storedShortlist) {
         try {
@@ -561,8 +562,8 @@ function App() {
         const oldFile = files.find((f: any) => f.id === currentTreeId);
         if (oldFile) {
           // Rename it
-          const backupName = `backup_${oldFile.name}`;
-          console.log(`Renaming old file ${oldFile.name} to ${backupName}`);
+          const backupName = `backup_${oldFile.name} `;
+          console.log(`Renaming old file ${oldFile.name} to ${backupName} `);
           try {
             await renameFile(oldFile.id, backupName);
           } catch (e) {
@@ -650,7 +651,7 @@ function App() {
       const structuredChanges: { type: 'ADD' | 'EDIT' | 'DELETE' | 'REPARENT'; nodeId: string | null; fieldsChanged: string[]; before: Partial<PersonNode>; after: Partial<PersonNode>; }[] = [];
 
       if (editorMode === 'add') {
-        changes.push(`Added ${personData.name}`);
+        changes.push(`Added ${personData.name} `);
         structuredChanges.push({
           type: 'ADD',
           nodeId: personData.nodeId,
@@ -672,7 +673,7 @@ function App() {
         });
 
         if (fieldsChangedLog.length > 0) {
-          changes.push(`Edited ${personData.name} with ${fieldsChangedLog.join(', ')}`);
+          changes.push(`Edited ${personData.name} with ${fieldsChangedLog.join(', ')} `);
           structuredChanges.push({
             type: 'EDIT',
             nodeId: personData.nodeId,
@@ -707,11 +708,11 @@ function App() {
         }
 
         if (!oldParentId && newParentId) {
-          changes.push(`Linked ${personData.name} to parent ${updatedTree.nodes[newParentId]?.name || newParentId}`);
+          changes.push(`Linked ${personData.name} to parent ${updatedTree.nodes[newParentId]?.name || newParentId} `);
         } else if (oldParentId && !newParentId) {
           changes.push(`Removed parent link for ${personData.name}`);
         } else {
-          changes.push(`Changed parent of ${personData.name} from ${updatedTree.nodes[oldParentId!]?.name || oldParentId} to ${updatedTree.nodes[newParentId!]?.name || newParentId}`);
+          changes.push(`Changed parent of ${personData.name} from ${updatedTree.nodes[oldParentId!]?.name || oldParentId} to ${updatedTree.nodes[newParentId!]?.name || newParentId} `);
         }
 
         structuredChanges.push({
@@ -739,7 +740,7 @@ function App() {
           }
           childNode.parentId = personData.nodeId;
           touchNode(childId);
-          changes.push(`Added child ${childNode.name} to ${personData.name}`);
+          changes.push(`Added child ${childNode.name} to ${personData.name} `);
           structuredChanges.push({
             type: 'REPARENT',
             nodeId: childId,
@@ -757,7 +758,7 @@ function App() {
           const oldChildParentId = childNode.parentId;
           childNode.parentId = null;
           touchNode(childId);
-          changes.push(`Removed child ${childNode.name} from ${personData.name}`);
+          changes.push(`Removed child ${childNode.name} from ${personData.name} `);
           structuredChanges.push({
             type: 'REPARENT',
             nodeId: childId,
@@ -780,7 +781,7 @@ function App() {
           visited.add(newRootId);
           newRootId = updatedTree.nodes[newRootId].parentId!;
         }
-        console.log(`Root node updated from ${updatedTree.rootNodeId} to ${newRootId}`);
+        console.log(`Root node updated from ${updatedTree.rootNodeId} to ${newRootId} `);
         updatedTree.rootNodeId = newRootId;
       }
 
@@ -796,7 +797,7 @@ function App() {
           if (!spouseNode.spouseIds.includes(personData.nodeId)) {
             spouseNode.spouseIds.push(personData.nodeId);
             touchNode(spouseId);
-            changes.push(`Added spouse link between ${personData.name} and ${spouseNode.name}`);
+            changes.push(`Added spouse link between ${personData.name} and ${spouseNode.name} `);
           }
         }
       });
@@ -807,7 +808,7 @@ function App() {
         if (spouseNode) {
           spouseNode.spouseIds = spouseNode.spouseIds.filter(id => id !== personData.nodeId);
           touchNode(spouseId);
-          changes.push(`Removed spouse link between ${personData.name} and ${spouseNode.name}`);
+          changes.push(`Removed spouse link between ${personData.name} and ${spouseNode.name} `);
         }
       });
 
@@ -826,7 +827,7 @@ function App() {
             updatedTree.nodes[parentId].childrenIds.push(sibId);
             touchNode(parentId);
           }
-          changes.push(`Linked sibling ${sibNode.name} to parent ${updatedTree.nodes[parentId].name}`);
+          changes.push(`Linked sibling ${sibNode.name} to parent ${updatedTree.nodes[parentId].name} `);
         }
       });
 
@@ -851,7 +852,7 @@ function App() {
           newRootId = updatedTree.nodes[newRootId].parentId!;
         }
         updatedTree.rootNodeId = newRootId;
-        console.log(`Root node updated from ${personData.nodeId} to ${newRootId}`);
+        console.log(`Root node updated from ${personData.nodeId} to ${newRootId} `);
       }
 
       const summaryText = changes.join('; ');
@@ -892,10 +893,11 @@ function App() {
         const savedTree = await saveWithMerge(updatedTree, summaryText);
 
         if (personData.email) {
-          const files = await listTreeFiles();
-          if (files.length > 0) {
-            await grantWritePermission(files[0].id, personData.email);
-          }
+          // Grant permission if new/edited person has an email
+          // Grant access to the Tree File
+          await grantWritePermission(currentTree.treeId, personData.email);
+          // Grant access to the Lock File (for persistent locking)
+          await grantLockFilePermission(currentTree.treeId, personData.email);
         }
 
         setTree(savedTree);
@@ -965,7 +967,7 @@ function App() {
       updatedTree.summary.unshift({
         editedBy: currentUser?.email || 'unknown',
         editedTime: getISTTimestamp(),
-        changes: `Deleted ${node.name}`,
+        changes: `Deleted ${node.name} `,
         rootNodeName: updatedTree.nodes[updatedTree.rootNodeId]?.name || 'Unknown'
       });
 
@@ -1030,7 +1032,7 @@ function App() {
         const savedTree = await saveWithMerge(updatedTree, `Edited ${targetNode.name} with isEditor`);
 
         setTree(savedTree);
-        alert(`Editor access ${newStatus ? 'granted to' : 'removed from'} ${targetNode.name}!`);
+        alert(`Editor access ${newStatus ? 'granted to' : 'removed from'} ${targetNode.name} !`);
       } catch (err) {
         console.error("Failed to update editor status:", err);
         alert("Failed to save changes to Google Drive.");
@@ -1175,8 +1177,8 @@ function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>{currentTreeName && tree ? `${currentTreeName}'s ${t('appTitle')}` : (viewState === 'home' && currentUser ? t('dashboardTitle') : t('appTitle'))}</h1>
-        <div className="auth-controls">
+        <h1>{currentTreeName && tree ? `${currentTreeName} 's ${t('appTitle')}` : (viewState === 'home' && currentUser ? t('dashboardTitle') : t('appTitle'))}</h1>
+        < div className="auth-controls" >
           <div className="menu-container">
             <button
               className="menu-button"
@@ -1306,8 +1308,8 @@ function App() {
               </div>
             )}
           </div>
-        </div>
-      </header>
+        </div >
+      </header >
       <main>
         {loading && <LoadingOverlay message={loadingMessage} />}
         {error && <div className="error">{error}</div>}
@@ -1509,7 +1511,7 @@ function App() {
           />
         )}
       </main>
-    </div>
+    </div >
   );
 
 }

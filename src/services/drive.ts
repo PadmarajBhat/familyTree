@@ -134,14 +134,11 @@ export const listTreeFiles = async () => {
         const response = await (gapi.client as any).drive.files.list({
             // Filter out files that start with 'delete_' or 'backup_' (or contain them, but ideally start with)
             // Drive API query 'not name contains' is safer for general filtering.
-            q: `('${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents or sharedWithMe = true) and trashed = false and name contains 'json' and not name contains 'lock_' and not name contains 'delete_' and not name contains 'backup_' and name != 'preferences.json'`,
+            q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name contains 'json' and not name contains 'lock_' and not name contains 'delete_' and not name contains 'backup_' and name != 'preferences.json'`,
             fields: 'nextPageToken, files(id, name, createdTime, modifiedTime, description)',
             orderBy: 'createdTime desc', // Load latest created file
         });
-        console.log(`[Drive] listTreeFiles Query`, {
-            folderId: CONFIG.DRIVE_TREE_FOLDER_ID,
-            results: response.result.files?.length
-        });
+
         return response.result.files;
     } catch (err) {
         console.error("Error listing files", err);
@@ -386,12 +383,12 @@ export const getPhotoUrl = (fileIdOrUrl: string | null): string | null => {
 // --- Locking Mechanism (File Based) ---
 
 export interface LockInfo {
-    lockedBy: string;
+    lockedBy: string | null;
     lockedAt: number;
     lockId: string; // The ID of the lock file
 }
 
-export const checkLock = async (targetFileId: string): Promise<LockInfo | null> => {
+const getLockFile = async (targetFileId: string): Promise<{ id: string, content: LockInfo } | null> => {
     try {
         const lockFileName = `lock_${targetFileId}.json`;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -407,9 +404,12 @@ export const checkLock = async (targetFileId: string): Promise<LockInfo | null> 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const meta = content as any;
             return {
-                lockedBy: meta?.lockedBy || 'Unknown',
-                lockedAt: meta?.lockedAt || new Date(lockFile.createdTime).getTime(),
-                lockId: lockFile.id
+                id: lockFile.id,
+                content: {
+                    lockedBy: meta?.lockedBy || null,
+                    lockedAt: meta?.lockedAt || 0,
+                    lockId: lockFile.id
+                }
             };
         }
         return null;
@@ -419,55 +419,86 @@ export const checkLock = async (targetFileId: string): Promise<LockInfo | null> 
     }
 };
 
+export const ensureLockFile = async (targetFileId: string): Promise<string> => {
+    const existing = await getLockFile(targetFileId);
+    if (existing) return existing.id;
+
+    // Create Initial
+    const lockData: Partial<LockInfo> = {
+        lockedBy: null,
+        lockedAt: 0,
+    };
+    const lockFileName = `lock_${targetFileId}.json`;
+    const saved = await saveTreeFile(lockFileName, lockData, "Lock File");
+    return saved.id;
+};
+
+export const checkLock = async (targetFileId: string): Promise<LockInfo | null> => {
+    const existing = await getLockFile(targetFileId);
+    if (existing && existing.content.lockedBy) {
+        return existing.content;
+    }
+    return null;
+};
+
 export const acquireLock = async (targetFileId: string): Promise<string | null> => {
-    const existingLock = await checkLock(targetFileId);
-    if (existingLock) {
-        console.log(`File ${targetFileId} is already locked by ${existingLock.lockedBy}`);
-        const now = Date.now();
-        if (now - existingLock.lockedAt > 10 * 60 * 1000) {
-            console.warn("Lock is stale > 10m. Stealing lock...");
-            try {
-                await deleteFile(existingLock.lockId);
-            } catch (e) {
-                console.error("Failed to delete stale lock", e);
-            }
-        } else {
-            return null;
-        }
+    let lockFileId: string;
+    try {
+        lockFileId = await ensureLockFile(targetFileId);
+    } catch (e) {
+        console.error("Failed to ensure lock file", e);
+        return null;
     }
 
+    // Read latest
     try {
-        const user = await getUserProfile();
-        const lockData = {
-            lockedBy: user?.email || 'Unknown',
-            lockedAt: Date.now(),
-            targetFileId: targetFileId
-        };
-        const lockFileName = `lock_${targetFileId}.json`;
+        const content = await getFileContent(lockFileId) as LockInfo;
+        const now = Date.now();
 
-        const savedLock = await saveTreeFile(lockFileName, lockData, "Lock File");
-        if (savedLock && savedLock.id) {
-            return savedLock.id;
+        if (content.lockedBy) {
+            // Check staleness (10 mins)
+            if (now - (content.lockedAt || 0) < 10 * 60 * 1000) {
+                console.log(`System locked by ${content.lockedBy}`);
+                return null;
+            }
+            console.warn("Lock is stale > 10m. Stealing lock...");
         }
-        return null;
+
+        const user = await getUserProfile();
+        const newLockState: Partial<LockInfo> = {
+            lockedBy: user?.email || 'Unknown',
+            lockedAt: now,
+            lockId: lockFileId // purely metadata
+        };
+
+        await updateTreeFile(lockFileId, newLockState, "Acquired Lock");
+        return lockFileId;
+
     } catch (err) {
-        console.error("Failed to acquire lock", err);
+        console.error("Failed to acquire lock update", err);
         return null;
     }
 };
 
 export const releaseLock = async (lockFileId: string): Promise<void> => {
     try {
-        await deleteFile(lockFileId);
-        console.log("Lock released.");
+        const emptyState: Partial<LockInfo> = {
+            lockedBy: null,
+            lockedAt: 0
+        };
+        await updateTreeFile(lockFileId, emptyState, "Released Lock");
+        console.log("Lock released (cleared).");
     } catch (err) {
-        // Ignore 404 (File not found), as it means lock is already released
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if ((err as any)?.result?.error?.code === 404 || (err as any)?.status === 404) {
-            console.log("Lock file already deleted.");
-            return;
-        }
         console.error("Error releasing lock", err);
+    }
+};
+
+export const grantLockFilePermission = async (treeId: string, email: string) => {
+    try {
+        const lockId = await ensureLockFile(treeId);
+        await grantWritePermission(lockId, email);
+    } catch (e) {
+        console.error("Failed to grant lock file permission", e);
     }
 };
 

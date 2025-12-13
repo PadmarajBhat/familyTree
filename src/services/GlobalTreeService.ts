@@ -224,17 +224,13 @@ export const GlobalTreeService = {
                     }
 
                     if (tree && tree.nodes) {
-                        // DEBUG LOGS
-                        const creator = tree.meta?.createdBy;
-                        console.log(`Checking tree: ${tree.treeName} (${file.id}) | Creator: ${creator} | User: ${email}`);
-
                         // Search nodes
                         const userNode = Object.values(tree.nodes).find(n => n.email?.trim().toLowerCase() === email.trim().toLowerCase());
-                        const isCreator = creator?.trim().toLowerCase() === email.trim().toLowerCase();
+                        const isCreator = tree.meta?.createdBy?.trim().toLowerCase() === email.trim().toLowerCase();
 
                         if (userNode || isCreator) {
                             const isOriginal = userNode ? !userNode.externalLink : true;
-                            console.log(`MATCH FOUND! Tree: ${tree.treeName}, CreatorMatch: ${isCreator}, NodeMatch: ${!!userNode}`);
+                            console.log(`Found user in tree ${tree.treeName} (${file.id}). Original: ${isOriginal}, Creator: ${isCreator}`);
                             return {
                                 treeId: file.id,
                                 treeName: tree.treeName || getTreeName(file.name),
