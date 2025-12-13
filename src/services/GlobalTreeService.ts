@@ -224,19 +224,25 @@ export const GlobalTreeService = {
                     }
 
                     if (tree && tree.nodes) {
+                        // DEBUG LOGS
+                        const creator = tree.meta?.createdBy;
+                        console.log(`Checking tree: ${tree.treeName} (${file.id}) | Creator: ${creator} | User: ${email}`);
+
                         // Search nodes
                         const userNode = Object.values(tree.nodes).find(n => n.email?.toLowerCase() === email.toLowerCase());
-                        const isCreator = tree.meta?.createdBy?.toLowerCase() === email.toLowerCase();
+                        const isCreator = creator?.toLowerCase() === email.toLowerCase();
 
                         if (userNode || isCreator) {
                             const isOriginal = userNode ? !userNode.externalLink : true;
-                            console.log(`Found user in tree ${tree.treeName} (${file.id}). Original: ${isOriginal}, Creator: ${isCreator}`);
+                            console.log(`MATCH FOUND! Tree: ${tree.treeName}, CreatorMatch: ${isCreator}, NodeMatch: ${!!userNode}`);
                             return {
                                 treeId: file.id,
                                 treeName: tree.treeName || getTreeName(file.name),
                                 isOriginal
                             };
                         }
+                    } else {
+                        console.warn(`Tree content missing or invalid for file: ${file.name} (${file.id})`);
                     }
                 } catch (e) {
                     console.warn(`Failed to check tree ${file.name} for user`, e);
