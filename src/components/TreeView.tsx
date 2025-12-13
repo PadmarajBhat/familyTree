@@ -34,12 +34,21 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
     useEffect(() => {
         if (!wrapperRef.current) return;
 
+        let lastWidth = 0;
+        let lastHeight = 0;
+
         const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
-                setDimensions({
-                    width: entry.contentRect.width,
-                    height: entry.contentRect.height
-                });
+                const { width, height } = entry.contentRect;
+                // Prevent infinite loops by ignoring small pixel changes or sub-pixel jitter
+                if (Math.abs(width - lastWidth) > 5 || Math.abs(height - lastHeight) > 5) {
+                    lastWidth = width;
+                    lastHeight = height;
+                    // Use requestAnimationFrame to debounce slightly
+                    requestAnimationFrame(() => {
+                        setDimensions({ width, height });
+                    });
+                }
             }
         });
 

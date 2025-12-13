@@ -6,6 +6,7 @@ import {
 import type { TreeDocument, PersonNode } from '../logic/types';
 import { MapChart } from './MapChart';
 import { getPhotoUrl } from '../services/drive';
+import './Dashboard.css';
 
 interface DashboardProps {
     tree: TreeDocument;
@@ -237,33 +238,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
 
     if (isLoading || !data) {
         return (
-            <div className="dashboard-container" style={{
-                padding: '20px', height: '100%', display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', background: '#f5f5f5'
-            }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#666' }}>Loading Dashboard...</div>
-                <div style={{ marginTop: '10px' }}>Analyzing {Object.keys(tree.nodes).length} family members...</div>
+            <div className="dashboard-container">
+                <div className="dashboard-loading">
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' }}>Loading Dashboard...</div>
+                    <div className="spinner" style={{ marginBottom: '20px' }}></div>
+                    <div>Analyzing {Object.keys(tree.nodes).length} family members...</div>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="dashboard-container" style={{ padding: '20px', height: '100%', overflowY: 'auto', background: '#f5f5f5', position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', maxWidth: '800px', margin: '0 auto 20px auto' }}>
-                <h1 style={{ margin: 0, color: '#333' }}>{tree.treeName || "Family"} Dashboard</h1>
-                <button onClick={onClose} style={{ padding: '10px 20px', cursor: 'pointer', background: '#2196f3', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>Back to Tree</button>
+        <div className="dashboard-container">
+            <div className="dashboard-header">
+                <h1>{tree.treeName || "Family"} Dashboard</h1>
+                <button onClick={onClose} className="dashboard-back-btn">Back to Tree</button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px', maxWidth: '800px', margin: '0 auto' }}>
+            <div className="dashboard-grid">
 
                 {/* 1. Member Growth */}
-                <div className="chart-card" style={cardStyle}>
+                <div className="chart-card">
                     <h3>Cumulative Family Growth</h3>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={250}>
                         <LineChart data={data.memberGrowthData} onClick={handleChartClick}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="year" />
-                            <YAxis allowDecimals={false} />
+                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
+                            <XAxis dataKey="year" stroke="currentColor" tick={{ fill: 'currentColor' }} />
+                            <YAxis allowDecimals={false} stroke="currentColor" tick={{ fill: 'currentColor' }} />
                             <Tooltip content={<CustomTooltip />} />
                             <Legend />
                             <Line
@@ -271,6 +272,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                                 dataKey="count"
                                 name="Total Members"
                                 stroke="#8884d8"
+                                strokeWidth={3}
                                 dot={(props) => <CustomDot {...props} onNodeClick={onNodeClick} />}
                                 activeDot={{ r: 8 }}
                                 isAnimationActive={false}
@@ -280,20 +282,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                 </div>
 
                 {/* 2. Geo Map */}
-                <div className="chart-card" style={cardStyle}>
+                <div className="chart-card">
                     <h3>Member Locations</h3>
                     {/* Force remount when tree updates to clear potential stale state */}
                     <MapChart key={tree.timestamp} nodes={Object.values(tree.nodes)} onNodeClick={onNodeClick} />
                 </div>
 
                 {/* 3. Age Distribution */}
-                <div className="chart-card" style={cardStyle}>
+                <div className="chart-card">
                     <h3>Age Distribution</h3>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={250}>
                         <BarChart data={data.ageData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis allowDecimals={false} />
+                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
+                            <XAxis dataKey="name" stroke="currentColor" tick={{ fill: 'currentColor', fontSize: 12 }} />
+                            <YAxis allowDecimals={false} stroke="currentColor" tick={{ fill: 'currentColor' }} />
                             <Tooltip content={<CustomTooltip />} />
                             <Legend />
                             <Bar dataKey="value" fill="#82ca9d" style={{ cursor: 'pointer' }} onClick={handleChartClick}>
@@ -306,17 +308,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                 </div>
 
                 {/* 4. Occupations */}
-                <div className="chart-card" style={cardStyle}>
+                <div className="chart-card">
                     <h3>Top Occupations</h3>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={250}>
                         <PieChart>
                             <Pie
                                 data={data.occupationData}
                                 cx="50%"
                                 cy="50%"
                                 labelLine={false}
-                                label={({ name, percent }) => `${name} ${(percent ? percent * 100 : 0).toFixed(0)}%`}
-                                outerRadius={100}
+                                label={({ name, percent }: any) => percent > 0.05 ? `${name}` : ''}
+                                outerRadius={80}
                                 fill="#8884d8"
                                 dataKey="value"
                                 onClick={handleChartClick}
@@ -332,24 +334,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                 </div>
 
                 {/* 5. Hobbies */}
-                <div className="chart-card" style={cardStyle}>
+                <div className="chart-card">
                     <h3>Top Hobbies</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={data.hobbiesData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis allowDecimals={false} />
+                    <ResponsiveContainer width="100%" height={250}>
+                        <BarChart data={data.hobbiesData} layout="vertical">
+                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} horizontal={true} vertical={false} />
+                            <XAxis type="number" hide />
+                            <YAxis dataKey="name" type="category" width={100} stroke="currentColor" tick={{ fill: 'currentColor', fontSize: 11 }} />
                             <Tooltip content={<CustomTooltip />} />
-                            <Legend />
-                            <Bar dataKey="value" fill="#FFBB28" style={{ cursor: 'pointer' }} onClick={handleChartClick} />
+                            <Bar dataKey="value" fill="#FFBB28" style={{ cursor: 'pointer' }} onClick={handleChartClick} barSize={20} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
 
                 {/* 6. Organizations (Treemap) */}
-                <div className="chart-card" style={cardStyle}>
-                    <h3>Organizations (Wordcloud Proxy)</h3>
-                    <ResponsiveContainer width="100%" height={300}>
+                <div className="chart-card">
+                    <h3>Organizations</h3>
+                    <ResponsiveContainer width="100%" height={250}>
                         <Treemap
                             data={data.orgData}
                             dataKey="value"
@@ -365,17 +366,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                 </div>
 
                 {/* 7. Education */}
-                <div className="chart-card" style={cardStyle}>
+                <div className="chart-card">
                     <h3>Education Levels</h3>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={250}>
                         <PieChart>
                             <Pie
                                 data={data.educationData}
                                 cx="50%"
                                 cy="50%"
+                                innerRadius={40}
                                 outerRadius={80}
                                 fill="#82ca9d"
-                                label
+                                paddingAngle={5}
                                 dataKey="value"
                                 onClick={handleChartClick}
                                 style={{ cursor: 'pointer' }}
@@ -391,13 +393,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                 </div>
 
                 {/* 8. Happy Plot - Births by Month */}
-                <div className="chart-card" style={cardStyle}>
+                <div className="chart-card">
                     <h3>Birthdays by Month</h3>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={250}>
                         <BarChart data={data.birthsByMonthData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis allowDecimals={false} />
+                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
+                            <XAxis dataKey="name" stroke="currentColor" tick={{ fill: 'currentColor', fontSize: 10 }} />
+                            <YAxis allowDecimals={false} stroke="currentColor" tick={{ fill: 'currentColor' }} />
                             <Tooltip content={<CustomTooltip />} />
                             <Bar dataKey="value" fill="#FF8042" style={{ cursor: 'pointer' }} onClick={handleChartClick} />
                         </BarChart>
@@ -407,44 +409,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
             </div>
 
             {drillDownData && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(0,0,0,0.5)', zIndex: 2000,
-                    display: 'flex', justifyContent: 'center', alignItems: 'center'
-                }} onClick={closeDrillDown}>
-                    <div style={{
-                        background: 'white', padding: '20px', borderRadius: '8px',
-                        width: '90%', maxWidth: '400px', maxHeight: '80vh',
-                        display: 'flex', flexDirection: 'column',
-                        overflow: 'hidden'
-                    }} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                            <h3 style={{ margin: 0 }}>{drillDownData.title} Members</h3>
-                            <button onClick={closeDrillDown} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+                <div className="drilldown-overlay" onClick={closeDrillDown}>
+                    <div className="drilldown-modal" onClick={e => e.stopPropagation()}>
+                        <div className="drilldown-header">
+                            <h3>{drillDownData.title} Members</h3>
+                            <button onClick={closeDrillDown} className="drilldown-close">×</button>
                         </div>
-                        <div style={{ overflowY: 'auto', flex: 1 }}>
+                        <div className="drilldown-list">
                             {drillDownData.members.map(member => (
                                 <div
                                     key={member.nodeId}
-                                    style={{
-                                        padding: '10px', borderBottom: '1px solid #eee', cursor: 'pointer',
-                                        display: 'flex', alignItems: 'center', gap: '10px'
-                                    }}
+                                    className="drilldown-item"
                                     onClick={() => {
                                         onNodeClick(member.nodeId);
                                         closeDrillDown();
                                     }}
-                                    onMouseOver={(e) => e.currentTarget.style.background = '#f5f5f5'}
-                                    onMouseOut={(e) => e.currentTarget.style.background = 'white'}
                                 >
                                     {member.imageUrl ? (
-                                        <img src={getPhotoUrl(member.imageUrl) || ""} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
+                                        <img src={getPhotoUrl(member.imageUrl) || ""} alt="" className="drilldown-avatar" />
                                     ) : (
-                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                                        <div className="drilldown-avatar">
                                             {member.name?.charAt(0)}
                                         </div>
                                     )}
-                                    <div style={{ fontWeight: '500' }}>{member.name}</div>
+                                    <div className="drilldown-name">{member.name}</div>
                                 </div>
                             ))}
                         </div>
@@ -455,14 +443,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
     );
 };
 
-const cardStyle = {
-    background: 'white',
-    borderRadius: '8px',
-    padding: '20px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    color: '#333',
-    border: '1px solid #eee'
-};
+// No inline style needed anymore
+// const cardStyle = { ... } (Removed)
 
 // Custom Dot to render image of person born that year
 const CustomDot = (props: any) => {
@@ -525,15 +507,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         const deaths = data.deaths; // Only for growth chart
 
         return (
-            <div style={{ background: 'white', padding: '10px', border: '1px solid #ccc', borderRadius: '4px', maxWidth: '250px', zIndex: 1000 }}>
-                <p><strong>{label ? `Label: ${label}` : data.name}</strong></p>
-                {data.year && <p>Year: {data.year}</p>}
-                <p>Value: {data.value || data.count}</p>
-                {deaths !== undefined && <p>Deaths: {deaths}</p>}
+            <div style={{ background: 'rgba(255, 255, 255, 0.95)', padding: '10px', border: '1px solid #ccc', borderRadius: '8px', maxWidth: '250px', zIndex: 1000, color: '#333', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                <p style={{ margin: '0 0 5px 0' }}><strong>{label ? `${label}` : data.name}</strong></p>
+                {data.year && <p style={{ margin: '0' }}>Year: {data.year}</p>}
+                <p style={{ margin: '0' }}>Value: {data.value || data.count}</p>
+                {deaths !== undefined && <p style={{ margin: '0' }}>Deaths: {deaths}</p>}
 
                 {members.length > 0 && (
-                    <div style={{ marginTop: '5px' }}>
-                        <p style={{ fontSize: '0.9em', fontWeight: 'bold' }}>Members ({members.length}):</p>
+                    <div style={{ marginTop: '8px', borderTop: '1px solid #eee', paddingTop: '5px' }}>
+                        <p style={{ fontSize: '0.9em', fontWeight: 'bold', margin: '0 0 4px 0' }}>Members ({members.length}):</p>
                         <ul style={{ margin: 0, paddingLeft: '15px', fontSize: '0.8em', maxHeight: '150px', overflowY: 'auto' }}>
                             {members.map((m: PersonNode) => (
                                 <li key={m.nodeId} style={{ marginBottom: '4px' }}>

@@ -1,14 +1,364 @@
+/* Glassmorphism Theme for Find Relation */
 .find-relation-container {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: #f9f9f9;
+    background: rgba(255, 255, 255, 0.85);
+    /* Semi-transparent light */
+    backdrop-filter: blur(12px);
+    /* Glass blur */
+    -webkit-backdrop-filter: blur(12px);
     z-index: 1200;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@media (prefers-color-scheme: dark) {
+    .find-relation-container {
+        background: rgba(30, 30, 30, 0.85);
+        /* Semi-transparent dark */
+        color: white;
+    }
+}
+
+.find-relation-header {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(10px);
+    padding: 15px 20px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    z-index: 10;
+    flex-shrink: 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+    .find-relation-header {
+        background: rgba(40, 40, 40, 0.6);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+}
+
+.find-relation-header h2 {
+    color: inherit;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 15px;
+    font-weight: 700;
+    font-size: 1.2rem;
+}
+
+.button-group {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+/* Close Button Override */
+.find-relation-header .common-close-button {
+    position: static;
+    top: auto;
+    right: auto;
+    background: rgba(0, 0, 0, 0.05);
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    color: inherit;
+}
+
+.find-relation-header .common-close-button:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+    .find-relation-header .common-close-button {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .find-relation-header .common-close-button:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+}
+
+.search-inputs.compact {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.search-arrow {
+    color: inherit;
+    font-size: 18px;
+    opacity: 0.5;
+}
+
+.input-group {
+    flex: 1;
+    min-width: 0;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(4px);
+    font-size: 0.95rem;
+    color: inherit;
+    outline: none;
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+
+.input-group input:focus {
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.3);
+    border-color: #2196f3;
+}
+
+@media (prefers-color-scheme: dark) {
+    .input-group input {
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+
+    .input-group input:focus {
+        background: rgba(0, 0, 0, 0.4);
+    }
+}
+
+.reset-button-small {
+    padding: 6px 14px;
+    background: rgba(0, 0, 0, 0.05);
+    color: inherit;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 15px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.reset-button-small:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+    .reset-button-small {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .reset-button-small:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+}
+
+/* Path Result Area */
+.path-result {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    background: transparent;
+}
+
+.path-info-compact {
+    background: rgba(46, 125, 50, 0.1);
+    color: #2e7d32;
+    padding: 10px;
+    font-size: 0.9rem;
+    text-align: center;
+    font-weight: 600;
+    backdrop-filter: blur(4px);
+    border-bottom: 1px solid rgba(46, 125, 50, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+    .path-info-compact {
+        background: rgba(76, 175, 80, 0.2);
+        color: #81c784;
+    }
+}
+
+.path-tree-view {
+    flex: 1;
+    overflow: hidden;
+    background: transparent;
+    position: relative;
+}
+
+.no-path-message,
+.empty-state {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #888;
+    font-size: 1.1rem;
+    padding: 20px;
+    text-align: center;
+}
+
+@media (prefers-color-scheme: dark) {
+
+    .no-path-message,
+    .empty-state {
+        color: #aaa;
+    }
+}
+
+/* Autocomplete Dropdown - Floating Glass */
+.autocomplete-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.suggestions-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 5px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+@media (prefers-color-scheme: dark) {
+    .suggestions-dropdown {
+        background: rgba(40, 40, 40, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+}
+
+.suggestion-item {
+    padding: 10px 15px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+    .suggestion-item:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .suggestion-item {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+}
+
+.suggestion-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    font-weight: bold;
+    color: #666;
+    font-size: 14px;
+    background-color: #eee;
+}
+
+.suggestion-details {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.suggestion-main {
+    font-weight: 600;
+    color: inherit;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.suggestion-sub {
+    font-size: 0.75rem;
+    color: #888;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .suggestion-sub {
+        color: #aaa;
+    }
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .find-relation-header {
+        padding: 12px;
+    }
+
+    .search-inputs.compact {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .search-arrow {
+        display: none;
+        /* Hide arrow on mobile to save vertical space */
+    }
+
+    .find-relation-header h2 {
+        font-size: 1.1rem;
+    }
 }
 
 .find-relation-header {

@@ -140,7 +140,7 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
         <div className="find-relation-container">
             <div className="find-relation-header">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <h2 style={{ margin: 0, fontSize: '18px' }}>Find Relation</h2>
+                    <h2>Find Relation</h2>
                     <div className="button-group">
                         <button onClick={handleReset} className="reset-button-small">
                             Reset
@@ -250,7 +250,7 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
                 )}
 
                 {path && path.length > 0 && (
-                    <div className="path-found">
+                    <div className="path-found" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                         <div className="path-info-compact">
                             <span>Connection through {path.length} people</span>
                         </div>
