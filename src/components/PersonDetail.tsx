@@ -5,6 +5,7 @@ import { getPhotoUrl } from '../services/drive';
 import { TreeView } from './TreeView';
 import { exportPersonDetailToPdf } from '../utils/exportPdf';
 import { canEditNode, isGlobalEditor } from '../logic/permissions';
+import { useTranslation } from 'react-i18next';
 import './PersonDetail.css';
 
 interface PersonDetailProps {
@@ -20,6 +21,7 @@ interface PersonDetailProps {
 }
 
 export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentUser, onClose, onEdit, onDelete, onNodeClick, onFindRelation, onViewHistory }) => {
+    const { t } = useTranslation();
     const isOrphan = !node.parentId && node.childrenIds.length === 0 && node.spouseIds.length === 0;
     const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
@@ -29,11 +31,11 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentU
 
     // Show only non-empty fields
     const fields = [
-        { label: 'Born', value: node.dob },
-        { label: 'Died', value: node.dod },
-        { label: 'Phone', value: node.phone },
-        { label: 'Email', value: node.email },
-        { label: 'Address', value: node.address.freeform },
+        { label: t('personDetail.born'), value: node.dob },
+        { label: t('personDetail.died'), value: node.dod },
+        { label: t('personDetail.phone'), value: node.phone },
+        { label: t('personDetail.email'), value: node.email },
+        { label: t('personDetail.address'), value: node.address.freeform },
     ].filter(f => f.value && f.value !== '—' && f.value.trim() !== '');
 
     const handleExportPdf = async () => {
@@ -152,7 +154,7 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentU
                                 {node.name ? node.name.charAt(0).toUpperCase() : "?"}
                             </div>
                         )}
-                        <h2>{node.name || "Unknown"}</h2>
+                        <h2>{node.name || t('personDetail.unknown')}</h2>
                     </div>
 
                     {!isCollapsed && (
@@ -168,20 +170,20 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentU
 
                             <div className="detail-actions">
                                 {canEdit && (
-                                    <button onClick={onEdit}>Edit Details</button>
+                                    <button onClick={onEdit}>{t('personDetail.edit')}</button>
                                 )}
                                 <button onClick={() => onFindRelation(node.nodeId)} title="Find Relation with Me">
-                                    🔍 Find Relation
+                                    🔍 {t('personDetail.findRelation')}
                                 </button>
                                 <button onClick={() => onViewHistory(node.nodeId)} title="View History">
-                                    📜 History
+                                    📜 {t('personDetail.history')}
                                 </button>
                                 <button
                                     onClick={handleExportPdf}
                                     disabled={isExportingPdf}
                                     className="export-pdf-button"
                                 >
-                                    {isExportingPdf ? 'Generating PDF...' : 'Export PDF'}
+                                    {isExportingPdf ? t('common.loading') : t('personDetail.exportPdf')}
                                 </button>
                                 {canDelete && (
                                     <button
@@ -192,7 +194,7 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentU
                                         }}
                                         className="delete-button"
                                     >
-                                        Delete Member
+                                        {t('personDetail.delete')}
                                     </button>
                                 )}
                             </div>

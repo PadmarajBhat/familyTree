@@ -1,0 +1,29 @@
+{
+    "appTitle": "Family Tree",
+    "dashboardTitle": "Family Tree Dashboard",
+    "menu": {
+        "search": "Search Members",
+        "findRelation": "Find Relationship",
+        "editors": "Editors",
+        "history": "Version History",
+        "dashboard": "Dashboard",
+        "changeTree": "Change Tree",
+        "signOut": "Sign Out"
+    },
+    "personDetail": {
+        "born": "Born",
+        "died": "Died",
+        "phone": "Phone",
+        "email": "Email",
+        "address": "Address",
+        "edit": "Edit Details",
+        "findRelation": "Find Relation",
+        "history": "History",
+        "exportPdf": "Export PDF",
+        "delete": "Delete Member",
+        "unknown": "Unknown"
+    },
+    "common": {
+        "loading": "Loading..."
+    }
+}

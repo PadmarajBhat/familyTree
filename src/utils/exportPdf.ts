@@ -26,11 +26,47 @@ export async function exportPersonDetailToPdf(
         const contentWidth = pageWidth - (2 * margin);
         let yPosition = margin;
 
+        // --- Font Setup for Kannada ---
+        // Try to load NotoSansKannada if available
+        try {
+            const fontUrl = '/fonts/NotoSansKannada-Regular.ttf';
+            const response = await fetch(fontUrl);
+            if (response.ok) {
+                const buffer = await response.arrayBuffer();
+                // Convert to base64
+                let binary = '';
+                const bytes = new Uint8Array(buffer);
+                const len = bytes.byteLength;
+                for (let i = 0; i < len; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                const fontBase64 = window.btoa(binary);
+
+                // Add to VFS and Register
+                pdf.addFileToVFS('NotoSansKannada-Regular.ttf', fontBase64);
+                pdf.addFont('NotoSansKannada-Regular.ttf', 'NotoSansKannada', 'normal');
+                pdf.setFont('NotoSansKannada');
+                console.log("Kannada font loaded successfully.");
+            } else {
+                console.warn("Kannada font not found at /fonts/NotoSansKannada-Regular.ttf. Falling back to Helvetica.");
+                pdf.setFont('helvetica', 'bold');
+            }
+        } catch (fontError) {
+            console.warn("Failed to load Kannada font:", fontError);
+            pdf.setFont('helvetica', 'bold');
+        }
+
         // --- PAGE 1: Person Details ---
 
         // Title
         pdf.setFontSize(20);
-        pdf.setFont('helvetica', 'bold');
+        // If font is helvetica, bold works. If NotoSans, we registered as 'normal', so bold might simulate or failing?
+        // jsPDF might not synthesize bold for custom fonts unless registered.
+        // We only registered 'normal'.
+        // Let's just set font size and rely on the font set above.
+        // But if we fell back to helvetica, we want bold.
+        // The try/catch block sets font.
+
         pdf.text(node.name || 'Unknown', margin, yPosition);
         yPosition += 10;
 

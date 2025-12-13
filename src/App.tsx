@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, updateUserPreference, grantWritePermission, renameFile } from './services/drive';
+import { useTranslation } from 'react-i18next';
 import { GlobalTreeService } from './services/GlobalTreeService';
 import type { TreeDocument, PersonNode } from './logic/types';
 import { mergeTrees } from './logic/merge';
@@ -24,6 +25,7 @@ import { getTreeNameFromFilename, generateFilename } from './logic/fileUtils';
 import './App.css';
 
 function App() {
+  const { t, i18n } = useTranslation();
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ email: string; name: string } | null>(null);
   const [tree, setTree] = useState<TreeDocument | null>(null);
@@ -1147,7 +1149,7 @@ function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>{currentTreeName && tree ? `${currentTreeName}'s Family Tree` : (viewState === 'home' && currentUser ? "Family Tree Dashboard" : "Family Tree")}</h1>
+        <h1>{currentTreeName && tree ? `${currentTreeName}'s ${t('appTitle')}` : (viewState === 'home' && currentUser ? t('dashboardTitle') : t('appTitle'))}</h1>
         <div className="auth-controls">
           <div className="menu-container">
             <button
@@ -1161,6 +1163,18 @@ function App() {
               <div className="dropdown-menu">
                 <div className="menu-item user-label">{currentUser?.name}</div>
                 <div className="menu-divider"></div>
+                {/* Language Switcher */}
+                <div className="menu-item">
+                  <label>Language: </label>
+                  <select
+                    value={i18n.language}
+                    onChange={(e) => i18n.changeLanguage(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <option value="en">English</option>
+                    <option value="kn">ಕನ್ನಡ (Kannada)</option>
+                  </select>
+                </div>
                 {tree && (
                   <>
                     <div className="menu-item">
@@ -1182,7 +1196,7 @@ function App() {
                         setIsMenuOpen(false);
                       }}
                     >
-                      Search Members
+                      {t('menu.search')}
                     </button>
                     <button
                       className="menu-item"
@@ -1191,7 +1205,7 @@ function App() {
                         setIsMenuOpen(false);
                       }}
                     >
-                      Find Relationship
+                      {t('menu.findRelation')}
                     </button>
                     {currentUser && (
                       <button
@@ -1201,7 +1215,7 @@ function App() {
                           setIsMenuOpen(false);
                         }}
                       >
-                        Editors
+                        {t('menu.editors')}
                       </button>
                     )}
                     <button
@@ -1211,7 +1225,7 @@ function App() {
                         setIsMenuOpen(false);
                       }}
                     >
-                      Version History
+                      {t('menu.history')}
                     </button>
                     <button
                       className="menu-item"
@@ -1227,7 +1241,7 @@ function App() {
                         });
                       }}
                     >
-                      Dashboard
+                      {t('menu.dashboard')}
                     </button>
                     <button
                       className="menu-item"
@@ -1238,7 +1252,7 @@ function App() {
                         setIsMenuOpen(false);
                       }}
                     >
-                      Change Tree
+                      {t('menu.changeTree')}
                     </button>
                   </>
                 )}
@@ -1250,7 +1264,7 @@ function App() {
                     setIsMenuOpen(false);
                   }}
                 >
-                  Sign Out
+                  {t('menu.signOut')}
                 </button>
               </div>
             )}

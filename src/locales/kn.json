@@ -1,0 +1,29 @@
+{
+    "appTitle": "ವಂಶವೃಕ್ಷ",
+    "dashboardTitle": "ವಂಶವೃಕ್ಷ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+    "menu": {
+        "search": "ಸದಸ್ಯರನ್ನು ಹುಡುಕಿ",
+        "findRelation": "ಸಂಬಂಧವನ್ನು ಹುಡುಕಿ",
+        "editors": "ಸಂಪಾದಕರು",
+        "history": "ಆವೃತ್ತಿ ಇತಿಹಾಸ",
+        "dashboard": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+        "changeTree": "ವೃಕ್ಷವನ್ನು ಬದಲಾಯಿಸಿ",
+        "signOut": "ಲಾಗ್ ಔಟ್"
+    },
+    "personDetail": {
+        "born": "ಜನನ",
+        "died": "ಮರಣ",
+        "phone": "ದೂರವಾಣಿ",
+        "email": "ಇಮೇಲ್",
+        "address": "ವಿಳಾಸ",
+        "edit": "ವಿವರಗಳನ್ನು ಸಂಪಾದಿಸಿ",
+        "findRelation": "ಸಂಬಂಧ ಹುಡುಕಿ",
+        "history": "ಇತಿಹಾಸ",
+        "exportPdf": "ಪಿಡಿಎಫ್ ರಫ್ತು ಮಾಡಿ",
+        "delete": "ಸದಸ್ಯರನ್ನು ಅಳಿಸಿ",
+        "unknown": "ಅಜ್ಞಾತ"
+    },
+    "common": {
+        "loading": "ಲೋಡ್ ಆಗುತ್ತಿದೆ..."
+    }
+}
