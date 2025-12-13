@@ -380,6 +380,7 @@ function App() {
         GlobalTreeService.registerTree(fileToLoad.id, treeDoc);
 
         setTree(treeDoc);
+        setHomeAutoloadEnabled(false);
         return treeDoc;
       } else {
         if (isSignedIn) {
@@ -1416,7 +1417,7 @@ function App() {
 
         {/* Welcome Screen Removed */}
 
-        {viewState === 'home' && currentUser && (
+        {viewState === 'home' && currentUser && !loading && (
           <Home
             userEmail={currentUser.email}
             onSelectTree={async (treeId) => {
