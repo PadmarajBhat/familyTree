@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, updateUserPreference, grantWritePermission, renameFile } from './services/drive';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, updateUserPreference, getPreferences, grantWritePermission, renameFile } from './services/drive';
 import { useTranslation } from 'react-i18next';
 import { GlobalTreeService } from './services/GlobalTreeService';
 import type { TreeDocument, PersonNode } from './logic/types';
@@ -174,55 +174,81 @@ function App() {
     if (!isSignedIn || !isGapiReady || !currentUser) return;
 
     // Logic for First Run / Default Tree
-    const checkShortlistAndLoad = async () => {
-      const shortlistKey = `shortlist_${currentUser.email}`;
-      const storedShortlist = localStorage.getItem(shortlistKey);
+    const checkAccessAndLoad = async () => {
+      setLoading(true);
+      setLoadingMessage("Checking access...");
 
-      let shouldLoadHome = true;
-
-      if (storedShortlist) {
-        const shortlist = JSON.parse(storedShortlist) as string[];
-        if (shortlist.length === 1) {
-          // Auto-load the single shortlisted tree
-          await loadTree(false, shortlist[0]);
-          shouldLoadHome = false;
-        } else if (shortlist.length > 1) {
-          // Multiple trees, show Home (which filters by default)
-          shouldLoadHome = true;
-        } else {
-          // Empty shortlist, show Home with all
-          shouldLoadHome = true;
-        }
-      } else {
-        // First Run: No shortlist found
-        // Fetch trees to see if we can default to one
+      try {
+        // 1. Check Cloud Preferences first (Cross-device sync)
+        let prefTreeName: string | null = null;
         try {
-          const files = await listTreeFiles();
-          if (files && files.length > 0) {
-            // Auto-select the first one
-            const firstTree = files[0];
-            localStorage.setItem(shortlistKey, JSON.stringify([firstTree.id]));
-            await loadTree(false, firstTree.id);
-            shouldLoadHome = false;
-          } else {
-            // No trees at all, show Home (which allows creating)
-            shouldLoadHome = true;
+          const prefs = await getPreferences();
+          if (prefs && prefs[currentUser.email]?.defaultTreeName) {
+            prefTreeName = prefs[currentUser.email].defaultTreeName || null;
+            console.log("Found default tree preference:", prefTreeName);
           }
         } catch (e) {
-          console.error("Error checking trees for first run", e);
-          shouldLoadHome = true;
+          console.warn("Failed to load preferences", e);
         }
-      }
 
-      if (shouldLoadHome) {
-        setViewState('home');
-        setTree(null); // Ensure no tree is shown
-      } else {
-        setViewState('tree');
+        // Helper to load by name
+        const loadTreeByName = async (name: string): Promise<boolean> => {
+          const files = await listTreeFiles();
+          if (!files || !Array.isArray(files)) return false;
+
+          // Logic to match tree name from filename (Name_family_tree.json)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const consistentFiles = files.filter((f: any) => f.name && f.name.replace('_family_tree.json', '') === name);
+
+          if (consistentFiles.length > 0) {
+            // Load latest modified
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            consistentFiles.sort((a: any, b: any) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime());
+            await loadTree(false, consistentFiles[0].id);
+            return true;
+          }
+          return false;
+        };
+
+        if (prefTreeName) {
+          const success = await loadTreeByName(prefTreeName);
+          if (success) {
+            setViewState('tree');
+            return;
+          }
+          console.warn("Preferred tree not found in files, falling back to search.");
+        }
+
+        // 2. Not found in prefs (or file missing), Search all trees
+        setLoadingMessage("Scanning trees for your profile...");
+        const result = await GlobalTreeService.findUserInTrees(currentUser.email);
+
+        if (result) {
+          console.log("User found in tree:", result.treeName);
+          // Save as default for future (as Starred Tree)
+          // Note: We don't block loading on this save
+          updateUserPreference(currentUser.email, result.treeName).catch(console.error);
+
+          // Load it
+          await loadTree(false, result.treeId);
+          setViewState('tree');
+        } else {
+          // 3. Not found anywhere -> Access Denied
+          console.warn("User not found in any tree:", currentUser.email);
+          setAccessDenied(true);
+          setLoading(false);
+          setViewState('home'); // or remain empty
+        }
+
+      } catch (e) {
+        console.error("Error in access check:", e);
+        // Fallback for safety? Or Deny?
+        // If error listing files, we probably can't do anything.
+        setLoading(false);
       }
     };
 
-    checkShortlistAndLoad();
+    checkAccessAndLoad();
   }, [isSignedIn, isGapiReady, currentUser]);
 
 
@@ -1230,6 +1256,17 @@ function App() {
                     <button
                       className="menu-item"
                       onClick={() => {
+                        if (currentUser) {
+                          handleSetDefaultTreeForUser(currentUser.email);
+                          setIsMenuOpen(false);
+                        }
+                      }}
+                    >
+                      {t('menu.setDefault')}
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => {
                         // Reload tree data to ensure freshness
                         setLoading(true);
                         setLoadingMessage("Loading Dashboard...");
@@ -1278,7 +1315,7 @@ function App() {
         {accessDenied && (
           <div className="access-denied-container" style={{ textAlign: 'center', marginTop: '50px' }}>
             <h2>Access Denied</h2>
-            <p>Contact Narasimha Bhat - 9342748992</p>
+            <p>Contact Narasimha Bhat @ +919902491986</p>
             <button
               className="menu-item"
               style={{ marginTop: '20px', padding: '10px 20px', cursor: 'pointer' }}
@@ -1398,7 +1435,7 @@ function App() {
             currentUserEmail={currentUser.email}
             canToggle={!!isAuthorized}
             onToggleEditor={handleToggleEditor}
-            onSetDefaultTree={handleSetDefaultTreeForUser}
+            onSetDefaultTree={(email) => handleSetDefaultTreeForUser(email)}
             onClose={handleManualClose}
           />
         )}

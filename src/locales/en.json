@@ -7,6 +7,7 @@
         "editors": "Editors",
         "history": "Version History",
         "dashboard": "Dashboard",
+        "setDefault": "Set as Default Tree",
         "changeTree": "Change Tree",
         "signOut": "Sign Out"
     },
