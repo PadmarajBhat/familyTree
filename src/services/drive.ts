@@ -177,6 +177,7 @@ export const renameFile = async (fileId: string, newName: string): Promise<void>
 export interface UserPreferences {
     [email: string]: {
         defaultTreeName?: string;
+        starredTreeNames?: string[];
     };
 }
 
@@ -228,6 +229,21 @@ export const updateUserPreference = async (email: string, defaultTreeName: strin
         prefs[email] = {};
     }
     prefs[email].defaultTreeName = defaultTreeName;
+    await savePreferences(prefs);
+};
+
+export const updateUserStarredTrees = async (email: string, starredTreeNames: string[]): Promise<void> => {
+    const prefs = await getPreferences();
+    if (!prefs[email]) {
+        prefs[email] = {};
+    }
+    prefs[email].starredTreeNames = starredTreeNames;
+    // Also update legacy defaultTreeName to the first star if exists
+    if (starredTreeNames.length > 0) {
+        prefs[email].defaultTreeName = starredTreeNames[0];
+    } else {
+        delete prefs[email].defaultTreeName;
+    }
     await savePreferences(prefs);
 };
 

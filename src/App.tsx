@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, updateUserPreference, getPreferences, grantWritePermission, grantLockFilePermission, renameFile } from './services/drive';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, updateUserPreference, getPreferences, grantWritePermission, grantLockFilePermission, renameFile, updateUserStarredTrees } from './services/drive';
 import { useTranslation } from 'react-i18next';
 import { GlobalTreeService } from './services/GlobalTreeService';
 import type { TreeDocument, PersonNode } from './logic/types';
@@ -181,12 +181,15 @@ function App() {
 
       try {
         // 1. Check Cloud Preferences first (Cross-device sync)
-        let prefTreeName: string | null = null;
+        let startingTrees: string[] = [];
         try {
           const prefs = await getPreferences();
-          if (prefs && prefs[currentUser.email]?.defaultTreeName) {
-            prefTreeName = prefs[currentUser.email].defaultTreeName || null;
-            console.log("Found default tree preference:", prefTreeName);
+          if (prefs && prefs[currentUser.email]?.starredTreeNames && prefs[currentUser.email].starredTreeNames!.length > 0) {
+            startingTrees = prefs[currentUser.email].starredTreeNames!;
+            console.log("Found starred trees:", startingTrees);
+          } else if (prefs && prefs[currentUser.email]?.defaultTreeName) {
+            // Legacy fallback
+            startingTrees = [prefs[currentUser.email].defaultTreeName!];
           }
         } catch (e) {
           console.warn("Failed to load preferences", e);
@@ -197,9 +200,16 @@ function App() {
           const files = await listTreeFiles();
           if (!files || !Array.isArray(files)) return false;
 
-          // Logic to match tree name from filename (Name_family_tree.json)
+          // Logic to match tree name from filename (Name_family_tree.json or family_tree_Name_Date.json)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const consistentFiles = files.filter((f: any) => f.name && f.name.replace('_family_tree.json', '') === name);
+          const consistentFiles = files.filter((f: any) => {
+            if (!f.name) return false;
+            // Check various patterns
+            return f.name.startsWith(`${name}_family_tree`) ||
+              f.name.startsWith(`family_tree_${name}`) ||
+              f.name === `${name}_family_tree.json` ||
+              f.name === `${name}.json`;
+          });
 
           if (consistentFiles.length > 0) {
             // Load latest modified
@@ -211,13 +221,21 @@ function App() {
           return false;
         };
 
-        if (prefTreeName) {
-          const success = await loadTreeByName(prefTreeName);
-          if (success) {
-            setViewState('tree');
-            return;
+        if (startingTrees.length > 0) {
+          if (startingTrees.length === 1) {
+            const success = await loadTreeByName(startingTrees[0]);
+            if (success) {
+              setViewState('tree');
+              return;
+            }
+            console.warn("Starred tree not found in files, falling back to search.");
+          } else {
+            // Multiple stars -> Show Dashboard (Home with filter)
+            console.log("Multiple starred trees found, showing dashboard.");
+            setLoading(false);
+            setViewState('home');
+            return; // Let user pick
           }
-          console.warn("Preferred tree not found in files, falling back to search.");
         }
 
         // 2. Not found in prefs (or file missing), Search all trees
@@ -227,8 +245,8 @@ function App() {
         if (result) {
           console.log("User found in tree:", result.treeName);
           // Save as default for future (as Starred Tree)
-          // Note: We don't block loading on this save
-          updateUserPreference(currentUser.email, result.treeName).catch(console.error);
+          // We assume if they found it, that's their "Home" tree now.
+          updateUserStarredTrees(currentUser.email, [result.treeName]).catch(console.error);
 
           // Load it
           await loadTree(false, result.treeId);
@@ -243,8 +261,6 @@ function App() {
 
       } catch (e) {
         console.error("Error in access check:", e);
-        // Fallback for safety? Or Deny?
-        // If error listing files, we probably can't do anything.
         setLoading(false);
       }
     };
@@ -1258,17 +1274,7 @@ function App() {
                     >
                       {t('menu.history')}
                     </button>
-                    <button
-                      className="menu-item"
-                      onClick={() => {
-                        if (currentUser) {
-                          handleSetDefaultTreeForUser(currentUser.email);
-                          setIsMenuOpen(false);
-                        }
-                      }}
-                    >
-                      {t('menu.setDefault')}
-                    </button>
+
                     <button
                       className="menu-item"
                       onClick={() => {

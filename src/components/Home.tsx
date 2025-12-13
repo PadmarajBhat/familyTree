@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { listTreeFiles, saveTreeFile, renameFile } from '../services/drive';
+import { listTreeFiles, saveTreeFile, renameFile, getPreferences, updateUserStarredTrees } from '../services/drive';
 import { getISTTimestamp } from '../logic/dateUtils';
 import type { TreeDocument } from '../logic/types';
 import { getTreeNameFromFilename, generateFilename } from '../logic/fileUtils';
@@ -34,12 +34,31 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
 
     useEffect(() => {
         loadTrees();
-        const storedShortlist = localStorage.getItem(`shortlist_${userEmail}`);
-        if (storedShortlist) {
-            setShortlistedIds(JSON.parse(storedShortlist));
-        } else {
-            setShortlistedIds([]);
-        }
+
+        // Load starred trees from Cloud Preferences
+        const loadPrefs = async () => {
+            try {
+                const prefs = await getPreferences();
+                if (prefs && prefs[userEmail]?.starredTreeNames) {
+                    const stars = new Set(prefs[userEmail].starredTreeNames);
+                    setStarredTreeNames(stars);
+                    // We don't need to manually set shortlistedIds here, 
+                    // the effect below will sync them based on treeIdMap
+                } else if (prefs && prefs[userEmail]?.defaultTreeName) {
+                    // Backwards compatibility
+                    setStarredTreeNames(new Set([prefs[userEmail].defaultTreeName!]));
+                }
+            } catch (e) {
+                console.warn("Failed to load preferences in Home", e);
+                // Fallback to local storage if needed?
+                const storedShortlist = localStorage.getItem(`shortlist_${userEmail}`);
+                if (storedShortlist) {
+                    setShortlistedIds(JSON.parse(storedShortlist));
+                }
+            }
+        };
+        loadPrefs();
+
     }, [userEmail]);
 
     // Autoload Logic
@@ -112,16 +131,19 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         }
     };
 
-    // Recalculate starred names whenever shortlistedIds or treeIdMap changes
+    // Sync shortlistedIds (IDs) from starredTreeNames (Names)
     useEffect(() => {
-        const newStarredNames = new Set<string>();
-        Object.entries(treeIdMap).forEach(([name, ids]) => {
-            if (ids.some(id => shortlistedIds.includes(id))) {
-                newStarredNames.add(name);
+        const newIds: string[] = [];
+        starredTreeNames.forEach(name => {
+            const ids = treeIdMap[name];
+            if (ids) {
+                newIds.push(...ids);
             }
         });
-        setStarredTreeNames(newStarredNames);
-    }, [shortlistedIds, treeIdMap]);
+        setShortlistedIds(newIds);
+        // Sync local storage as backup
+        localStorage.setItem(`shortlist_${userEmail}`, JSON.stringify(newIds));
+    }, [starredTreeNames, treeIdMap, userEmail]);
 
     // Sync GlobalTreeService with ALL available trees for Unified Search (using fresh IDs from Home)
     useEffect(() => {
@@ -134,23 +156,19 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
     const toggleShortlist = (tree: TreeFile, e: React.MouseEvent) => {
         e.stopPropagation();
 
-        const isStarred = starredTreeNames.has(tree.name);
-
-        let newIds = [...shortlistedIds];
-
-        if (isStarred) {
-            // Unstar: Remove ALL IDs associated with this tree name
-            const idsToRemove = treeIdMap[tree.name] || [];
-            newIds = newIds.filter(id => !idsToRemove.includes(id));
+        const newStarred = new Set(starredTreeNames);
+        if (newStarred.has(tree.name)) {
+            newStarred.delete(tree.name);
         } else {
-            // Star: Add current ID
-            if (!newIds.includes(tree.id)) {
-                newIds.push(tree.id);
-            }
+            newStarred.add(tree.name);
         }
 
-        setShortlistedIds(newIds);
-        localStorage.setItem(`shortlist_${userEmail}`, JSON.stringify(newIds));
+        setStarredTreeNames(newStarred);
+        // Persist to Cloud
+        updateUserStarredTrees(userEmail, Array.from(newStarred)).catch(console.error);
+
+        // Also update legacy local storage for resilience
+        // We defer this since IDs are derived in effect
     };
 
     const handleCreateTree = async () => {
