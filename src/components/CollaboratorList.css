@@ -1,13 +1,15 @@
 .collaborator-overlay {
     position: fixed;
-    top: 50px; /* Below header */
+    top: 50px;
+    /* Below header */
     left: 0;
     right: 0;
     bottom: 0;
     background: #f5f5f5;
     display: flex;
     flex-direction: column;
-    z-index: 200; /* Above tree but below modals if any */
+    z-index: 200;
+    /* Above tree but below modals if any */
 }
 
 .collaborator-container {
@@ -18,7 +20,7 @@
     background: white;
     max-width: 800px;
     margin: 0 auto;
-    box-shadow: 0 0 20px rgba(0,0,0,0.05);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
 }
 
 .collaborator-header {
@@ -102,7 +104,7 @@
 
 .collaborator-card:hover {
     border-color: #bbb;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .card-left {
@@ -154,7 +156,7 @@
 
 .editor-since {
     color: #2e7d32;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
 }
 
@@ -212,7 +214,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -225,7 +227,7 @@
     border-radius: 8px;
     width: 90%;
     max-width: 400px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
 .details-dialog h3 {
@@ -248,7 +250,7 @@
 .input-group label {
     display: block;
     margin-bottom: 6px;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     color: #555;
 }
@@ -289,27 +291,28 @@
 
 @media (max-width: 600px) {
     .collaborator-overlay {
-        top: 50px; /* Adjust based on actual header height */
+        top: 50px;
+        /* Adjust based on actual header height */
     }
-    
+
     .collaborator-container {
         border-radius: 0;
     }
-    
+
     .collaborator-content {
         padding: 16px;
     }
-    
+
     .collaborator-card {
         flex-direction: column;
         align-items: flex-start;
         gap: 12px;
     }
-    
+
     .card-left {
         width: 100%;
     }
-    
+
     .toggle-button {
         width: 100%;
         margin-top: 8px;

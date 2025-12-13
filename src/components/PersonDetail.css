@@ -5,7 +5,7 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     z-index: 1100;
@@ -17,7 +17,7 @@
 
 @media (prefers-color-scheme: dark) {
     .person-detail-overlay {
-        background: rgba(30, 30, 30, 0.85);
+        background: rgba(30, 30, 30, 0.95);
         color: #fff;
     }
 }
@@ -109,16 +109,16 @@
 
 .info-label {
     font-weight: 600;
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    opacity: 0.7;
+    opacity: 1;
     margin-bottom: 4px;
     display: block;
 }
 
 .info-value {
-    font-size: 0.95rem;
+    font-size: 1rem;
     word-break: break-word;
     font-weight: 500;
 }
@@ -309,191 +309,4 @@
     top: 15px;
     right: 50px;
     /* Left of close btn */
-}
-
-.person-detail-header {
-    background: white;
-    padding: 15px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    display: flex;
-    align-items: flex-start;
-    gap: 20px;
-    position: relative;
-    z-index: 2;
-}
-
-.person-detail-info {
-    flex: 1;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    align-items: center;
-}
-
-.profile-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-width: 120px;
-}
-
-.profile-pic {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 3px solid #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    background-color: #eee;
-    /* Fallback */
-}
-
-.info-section {
-    flex: 1;
-    min-width: 200px;
-}
-
-.info-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 10px;
-    margin-top: 10px;
-}
-
-.info-item {
-    background: #f5f5f5;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 0.9rem;
-}
-
-.info-label {
-    font-weight: bold;
-    color: #555;
-    display: block;
-    font-size: 0.8rem;
-    margin-bottom: 2px;
-}
-
-.info-value {
-    color: #333;
-    word-break: break-word;
-}
-
-.close-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: #333;
-    padding: 10px;
-    z-index: 10;
-}
-
-.detail-actions {
-    margin-top: 15px;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.detail-actions button {
-    padding: 8px 16px;
-    background-color: #007bff;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.detail-actions button:hover:not(:disabled) {
-    opacity: 0.9;
-}
-
-.detail-actions button.delete-button {
-    background-color: #ff4444;
-}
-
-.detail-actions button.export-pdf-button {
-    background-color: #28a745;
-}
-
-.detail-actions button.export-pdf-button:hover:not(:disabled) {
-    background-color: #218838;
-}
-
-.detail-actions button:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-    opacity: 0.6;
-}
-
-.person-detail-tree {
-    flex: 1;
-    overflow: hidden;
-    position: relative;
-    background: #f0f2f5;
-}
-
-.collapse-btn {
-    position: absolute;
-    top: 50px;
-    /* Below close button */
-    right: 10px;
-    background: #e0e0e0;
-    border: none;
-    border-radius: 50%;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    z-index: 10;
-    font-size: 0.8rem;
-    color: #555;
-}
-
-.collapse-btn:hover {
-    background: #d0d0d0;
-}
-
-/* Collapsed State Styles */
-.person-detail-overlay.collapsed .person-detail-header {
-    padding: 10px;
-    align-items: center;
-}
-
-.person-detail-overlay.collapsed .profile-section {
-    flex-direction: row;
-    gap: 15px;
-    min-width: auto;
-}
-
-.person-detail-overlay.collapsed .profile-pic {
-    width: 50px;
-    height: 50px;
-    font-size: 1.2rem;
-    border-width: 2px;
-}
-
-.person-detail-overlay.collapsed h2 {
-    font-size: 1.2rem;
-    margin: 0;
-}
-
-/* Adjust close button position in collapsed mode */
-.person-detail-overlay.collapsed .close-btn {
-    top: 5px;
-    right: 5px;
-    padding: 5px;
-}
-
-.person-detail-overlay.collapsed .collapse-btn {
-    top: 40px;
-    right: 5px;
 }

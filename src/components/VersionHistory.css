@@ -81,7 +81,7 @@
 
 .log-time {
     color: #888;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     min-width: 60px;
     padding-top: 2px;
 }
@@ -96,8 +96,8 @@
 }
 
 .log-root {
-    font-size: 0.8rem;
-    color: #999;
+    font-size: 0.9rem;
+    color: #666;
     margin-top: 2px;
 }
 
