@@ -138,6 +138,10 @@ export const listTreeFiles = async () => {
             fields: 'nextPageToken, files(id, name, createdTime, modifiedTime, description)',
             orderBy: 'createdTime desc', // Load latest created file
         });
+        console.log(`[Drive] listTreeFiles Query`, {
+            folderId: CONFIG.DRIVE_TREE_FOLDER_ID,
+            results: response.result.files?.length
+        });
         return response.result.files;
     } catch (err) {
         console.error("Error listing files", err);
