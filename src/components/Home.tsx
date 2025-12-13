@@ -325,6 +325,8 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    flex-wrap: wrap;
+                    gap: 1rem;
                     margin-bottom: 2rem;
                     border-bottom: 2px solid #eee;
                     padding-bottom: 1rem;
@@ -332,11 +334,25 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                 .home-actions {
                     display: flex;
                     gap: 1rem;
+                    flex-wrap: wrap;
                 }
                 .home-actions input {
                     padding: 0.5rem;
                     border: 1px solid #ccc;
                     border-radius: 4px;
+                }
+                @media (max-width: 768px) {
+                    .home-header {
+                        flex-direction: column;
+                        align-items: flex-start;
+                    }
+                    .home-actions {
+                        width: 100%;
+                        justify-content: space-between;
+                    }
+                    .home-actions input {
+                        flex: 1;
+                    }
                 }
                 .tree-list {
                     margin-top: 1rem;
