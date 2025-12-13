@@ -665,7 +665,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                     <div style={{ background: '#e3f2fd', padding: '10px', borderRadius: '4px', marginBottom: '10px', border: '1px solid #2196f3' }}>
                         <strong>Live Link Active:</strong> This person is linked to tree "{externalLink.treeName || externalLink.treeId}".
                         <br />
-                        <small>Edits made here will update the source tree automatically.</small>
+                        <small>Profile details are read-only. You can only edit relationships (Spouse/Children) in this tree.</small>
                     </div>
                 )}
 
@@ -710,9 +710,10 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                             type="text"
                             value={name}
                             onChange={e => setName(e.target.value)}
-                            onFocus={() => name.length > 2 && setShowNameSuggestions(true)}
+                            onFocus={() => !isLinkedNode && name.length > 2 && setShowNameSuggestions(true)}
                             onBlur={handleNameBlur}
                             required
+                            disabled={isLinkedNode}
                         />
                         {showNameSuggestions && nameSuggestions.length > 0 && (
                             <div className="suggestions-dropdown">
@@ -751,6 +752,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                             onChange={e => setTranslations(prev => ({ ...prev, [lang]: e.target.value }))}
                                             placeholder={lang.toUpperCase()}
                                             style={{ fontSize: '0.9em', padding: '4px 8px' }}
+                                            disabled={isLinkedNode}
                                         />
                                     </div>
                                 ))}
@@ -768,6 +770,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                     name="gender"
                                     checked={gender === 'male'}
                                     onChange={() => setGender('male')}
+                                    disabled={isLinkedNode}
                                 /> Male
                             </label>
                             <label>
@@ -776,6 +779,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                     name="gender"
                                     checked={gender === 'female'}
                                     onChange={() => setGender('female')}
+                                    disabled={isLinkedNode}
                                 /> Female
                             </label>
                             <label>
@@ -784,6 +788,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                     name="gender"
                                     checked={gender === 'other'}
                                     onChange={() => setGender('other')}
+                                    disabled={isLinkedNode}
                                 /> Other
                             </label>
                         </div>
@@ -792,7 +797,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                     {/* 3. Phone */}
                     <div className="form-group">
                         <label>Phone</label>
-                        <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
+                        <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} disabled={isLinkedNode} />
                     </div>
 
                     {/* 4. Father */}
@@ -898,6 +903,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                             onFocus={() => locationSearchText.length > 2 && setShowLocationSuggestions(true)}
                             onBlur={() => setTimeout(() => setShowLocationSuggestions(false), 200)}
                             placeholder="e.g. Mulgund or 582117"
+                            disabled={isLinkedNode}
                         />
                         {showLocationSuggestions && locationSuggestions.length > 0 && (
                             <div className="suggestions-dropdown">
@@ -935,6 +941,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                     type="radio"
                                     checked={isAlive}
                                     onChange={() => setIsAlive(true)}
+                                    disabled={isLinkedNode}
                                 /> Alive
                             </label>
                             <label>
@@ -942,6 +949,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                     type="radio"
                                     checked={!isAlive}
                                     onChange={() => setIsAlive(false)}
+                                    disabled={isLinkedNode}
                                 /> Deceased
                             </label>
                         </div>
@@ -961,21 +969,20 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                 const parsed = parseDateFromDDMMYYYY(val);
                                 if (parsed) {
                                     setDob(parsed);
-                                    setAge('');
                                 } else if (val === '') {
                                     setDob('');
                                 }
                             }}
+                            disabled={isLinkedNode}
                         />
                     </div>
 
-                    {
-                        !dob && (
-                            <div className="form-group">
-                                <label>Or Age (approx)</label>
-                                <input type="number" value={age} onChange={e => { setAge(e.target.value); setDob(''); setDobInput(''); }} placeholder="Years" />
-                            </div>
-                        )
+                    {!dob && (
+                        <div className="form-group">
+                            <label>Or Age (approx)</label>
+                            <input type="number" value={age} onChange={e => { setAge(e.target.value); setDob(''); setDobInput(''); }} placeholder="Years" disabled={isLinkedNode} />
+                        </div>
+                    )
                     }
 
                     {
@@ -997,6 +1004,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                             setDod('');
                                         }
                                     }}
+                                    disabled={isLinkedNode}
                                 />
                             </div>
                         )
@@ -1005,13 +1013,13 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                     {/* 9. Email */}
                     <div className="form-group">
                         <label>Email {(initialData?.isEditor) && <span style={{ color: 'red' }}>*</span>}</label>
-                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required={initialData?.isEditor || false} />
+                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required={initialData?.isEditor || false} disabled={isLinkedNode} />
                     </div>
 
                     {/* 10. Address */}
                     <div className="form-group">
                         <label>Address</label>
-                        <textarea value={address} onChange={e => setAddress(e.target.value)} rows={3} />
+                        <textarea value={address} onChange={e => setAddress(e.target.value)} rows={3} disabled={isLinkedNode} />
                     </div>
 
                     {/* 11. Education */}
@@ -1041,10 +1049,10 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                 />
                                 <button type="button" onClick={() => {
                                     setEducation(education.filter((_, i) => i !== index));
-                                }}>×</button>
+                                }} disabled={isLinkedNode}>×</button>
                             </div>
                         ))}
-                        <button type="button" onClick={() => setEducation([...education, { degree: '', major: '' }])} style={{ fontSize: '0.8em' }}>+ Add Education</button>
+                        <button type="button" onClick={() => setEducation([...education, { degree: '', major: '' }])} style={{ fontSize: '0.8em' }} disabled={isLinkedNode}>+ Add Education</button>
                     </div>
 
                     {/* 12. Occupation */}
@@ -1056,12 +1064,14 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                 placeholder="Role"
                                 value={occupation?.role || ''}
                                 onChange={e => setOccupation({ ...occupation, role: e.target.value, organization: occupation?.organization || '' })}
+                                disabled={isLinkedNode}
                             />
                             <input
                                 type="text"
                                 placeholder="Organization"
                                 value={occupation?.organization || ''}
                                 onChange={e => setOccupation({ ...occupation, role: occupation?.role || '', organization: e.target.value })}
+                                disabled={isLinkedNode}
                             />
                         </div>
                     </div>
@@ -1074,6 +1084,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                             value={hobbies.join(', ')}
                             onChange={e => setHobbies(e.target.value.split(',').map(s => s.trim()).filter(s => s))}
                             placeholder="Reading, Traveling, etc."
+                            disabled={isLinkedNode}
                         />
                     </div>
 
@@ -1173,7 +1184,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                     {/* 16. Notes */}
                     <div className="form-group">
                         <label>Notes</label>
-                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Random remarks..." />
+                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Random remarks..." disabled={isLinkedNode} />
                     </div>
 
                 </form >

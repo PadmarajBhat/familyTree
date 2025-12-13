@@ -110,25 +110,50 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
         }
 
         // --- Build Hierarchy ---
-        const buildHierarchy = (nodeId: string, path: Set<string> = new Set()): HierarchyPersonNode | null => {
-            if (path.has(nodeId)) {
-                return null;
-            }
-            const newPath = new Set(path).add(nodeId);
+        const buildHierarchy = (nodeId: string, visited: Set<string> = new Set()): HierarchyPersonNode | null => {
             const node = data.nodes[nodeId];
             if (!node) return null;
 
-            const children = node.childrenIds
-                .map(childId => buildHierarchy(childId, newPath))
+            if (visited.has(nodeId)) {
+                // Cycle detected or multi-parent path (e.g. pedigree collapse)
+                // For a strict tree, we stop.
+                return null;
+            }
+            visited.add(nodeId);
+
+            // Aggregate children from current node AND its spouses
+            const allChildrenIds = new Set(node.childrenIds);
+            node.spouseIds.forEach(spId => {
+                const spNode = data.nodes[spId];
+                if (spNode && spNode.childrenIds) {
+                    // If spouse is a shadow node, its children were hydrated by GlobalTreeService
+                    spNode.childrenIds.forEach(childId => allChildrenIds.add(childId));
+                }
+            });
+
+            const children: HierarchyPersonNode[] = Array.from(allChildrenIds)
+                .map(childId => buildHierarchy(childId, new Set(visited)))
                 .filter((n): n is HierarchyPersonNode => n !== null);
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const childCount = (node as any).actualChildrenCount ?? children.length;
+            // Sort children by Age (DOB) if available
+            children.sort((a, b) => {
+                const dobA = a.dob;
+                const dobB = b.dob;
+                if (dobA && dobB) {
+                    // simple string comparison YYYY-MM-DD works for ISO, but here we have DD-MM-YYYY
+                    // parsing needed or just rely on IDs? 
+                    // Let's assume input is DD-MM-YYYY
+                    const partsA = dobA.split('-').reverse().join('');
+                    const partsB = dobB.split('-').reverse().join('');
+                    return partsA.localeCompare(partsB);
+                }
+                return 0;
+            });
 
             return {
                 ...node,
                 children: children.length > 0 ? children : undefined,
-                childrenCount: childCount
+                childrenCount: children.length // Recalculate based on filtered/sorted children
             };
         };
 

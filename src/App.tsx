@@ -805,13 +805,30 @@ function App() {
       const userAddedSpouses = newSpouseIds.filter(id => !userViewNode?.spouseIds.includes(id));
       const userRemovedSpouses = userViewNode ? userViewNode.spouseIds.filter(id => !newSpouseIds.includes(id)) : [];
 
-      userAddedSpouses.forEach(spouseId => {
+      userAddedSpouses.forEach(async spouseId => {
         if (!updatedTree.nodes[personData.nodeId].spouseIds.includes(spouseId)) {
           updatedTree.nodes[personData.nodeId].spouseIds.push(spouseId);
         }
         const spouseNode = updatedTree.nodes[spouseId];
         if (spouseNode) {
+          // If spouse is a Shadow Node (Live Link), update the remote tree too via GlobalTreeService
+          if (spouseNode.externalLink && spouseNode.externalLink.treeId !== currentTree.treeId) {
+            const success = await GlobalTreeService.addSpouseToRemoteNode(
+              spouseNode.externalLink.treeId,
+              spouseNode.externalLink.nodeId,
+              personData.nodeId, // Link 'me' as spouse to 'them'
+              currentUser?.email || 'unknown'
+            );
+            if (success) {
+              changes.push(`Linked ${personData.name} as spouse to remote node ${spouseNode.name} in tree ${spouseNode.externalLink.treeName}`);
+            } else {
+              console.warn("Failed to update remote spouse link");
+              // We still keep local link
+            }
+          }
+
           if (!spouseNode.spouseIds.includes(personData.nodeId)) {
+            // Update local representation (whether real or shadow)
             spouseNode.spouseIds.push(personData.nodeId);
             touchNode(spouseId);
             changes.push(`Added spouse link between ${personData.name} and ${spouseNode.name} `);
