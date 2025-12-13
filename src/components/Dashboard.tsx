@@ -28,6 +28,7 @@ interface DashboardData {
 export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [data, setData] = useState<DashboardData | null>(null);
+    const [drillDownData, setDrillDownData] = useState<{ title: string; members: PersonNode[] } | null>(null);
 
     React.useEffect(() => {
         window.scrollTo(0, 0);
@@ -219,6 +220,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
         return () => clearTimeout(timer);
     }, [tree]);
 
+    const handleChartClick = (data: any) => {
+        if (data && data.activePayload && data.activePayload.length > 0) {
+            // For Bar/Line charts where click comes from wrapper
+            const payload = data.activePayload[0].payload;
+            if (payload && payload.members && payload.members.length > 0) {
+                setDrillDownData({ title: payload.name || "Members", members: payload.members });
+            }
+        } else if (data && data.members && data.members.length > 0) {
+            // For direct clicks on Pie/Treemap segments
+            setDrillDownData({ title: data.name || "Members", members: data.members });
+        }
+    };
+
+    const closeDrillDown = () => setDrillDownData(null);
+
     if (isLoading || !data) {
         return (
             <div className="dashboard-container" style={{
@@ -232,7 +248,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
     }
 
     return (
-        <div className="dashboard-container" style={{ padding: '20px', height: '100%', overflowY: 'auto', background: '#f5f5f5' }}>
+        <div className="dashboard-container" style={{ padding: '20px', height: '100%', overflowY: 'auto', background: '#f5f5f5', position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', maxWidth: '800px', margin: '0 auto 20px auto' }}>
                 <h1 style={{ margin: 0, color: '#333' }}>{tree.treeName || "Family"} Dashboard</h1>
                 <button onClick={onClose} style={{ padding: '10px 20px', cursor: 'pointer', background: '#2196f3', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>Back to Tree</button>
@@ -244,7 +260,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                 <div className="chart-card" style={cardStyle}>
                     <h3>Cumulative Family Growth</h3>
                     <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={data.memberGrowthData}>
+                        <LineChart data={data.memberGrowthData} onClick={handleChartClick}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="year" />
                             <YAxis allowDecimals={false} />
@@ -274,13 +290,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                 <div className="chart-card" style={cardStyle}>
                     <h3>Age Distribution</h3>
                     <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={data.ageData}>
+                        <BarChart data={data.ageData} onClick={handleChartClick}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis allowDecimals={false} />
                             <Tooltip content={<CustomTooltip />} />
                             <Legend />
-                            <Bar dataKey="value" fill="#82ca9d">
+                            <Bar dataKey="value" fill="#82ca9d" style={{ cursor: 'pointer' }}>
                                 {data.ageData.map((_, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
@@ -303,6 +319,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                                 outerRadius={100}
                                 fill="#8884d8"
                                 dataKey="value"
+                                onClick={handleChartClick}
+                                style={{ cursor: 'pointer' }}
                             >
                                 {data.occupationData.map((_, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -317,13 +335,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                 <div className="chart-card" style={cardStyle}>
                     <h3>Top Hobbies</h3>
                     <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={data.hobbiesData}>
+                        <BarChart data={data.hobbiesData} onClick={handleChartClick}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis allowDecimals={false} />
                             <Tooltip content={<CustomTooltip />} />
                             <Legend />
-                            <Bar dataKey="value" fill="#FFBB28" />
+                            <Bar dataKey="value" fill="#FFBB28" style={{ cursor: 'pointer' }} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
@@ -338,6 +356,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                             aspectRatio={4 / 3}
                             stroke="#fff"
                             fill="#8884d8"
+                            onClick={handleChartClick}
+                            style={{ cursor: 'pointer' }}
                         >
                             <Tooltip content={<CustomTooltip />} />
                         </Treemap>
@@ -357,6 +377,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                                 fill="#82ca9d"
                                 label
                                 dataKey="value"
+                                onClick={handleChartClick}
+                                style={{ cursor: 'pointer' }}
                             >
                                 {data.educationData.map((_, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -372,17 +394,63 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                 <div className="chart-card" style={cardStyle}>
                     <h3>Birthdays by Month</h3>
                     <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={data.birthsByMonthData}>
+                        <BarChart data={data.birthsByMonthData} onClick={handleChartClick}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis allowDecimals={false} />
                             <Tooltip content={<CustomTooltip />} />
-                            <Bar dataKey="value" fill="#FF8042" />
+                            <Bar dataKey="value" fill="#FF8042" style={{ cursor: 'pointer' }} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
 
             </div>
+
+            {drillDownData && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', zIndex: 2000,
+                    display: 'flex', justifyContent: 'center', alignItems: 'center'
+                }} onClick={closeDrillDown}>
+                    <div style={{
+                        background: 'white', padding: '20px', borderRadius: '8px',
+                        width: '90%', maxWidth: '400px', maxHeight: '80vh',
+                        display: 'flex', flexDirection: 'column',
+                        overflow: 'hidden'
+                    }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                            <h3 style={{ margin: 0 }}>{drillDownData.title} Members</h3>
+                            <button onClick={closeDrillDown} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+                        </div>
+                        <div style={{ overflowY: 'auto', flex: 1 }}>
+                            {drillDownData.members.map(member => (
+                                <div
+                                    key={member.nodeId}
+                                    style={{
+                                        padding: '10px', borderBottom: '1px solid #eee', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', gap: '10px'
+                                    }}
+                                    onClick={() => {
+                                        onNodeClick(member.nodeId);
+                                        closeDrillDown();
+                                    }}
+                                    onMouseOver={(e) => e.currentTarget.style.background = '#f5f5f5'}
+                                    onMouseOut={(e) => e.currentTarget.style.background = 'white'}
+                                >
+                                    {member.imageUrl ? (
+                                        <img src={getPhotoUrl(member.imageUrl) || ""} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
+                                    ) : (
+                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                                            {member.name?.charAt(0)}
+                                        </div>
+                                    )}
+                                    <div style={{ fontWeight: '500' }}>{member.name}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
