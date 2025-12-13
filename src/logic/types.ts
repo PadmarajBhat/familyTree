@@ -26,6 +26,13 @@ export interface PersonNode {
   notes?: string | null;
   location?: { zipcode: string | null; district: string | null; state: string | null; country: string | null } | null;
   externalLink?: { treeId: string; nodeId: string; treeName?: string };
+  nameTranslations?: {
+    ta?: string;
+    ml?: string;
+    hi?: string;
+    kn?: string;
+    [key: string]: string | undefined;
+  };
 }
 
 export interface Marriage {

@@ -61,7 +61,9 @@ export const GlobalTreeService = {
         Object.entries(loadedTreesCache).forEach(([fileId, tree]) => {
             Object.values(tree.nodes).forEach(node => {
                 const nameMatch = node.name?.toLowerCase().includes(lowerQuery) || false;
-                if (nameMatch) {
+                const matchesTranslations = node.nameTranslations ? Object.values(node.nameTranslations).some(t => t?.toLowerCase().includes(lowerQuery)) : false;
+
+                if (nameMatch || matchesTranslations) {
                     const parentNode = node.parentId ? tree.nodes[node.parentId] : null;
                     results.push({
                         treeId: fileId, // Use fileId as the identifier we can load later

@@ -1,0 +1,30 @@
+{
+    "appTitle": "वंश वृक्ष",
+    "dashboardTitle": "वंश वृक्ष डैशबोर्ड",
+    "menu": {
+        "search": "सदस्यों को खोजें",
+        "findRelation": "संबंध खोजें",
+        "editors": "संपादक",
+        "history": "संस्करण इतिहास",
+        "dashboard": "डैशबोर्ड",
+        "setDefault": "डिफ़ॉल्ट वृक्ष के रूप में सेट करें",
+        "changeTree": "वृक्ष बदलें",
+        "signOut": "लॉग आउट"
+    },
+    "personDetail": {
+        "born": "जन्म",
+        "died": "मृत्यु",
+        "phone": "फ़ोन",
+        "email": "ईमेल",
+        "address": "पता",
+        "edit": "विवरण संपादित करें",
+        "findRelation": "संबंध खोजें",
+        "history": "इतिहास",
+        "exportPdf": "PDF निर्यात करें",
+        "delete": "सदस्य हटाएं",
+        "unknown": "अज्ञात"
+    },
+    "common": {
+        "loading": "लोड हो रहा है..."
+    }
+}

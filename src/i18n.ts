@@ -4,6 +4,9 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 
 import en from './locales/en.json';
 import kn from './locales/kn.json';
+import ta from './locales/ta.json';
+import ml from './locales/ml.json';
+import hi from './locales/hi.json';
 
 i18n
     // detect user language
@@ -20,6 +23,15 @@ i18n
             },
             kn: {
                 translation: kn
+            },
+            ta: {
+                translation: ta
+            },
+            ml: {
+                translation: ml
+            },
+            hi: {
+                translation: hi
             }
         },
         fallbackLng: 'en',

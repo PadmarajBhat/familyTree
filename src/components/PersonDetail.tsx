@@ -21,7 +21,7 @@ interface PersonDetailProps {
 }
 
 export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentUser, onClose, onEdit, onDelete, onNodeClick, onFindRelation, onViewHistory }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const isOrphan = !node.parentId && node.childrenIds.length === 0 && node.spouseIds.length === 0;
     const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
@@ -154,7 +154,7 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentU
                                 {node.name ? node.name.charAt(0).toUpperCase() : "?"}
                             </div>
                         )}
-                        <h2>{node.name || t('personDetail.unknown')}</h2>
+                        <h2>{(i18n.language && node.nameTranslations?.[i18n.language]) || node.name || t('personDetail.unknown')}</h2>
                     </div>
 
                     {!isCollapsed && (

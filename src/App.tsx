@@ -1201,6 +1201,9 @@ function App() {
                   >
                     <option value="en">English</option>
                     <option value="kn">ಕನ್ನಡ (Kannada)</option>
+                    <option value="ta">தமிழ் (Tamil)</option>
+                    <option value="ml">മലയാളം (Malayalam)</option>
+                    <option value="hi">हिंदी (Hindi)</option>
                   </select>
                 </div>
                 {tree && (

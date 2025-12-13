@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as d3 from 'd3';
 import { getPhotoUrl } from '../services/drive';
 import type { TreeDocument, PersonNode } from '../logic/types';
@@ -30,6 +31,8 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const zoomBehavior = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+    const { i18n } = useTranslation();
+    const currentLang = i18n.language;
 
     useEffect(() => {
         if (!wrapperRef.current) return;
@@ -316,11 +319,14 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
                 const spouseNameSize = compact ? "9px" : "11px";
 
                 if (spouseNode) {
+                    const mainName = (currentLang && d.data.nameTranslations?.[currentLang]) || d.data.name || "Unknown";
+                    const spouseName = (currentLang && spouseNode.nameTranslations?.[currentLang]) || spouseNode.name || "Unknown";
+
                     mainGroup.append("text")
                         .attr("dy", ".35em")
                         .attr("y", nameY)
                         .style("text-anchor", "middle")
-                        .text(`${d.data.name || "Unknown"}`)
+                        .text(mainName)
                         .style("font-size", nameSize)
                         .style("fill", "#333")
                         .style("font-weight", "bold")
@@ -330,16 +336,17 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
                         .attr("dy", ".35em")
                         .attr("y", spouseNameY)
                         .style("text-anchor", "middle")
-                        .text(`& ${spouseNode.name || "Unknown"}`)
+                        .text(`& ${spouseName}`)
                         .style("font-size", spouseNameSize)
                         .style("fill", "#555")
                         .style("text-shadow", "0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff");
                 } else {
+                    const mainName = (currentLang && d.data.nameTranslations?.[currentLang]) || d.data.name || "Unknown";
                     mainGroup.append("text")
                         .attr("dy", ".35em")
                         .attr("y", nameY)
                         .style("text-anchor", "middle")
-                        .text(d.data.name || "Unknown")
+                        .text(mainName)
                         .style("font-size", nameSize)
                         .style("fill", "#333")
                         .style("font-weight", "bold")
@@ -535,7 +542,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
         // Initial centering
         centerTree();
 
-    }, [data, maxDepth, dimensions, isExporting, compact]);
+    }, [data, maxDepth, dimensions, isExporting, compact, currentLang]);
 
     const handleZoomIn = () => {
         if (svgRef.current && zoomBehavior.current) {

@@ -5,6 +5,7 @@ import { getISTTimestamp, deriveDobFromAge, calculateAge, formatDateToDDMMYYYY, 
 import { isAncestor } from '../logic/relationshipUtils';
 import { uploadImage, getPhotoUrl, deleteFile } from '../services/drive';
 import { GlobalTreeService, type SearchResult } from '../services/GlobalTreeService';
+import { generateAllTranslations } from '../services/TransliterationService';
 import { CloseButton } from './CloseButton';
 import './MemberEditor.css';
 
@@ -28,6 +29,42 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     onDelete
 }) => {
     const [name, setName] = useState(initialData?.name || '');
+    const [translations, setTranslations] = useState<Record<string, string | undefined>>(initialData?.nameTranslations || {});
+
+    const handleNameBlur = async () => {
+        // Auto-generate translations if name is present
+        if (name && name.length > 2) {
+            // Only generate if we don't have them? Or update strictly?
+            // Plan said "Auto-Generation: On Save (or blur)".
+            // Let's generate and merge. Manual edits should be respected?
+            // If user manually edited 'ta', we shouldn't overwrite it unless they changed 'en' name significantly?
+            // For simplicity: We generate all. If user wants to correct, they correct AFTER generation.
+            // OR: We only fill missing ones.
+            // "Strict Fallback" implies we populate all.
+            try {
+                const generated = await generateAllTranslations(name);
+                setTranslations(prev => {
+                    const next = { ...prev };
+                    for (const [key, val] of Object.entries(generated)) {
+                        // Optional: Don't overwrite if already set? 
+                        // "Save-Time Auto-Generation" implies system truth.
+                        // But if user manually fixed it, we hate overwriting.
+                        // Let's overwrite ONLY if the english name changed?
+                        // Hard to track "changed".
+                        // Let's just overwrite for now as it's an explicit action (Blur/Save).
+                        // Or better: overwriting is risky.
+                        // Let's overwrite only if empty.
+                        if (!next[key]) next[key] = val;
+                    }
+                    return next;
+                });
+            } catch (e) {
+                console.warn("Translation failed", e);
+            }
+        }
+        setTimeout(() => setShowNameSuggestions(false), 200);
+    };
+
     // const [gender, setGender] = useState<'male' | 'female' | 'other'>('male'); // TODO: Add gender to PersonNode if needed, currently not in interface but useful for UI
     const [isAlive, setIsAlive] = useState(initialData ? !initialData.dod : true);
     const [dob, setDob] = useState(initialData?.dob || '');
@@ -450,7 +487,8 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                     state: locationData.state,
                     country: locationData.country
                 } : null,
-                externalLink: externalLink
+                externalLink: externalLink,
+                nameTranslations: translations
             };
 
             // Live Link Write-Back
@@ -673,7 +711,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                             value={name}
                             onChange={e => setName(e.target.value)}
                             onFocus={() => name.length > 2 && setShowNameSuggestions(true)}
-                            onBlur={() => setTimeout(() => setShowNameSuggestions(false), 200)}
+                            onBlur={handleNameBlur}
                             required
                         />
                         {showNameSuggestions && nameSuggestions.length > 0 && (
@@ -699,6 +737,26 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                             </div>
                         )}
                     </div>
+
+                    {/* 1.1 Name Translations */}
+                    {Object.keys(translations).length > 0 || name.length > 2 ? (
+                        <div className="form-group">
+                            <label style={{ fontSize: '0.9em', color: '#666' }}>Translations (Auto-filled)</label>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                {['ta', 'ml', 'hi', 'kn'].map(lang => (
+                                    <div key={lang}>
+                                        <input
+                                            type="text"
+                                            value={translations[lang] || ''}
+                                            onChange={e => setTranslations(prev => ({ ...prev, [lang]: e.target.value }))}
+                                            placeholder={lang.toUpperCase()}
+                                            style={{ fontSize: '0.9em', padding: '4px 8px' }}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
 
                     {/* 2. Gender */}
                     <div className="form-group">
