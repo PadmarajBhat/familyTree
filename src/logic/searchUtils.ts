@@ -43,6 +43,9 @@ export const searchMembers = (nodes: PersonNode[], query: string): PersonNode[] 
         // 4. Hobbies match
         if (node.hobbies && node.hobbies.some(hobby => hobby.toLowerCase().includes(lowerQuery))) return true;
 
+        // 5. Email match
+        if (node.email && node.email.toLowerCase().includes(lowerQuery)) return true;
+
         return false;
     });
 };
