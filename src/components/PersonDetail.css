@@ -139,3 +139,61 @@
     position: relative;
     background: #f0f2f5;
 }
+
+.collapse-btn {
+    position: absolute;
+    top: 50px; /* Below close button */
+    right: 10px;
+    background: #e0e0e0;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    font-size: 0.8rem;
+    color: #555;
+}
+
+.collapse-btn:hover {
+    background: #d0d0d0;
+}
+
+/* Collapsed State Styles */
+.person-detail-overlay.collapsed .person-detail-header {
+    padding: 10px;
+    align-items: center;
+}
+
+.person-detail-overlay.collapsed .profile-section {
+    flex-direction: row;
+    gap: 15px;
+    min-width: auto;
+}
+
+.person-detail-overlay.collapsed .profile-pic {
+    width: 50px;
+    height: 50px;
+    font-size: 1.2rem;
+    border-width: 2px;
+}
+
+.person-detail-overlay.collapsed h2 {
+    font-size: 1.2rem;
+    margin: 0;
+}
+
+/* Adjust close button position in collapsed mode */
+.person-detail-overlay.collapsed .close-btn {
+    top: 5px;
+    right: 5px;
+    padding: 5px;
+}
+
+.person-detail-overlay.collapsed .collapse-btn {
+    top: 40px;
+    right: 5px;
+}

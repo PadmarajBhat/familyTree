@@ -22,6 +22,7 @@ interface PersonDetailProps {
 export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentUser, onClose, onEdit, onDelete, onNodeClick, onFindRelation, onViewHistory }) => {
     const isOrphan = !node.parentId && node.childrenIds.length === 0 && node.spouseIds.length === 0;
     const [isExportingPdf, setIsExportingPdf] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
     const canEdit = canEditNode(tree, currentUser?.email, node.nodeId);
     const canDelete = isGlobalEditor(tree, currentUser?.email) && isOrphan;
@@ -130,9 +131,17 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentU
     }, [tree, node.nodeId, node.parentId]);
 
     return (
-        <div className="person-detail-overlay">
+        <div className={`person-detail-overlay ${isCollapsed ? 'collapsed' : ''}`}>
             <div className="person-detail-header">
                 <CloseButton onClick={onClose} />
+
+                <button
+                    className="collapse-btn"
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    title={isCollapsed ? "Expand Details" : "Collapse Details"}
+                >
+                    {isCollapsed ? "▼" : "▲"}
+                </button>
 
                 <div className="person-detail-info">
                     <div className="profile-section">
@@ -146,47 +155,49 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentU
                         <h2>{node.name || "Unknown"}</h2>
                     </div>
 
-                    <div className="info-section">
-                        <div className="info-grid">
-                            {fields.map((field, index) => (
-                                <div key={index} className="info-item">
-                                    <span className="info-label">{field.label}</span>
-                                    <div className="info-value">{field.value}</div>
-                                </div>
-                            ))}
-                        </div>
+                    {!isCollapsed && (
+                        <div className="info-section">
+                            <div className="info-grid">
+                                {fields.map((field, index) => (
+                                    <div key={index} className="info-item">
+                                        <span className="info-label">{field.label}</span>
+                                        <div className="info-value">{field.value}</div>
+                                    </div>
+                                ))}
+                            </div>
 
-                        <div className="detail-actions">
-                            {canEdit && (
-                                <button onClick={onEdit}>Edit Details</button>
-                            )}
-                            <button onClick={() => onFindRelation(node.nodeId)} title="Find Relation with Me">
-                                🔍 Find Relation
-                            </button>
-                            <button onClick={() => onViewHistory(node.nodeId)} title="View History">
-                                📜 History
-                            </button>
-                            <button
-                                onClick={handleExportPdf}
-                                disabled={isExportingPdf}
-                                className="export-pdf-button"
-                            >
-                                {isExportingPdf ? 'Generating PDF...' : 'Export PDF'}
-                            </button>
-                            {canDelete && (
-                                <button
-                                    onClick={() => {
-                                        if (window.confirm(`Are you sure you want to delete ${node.name}? This cannot be undone.`)) {
-                                            onDelete(node.nodeId);
-                                        }
-                                    }}
-                                    className="delete-button"
-                                >
-                                    Delete Member
+                            <div className="detail-actions">
+                                {canEdit && (
+                                    <button onClick={onEdit}>Edit Details</button>
+                                )}
+                                <button onClick={() => onFindRelation(node.nodeId)} title="Find Relation with Me">
+                                    🔍 Find Relation
                                 </button>
-                            )}
+                                <button onClick={() => onViewHistory(node.nodeId)} title="View History">
+                                    📜 History
+                                </button>
+                                <button
+                                    onClick={handleExportPdf}
+                                    disabled={isExportingPdf}
+                                    className="export-pdf-button"
+                                >
+                                    {isExportingPdf ? 'Generating PDF...' : 'Export PDF'}
+                                </button>
+                                {canDelete && (
+                                    <button
+                                        onClick={() => {
+                                            if (window.confirm(`Are you sure you want to delete ${node.name}? This cannot be undone.`)) {
+                                                onDelete(node.nodeId);
+                                            }
+                                        }}
+                                        className="delete-button"
+                                    >
+                                        Delete Member
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
 
