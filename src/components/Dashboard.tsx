@@ -290,13 +290,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                 <div className="chart-card" style={cardStyle}>
                     <h3>Age Distribution</h3>
                     <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={data.ageData} onClick={handleChartClick}>
+                        <BarChart data={data.ageData}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis allowDecimals={false} />
                             <Tooltip content={<CustomTooltip />} />
                             <Legend />
-                            <Bar dataKey="value" fill="#82ca9d" style={{ cursor: 'pointer' }}>
+                            <Bar dataKey="value" fill="#82ca9d" style={{ cursor: 'pointer' }} onClick={handleChartClick}>
                                 {data.ageData.map((_, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
@@ -335,13 +335,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                 <div className="chart-card" style={cardStyle}>
                     <h3>Top Hobbies</h3>
                     <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={data.hobbiesData} onClick={handleChartClick}>
+                        <BarChart data={data.hobbiesData}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis allowDecimals={false} />
                             <Tooltip content={<CustomTooltip />} />
                             <Legend />
-                            <Bar dataKey="value" fill="#FFBB28" style={{ cursor: 'pointer' }} />
+                            <Bar dataKey="value" fill="#FFBB28" style={{ cursor: 'pointer' }} onClick={handleChartClick} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
@@ -394,12 +394,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ tree, onClose, onNodeClick
                 <div className="chart-card" style={cardStyle}>
                     <h3>Birthdays by Month</h3>
                     <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={data.birthsByMonthData} onClick={handleChartClick}>
+                        <BarChart data={data.birthsByMonthData}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" />
                             <YAxis allowDecimals={false} />
                             <Tooltip content={<CustomTooltip />} />
-                            <Bar dataKey="value" fill="#FF8042" style={{ cursor: 'pointer' }} />
+                            <Bar dataKey="value" fill="#FF8042" style={{ cursor: 'pointer' }} onClick={handleChartClick} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
