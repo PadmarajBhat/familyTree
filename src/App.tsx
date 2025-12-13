@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, updateUserPreference, getPreferences, grantWritePermission, grantLockFilePermission, renameFile, updateUserStarredTrees } from './services/drive';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, grantWritePermission, grantLockFilePermission, renameFile, updateUserStarredTrees } from './services/drive';
 import { useTranslation } from 'react-i18next';
 import { GlobalTreeService } from './services/GlobalTreeService';
 import type { TreeDocument, PersonNode } from './logic/types';
@@ -1057,22 +1057,7 @@ function App() {
     });
   };
 
-  const handleSetDefaultTreeForUser = async (targetEmail: string) => {
-    if (!currentTreeName) {
-      alert("No tree currently loaded to set as default.");
-      return;
-    }
-    try {
-      setLoading(true);
-      await updateUserPreference(targetEmail, currentTreeName);
-      alert(`Default tree set for ${targetEmail}`);
-    } catch (err) {
-      console.error("Failed to set default tree for user", err);
-      alert("Failed to set default tree for user.");
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   const handleResetRoot = () => {
     if (tree) {
@@ -1447,7 +1432,6 @@ function App() {
             currentUserEmail={currentUser.email}
             canToggle={!!isAuthorized}
             onToggleEditor={handleToggleEditor}
-            onSetDefaultTree={(email) => handleSetDefaultTreeForUser(email)}
             onClose={handleManualClose}
           />
         )}

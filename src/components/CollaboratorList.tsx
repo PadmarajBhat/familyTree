@@ -16,23 +16,32 @@ interface CollaboratorListProps {
 
 const PROTECTED_EMAILS = ['padmarajbhat@gmail.com', 'narasimhapbhat@gmail.com'];
 
-export function CollaboratorList({ nodes, canToggle, onToggleEditor, onSetDefaultTree, onClose }: CollaboratorListProps) {
+export function CollaboratorList({ nodes, canToggle, onToggleEditor, onClose }: CollaboratorListProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [missingDetailsNode, setMissingDetailsNode] = useState<PersonNode | null>(null);
     const [emailInput, setEmailInput] = useState('');
     const [phoneInput, setPhoneInput] = useState('');
+    const [isAdding, setIsAdding] = useState(false);
 
     const allMembers = Object.values(nodes);
 
-    // Filter based on search
-    const filteredMembers = allMembers.filter(node =>
-        (node.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (node.email || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Filter based on search (only relevant when adding)
+    const filteredMembers = isAdding
+        ? allMembers.filter(node =>
+            (node.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (node.email || '').toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        : allMembers;
 
-    // Separate editors and non-editors from filtered list
-    const editors = filteredMembers.filter(node => node.isEditor);
-    const nonEditors = filteredMembers.filter(node => !node.isEditor);
+    // Separate editors and non-editors
+    // Helper: always sort editors by name
+    const editors = allMembers
+        .filter(node => node.isEditor)
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    const nonEditors = isAdding
+        ? filteredMembers.filter(node => !node.isEditor)
+        : [];
 
     const formatDate = (isoString: string | null) => {
         if (!isoString) return 'N/A';
@@ -62,6 +71,12 @@ export function CollaboratorList({ nodes, canToggle, onToggleEditor, onSetDefaul
         }
 
         onToggleEditor(node.nodeId, newStatus);
+
+        // If we just added someone, maybe exit adding mode? 
+        // Or keep it open to add more? User can click cancel.
+        if (newStatus) {
+            setSearchTerm('');
+        }
     };
 
     const handleConfirmDetails = () => {
@@ -77,6 +92,7 @@ export function CollaboratorList({ nodes, canToggle, onToggleEditor, onSetDefaul
             phone: phoneInput.trim()
         });
         setMissingDetailsNode(null);
+        setSearchTerm('');
     };
 
     const renderMemberCard = (node: PersonNode, isCurrentEditor: boolean) => {
@@ -122,16 +138,6 @@ export function CollaboratorList({ nodes, canToggle, onToggleEditor, onSetDefaul
                 >
                     {isCurrentEditor ? 'Remove' : 'Add'}
                 </button>
-                {isCurrentEditor && onSetDefaultTree && node.email && (
-                    <button
-                        className="btn-text small"
-                        onClick={() => onSetDefaultTree(node.email!)}
-                        title="Set current tree as default for this user"
-                        style={{ marginLeft: '10px', fontSize: '0.8em' }}
-                    >
-                        Set Default Tree
-                    </button>
-                )}
             </div>
         );
     };
@@ -151,37 +157,62 @@ export function CollaboratorList({ nodes, canToggle, onToggleEditor, onSetDefaul
                 )}
 
                 <div className="collaborator-content">
-                    <div className="search-section">
-                        <input
-                            type="text"
-                            className="search-input"
-                            placeholder="Search members by name or email..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
 
-                    <div className="section">
-                        <h3>Current Editors ({editors.length})</h3>
-                        {editors.length === 0 ? (
-                            <div className="empty-state">No editors found</div>
-                        ) : (
-                            <div className="collaborator-list">
-                                {editors.map(node => renderMemberCard(node, true))}
+                    {!isAdding ? (
+                        <>
+                            <div className="section">
+                                <h3>Current Editors ({editors.length})</h3>
+                                {editors.length === 0 ? (
+                                    <div className="empty-state">No editors found</div>
+                                ) : (
+                                    <div className="collaborator-list">
+                                        {editors.map(node => renderMemberCard(node, true))}
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
 
-                    <div className="section">
-                        <h3>Other Members ({nonEditors.length})</h3>
-                        {nonEditors.length === 0 ? (
-                            <div className="empty-state">No other members found matching search</div>
-                        ) : (
-                            <div className="collaborator-list">
-                                {nonEditors.map(node => renderMemberCard(node, false))}
+                            {canToggle && (
+                                <div className="actions-footer">
+                                    <button className="btn-primary full-width" onClick={() => setIsAdding(true)}>
+                                        + Add New Editor
+                                    </button>
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <div className="add-editor-header">
+                                <button className="btn-text" onClick={() => { setIsAdding(false); setSearchTerm(''); }}>
+                                    ← Back to List
+                                </button>
+                                <h3>Add New Editor</h3>
                             </div>
-                        )}
-                    </div>
+
+                            <div className="search-section">
+                                <input
+                                    type="text"
+                                    className="search-input"
+                                    placeholder="Search members by name or email..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div className="section">
+                                <h3>Search Results ({nonEditors.length})</h3>
+                                {nonEditors.length === 0 ? (
+                                    <div className="empty-state">
+                                        {searchTerm ? "No matching members found" : "Type to search members"}
+                                    </div>
+                                ) : (
+                                    <div className="collaborator-list">
+                                        {nonEditors.map(node => renderMemberCard(node, false))}
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 
