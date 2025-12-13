@@ -134,7 +134,7 @@ export const listTreeFiles = async () => {
         const response = await (gapi.client as any).drive.files.list({
             // Filter out files that start with 'delete_' or 'backup_' (or contain them, but ideally start with)
             // Drive API query 'not name contains' is safer for general filtering.
-            q: `'${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents and trashed = false and name contains 'json' and not name contains 'lock_' and not name contains 'delete_' and not name contains 'backup_' and name != 'preferences.json'`,
+            q: `('${CONFIG.DRIVE_TREE_FOLDER_ID}' in parents or sharedWithMe = true) and trashed = false and name contains 'json' and not name contains 'lock_' and not name contains 'delete_' and not name contains 'backup_' and name != 'preferences.json'`,
             fields: 'nextPageToken, files(id, name, createdTime, modifiedTime, description)',
             orderBy: 'createdTime desc', // Load latest created file
         });
