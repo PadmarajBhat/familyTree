@@ -212,9 +212,16 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
             // Prefix delete_ to the FULL original filename
             await renameFile(id, `delete_${originalFilename}`);
 
-            // Also remove from shortlist if present
-            // We should remove all IDs for this tree? Or just let them be orphaned?
-            // Safer to just remove current.
+            // Remove from Starred Preferences (Fix for Ghost Trees)
+            const treeName = getTreeNameFromFilename(originalFilename);
+            if (starredTreeNames.has(treeName)) {
+                const newStarred = new Set(starredTreeNames);
+                newStarred.delete(treeName);
+                setStarredTreeNames(newStarred);
+                await updateUserStarredTrees(userEmail, Array.from(newStarred));
+            }
+
+            // Also remove from shortlist if present (Legacy ID cleanup)
             if (shortlistedIds.includes(id)) {
                 const newIds = shortlistedIds.filter(sid => sid !== id);
                 setShortlistedIds(newIds);
