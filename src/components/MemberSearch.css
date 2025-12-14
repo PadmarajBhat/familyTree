@@ -191,3 +191,65 @@
         width: 100%;
     }
 }
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .member-search-container {
+        background: #1a1a1a;
+    }
+
+    .search-header {
+        background: #242424;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .search-header h2 {
+        color: #eee;
+    }
+
+    .search-bar input {
+        background-color: #333;
+        border-color: #444;
+        color: #fff;
+    }
+
+    .search-bar input:focus {
+        border-color: #64b5f6;
+    }
+
+    .sort-controls label {
+        color: #ccc;
+    }
+
+    .sort-controls select,
+    .sort-controls button {
+        background: #333;
+        border-color: #444;
+        color: #eee;
+    }
+
+    .sort-controls button:hover {
+        background: #444;
+    }
+
+    .member-card {
+        background: #333;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .member-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    .member-name {
+        color: #fff;
+    }
+
+    .member-details {
+        color: #bbb;
+    }
+
+    .no-results {
+        color: #888;
+    }
+}

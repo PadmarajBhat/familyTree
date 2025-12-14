@@ -113,18 +113,15 @@
 .input-group input {
     width: 100%;
     padding: 12px 16px;
-    /* Increased padding */
     border-radius: 20px;
     border: 1px solid rgba(0, 0, 0, 0.1);
     font-size: 1.1rem;
-    /* Elder friendly */
     outline: none;
     transition: all 0.2s;
     box-sizing: border-box;
-    /* Force High Contrast Light Mode */
-    background: #ffffff !important;
-    color: #000000 !important;
-    -webkit-text-fill-color: #000000 !important;
+    /* Default Light Mode */
+    background: #ffffff;
+    color: #333;
 }
 
 .input-group input:focus {
@@ -132,12 +129,17 @@
     border-color: #2196f3;
 }
 
-/* Override dark mode specific input styles to maintain high contrast */
+/* Dark Mode Support */
 @media (prefers-color-scheme: dark) {
     .input-group input {
-        background: #ffffff !important;
+        background: rgba(40, 40, 40, 0.9);
         border: 1px solid rgba(255, 255, 255, 0.1);
-        color: #000000 !important;
+        color: #ffffff;
+    }
+
+    .input-group input:focus {
+        background: rgba(60, 60, 60, 0.9);
+        border-color: #64b5f6;
     }
 }
 

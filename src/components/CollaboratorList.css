@@ -375,3 +375,85 @@
 .btn-primary.full-width:hover {
     background-color: #1976d2;
 }
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .collaborator-overlay {
+        background: #1a1a1a;
+    }
+
+    .collaborator-container,
+    .collaborator-header {
+        background: #242424;
+        color: #eee;
+        border-color: #333;
+    }
+
+    .collaborator-header h2 {
+        color: #fff;
+    }
+
+    .search-section {
+        background: #2a2a2a;
+        border-color: #333;
+    }
+
+    .search-input {
+        background: #333;
+        border-color: #444;
+        color: #fff;
+    }
+
+    .section h3 {
+        color: #aaa;
+    }
+
+    .collaborator-card {
+        background: #333;
+        border-color: #444;
+    }
+
+    .collaborator-card:hover {
+        border-color: #666;
+    }
+
+    .collaborator-name {
+        color: #fff;
+    }
+
+    .collaborator-details {
+        color: #bbb;
+    }
+
+    .add-editor-header button.btn-text {
+        color: #64b5f6;
+    }
+
+    .details-dialog {
+        background: #333;
+        color: #eee;
+    }
+
+    .details-dialog h3 {
+        color: #fff;
+    }
+
+    .details-dialog p {
+        color: #ccc;
+    }
+
+    .input-group label {
+        color: #ccc;
+    }
+
+    .input-group input {
+        background: #444;
+        border-color: #555;
+        color: #fff;
+    }
+
+    .dialog-button.cancel {
+        background: #444;
+        color: #ccc;
+    }
+}

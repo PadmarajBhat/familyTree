@@ -168,3 +168,53 @@
 .clickable-header:hover {
     background-color: #f9f9f9;
 }
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .version-history-container {
+        background-color: #242424;
+        color: #eee;
+    }
+
+    .category-header {
+        color: #aaa;
+        border-bottom-color: #444;
+    }
+
+    .date-header {
+        color: #888;
+    }
+
+    .author-group {
+        background: #333;
+        border-color: #444;
+    }
+
+    .author-header {
+        color: #fff;
+    }
+
+    .log-changes {
+        color: #ddd;
+    }
+
+    .log-root {
+        color: #aaa;
+    }
+
+    .vh-tab {
+        color: #aaa;
+    }
+
+    .vh-tab:hover {
+        color: #ddd;
+    }
+
+    .vh-tabs {
+        border-bottom-color: #444;
+    }
+
+    .clickable-header:hover {
+        background-color: #333;
+    }
+}
