@@ -6,18 +6,16 @@ export const getTreeNameFromFilename = (filename: string): string => {
 
     let temp = filename.replace('family_tree_', '').replace('.json', '');
 
-    // Check if it has a date at the end (YYYY-MM-DD)
-    const dateRegex = /_(\d{4}-\d{2}-\d{2})$/;
-    const match = temp.match(dateRegex);
+    // Remove Google Drive duplicate suffixes like " (1)" or "_1"
+    temp = temp.replace(/ \(\d+\)$/, '').replace(/_\d+$/, '');
+    temp = temp.trim();
 
-    if (match) {
-        // Remove the date part
+    // Recursively remove dates at the end (YYYY-MM-DD)
+    // This handles cases like "Sample_2025-12-13_2025-12-14" -> "Sample"
+    const dateRegex = /_(\d{4}-\d{2}-\d{2})$/;
+    while (dateRegex.test(temp)) {
         temp = temp.replace(dateRegex, '');
     }
-
-    // Replace underscores with spaces for display, maybe? 
-    // The user said: "family_tree_Smith_2023-10-01.json".
-    // If temp is now "Smith", that is the tree name.
 
     // Handling "family_tree" base case if it was just date
     if (!temp || temp === '') return 'Family Tree';

@@ -558,43 +558,34 @@ function App() {
     } else {
       console.log("Creating new file for today...", todayFileName);
 
-      // BACKUP LOGIC:
-      // If we are creating a new file, it means 'todaysFile' was not found.
-      // We likely have an OLD file loaded (currentTreeId).
-      // If currentTreeId is set, and it corresponds to the SAME tree name, we should rename it to "backup_"
-      // so it doesn't show up in the Home list (which shows latest only anyway, but user wants strict hiding).
-      // Wait, Home.tsx logic: "For each group, pick the latest one".
-      // So if we leave the old file, Home picks the NEW one (today) as latest, and old one is ignored.
-      // But user requested: "old file has to be renamed as backup_<existing filename> and these backupfiles should not be loaded".
-      // "should not be loaded" implies filter (which we did in listTreeFiles).
-      // So we MUST rename it.
+      // SAFETY FIX: Save the NEW file first.
+      // Do NOT rename the old file until we confirm the new one is safe.
+      const newFile = await saveTreeFile(todayFileName, localTree, summaryText);
 
-      if (currentTreeId) {
-        // Need to verify this ID belongs to the same tree family?
-        // We know 'currentTreeName' matches.
-        // We can just rename the file currently pointed to by currentTreeId.
-        // BUT, we need to know its filename. We don't have it handy in the state variable 'currentTreeId'.
-        // We can find it in 'files'.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const oldFile = files.find((f: any) => f.id === currentTreeId);
-        if (oldFile) {
-          // Rename it
-          const backupName = `backup_${oldFile.name} `;
-          console.log(`Renaming old file ${oldFile.name} to ${backupName} `);
-          try {
-            await renameFile(oldFile.id, backupName);
-          } catch (e) {
-            console.error("Failed to rename backup file", e);
-            // Non-blocking? User might want to proceed saving data even if backup fails.
+      if (newFile && newFile.id) {
+        // New file saved successfully. Now we can safely archive the old one.
+        if (currentTreeId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const oldFile = files.find((f: any) => f.id === currentTreeId);
+          if (oldFile) {
+            // Rename it (Fixed typo: removed trailing space)
+            const backupName = `backup_${oldFile.name}`;
+            console.log(`Renaming old file ${oldFile.name} to ${backupName}`);
+            try {
+              await renameFile(oldFile.id, backupName);
+            } catch (e) {
+              console.error("Failed to rename backup file", e);
+              // Non-fatal: Data is safe in 'newFile'.
+            }
           }
         }
-      }
 
-      const newFile = await saveTreeFile(todayFileName, localTree, summaryText);
-      if (newFile && newFile.id) {
         setCurrentTreeId(newFile.id);
         // Update cache
         GlobalTreeService.registerTree(newFile.id, localTree);
+      } else {
+        console.error("Failed to save new tree file.");
+        throw new Error("Failed to save new tree version. Aborted backup of old file to prevent data loss.");
       }
       return localTree;
     }
