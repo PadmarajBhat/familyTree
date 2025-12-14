@@ -144,6 +144,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     const [uploading, setUploading] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
 
     // Initialize computed age if dob exists but age doesn't
     useEffect(() => {
@@ -689,15 +690,34 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                     <div className="form-group image-upload">
                         <div
                             className="image-preview"
-                            onClick={() => fileInputRef.current?.click()}
-                            style={{ backgroundImage: imagePreview ? `url(${imagePreview})` : 'none' }}
+                            style={{ backgroundImage: imagePreview ? `url(${imagePreview})` : 'none', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}
                         >
-                            {!imagePreview && <span>Tap to add photo</span>}
+                            {!imagePreview && <div style={{ marginBottom: '10px', color: '#888' }}>Add Photo</div>}
+
+                            <div className="upload-controls" style={{ display: 'flex', gap: '10px', padding: '10px', background: 'rgba(255,255,255,0.8)', borderRadius: '20px', marginBottom: '10px' }}>
+                                <button type="button" onClick={() => cameraInputRef.current?.click()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: 'none', background: 'none', cursor: 'pointer', padding: '5px' }}>
+                                    <span style={{ fontSize: '24px' }}>📷</span>
+                                    <span style={{ fontSize: '12px' }}>Camera</span>
+                                </button>
+                                <div style={{ width: '1px', background: '#ccc' }}></div>
+                                <button type="button" onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: 'none', background: 'none', cursor: 'pointer', padding: '5px' }}>
+                                    <span style={{ fontSize: '24px' }}>🖼️</span>
+                                    <span style={{ fontSize: '12px' }}>Gallery</span>
+                                </button>
+                            </div>
                         </div>
                         <input
                             type="file"
                             accept="image/*"
                             ref={fileInputRef}
+                            onChange={handleImageChange}
+                            style={{ display: 'none' }}
+                        />
+                        <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            ref={cameraInputRef}
                             onChange={handleImageChange}
                             style={{ display: 'none' }}
                         />
