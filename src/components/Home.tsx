@@ -257,7 +257,7 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                 <div className="loading">Loading trees...</div>
             ) : (
                 <div className="tree-list">
-                    {shortlistedIds.length > 0 && (
+                    {starredTreeNames.size > 0 && (
                         <div className="filter-toggle">
                             <label>
                                 <input
