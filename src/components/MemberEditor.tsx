@@ -687,25 +687,44 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                         <button type="button" onClick={onCancel} disabled={uploading} className="cancel-btn">Cancel</button>
                     </div>
 
-                    <div className="form-group image-upload">
+                    <div className="form-group image-upload" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '20px', marginBottom: '20px' }}>
+
+                        <button type="button" onClick={() => cameraInputRef.current?.click()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: 'none', background: 'none', cursor: 'pointer', padding: '10px' }}>
+                            <div style={{ background: '#e3f2fd', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+                                <span style={{ fontSize: '24px' }}>📷</span>
+                            </div>
+                            <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Camera</span>
+                        </button>
+
                         <div
                             className="image-preview"
-                            style={{ backgroundImage: imagePreview ? `url(${imagePreview})` : 'none', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}
+                            style={{
+                                width: '120px',
+                                height: '120px',
+                                borderRadius: '50%',
+                                border: '4px solid #fff',
+                                boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
+                                backgroundImage: imagePreview ? `url(${imagePreview})` : 'none',
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                                backgroundColor: '#f0f2f5',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                margin: '0'
+                            }}
                         >
-                            {!imagePreview && <div style={{ marginBottom: '10px', color: '#888' }}>Add Photo</div>}
-
-                            <div className="upload-controls" style={{ display: 'flex', gap: '10px', padding: '10px', background: 'rgba(255,255,255,0.8)', borderRadius: '20px', marginBottom: '10px' }}>
-                                <button type="button" onClick={() => cameraInputRef.current?.click()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: 'none', background: 'none', cursor: 'pointer', padding: '5px' }}>
-                                    <span style={{ fontSize: '24px' }}>📷</span>
-                                    <span style={{ fontSize: '12px' }}>Camera</span>
-                                </button>
-                                <div style={{ width: '1px', background: '#ccc' }}></div>
-                                <button type="button" onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: 'none', background: 'none', cursor: 'pointer', padding: '5px' }}>
-                                    <span style={{ fontSize: '24px' }}>🖼️</span>
-                                    <span style={{ fontSize: '12px' }}>Gallery</span>
-                                </button>
-                            </div>
+                            {!imagePreview && <span style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>No Photo</span>}
                         </div>
+
+                        <button type="button" onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: 'none', background: 'none', cursor: 'pointer', padding: '10px' }}>
+                            <div style={{ background: '#e3f2fd', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+                                <span style={{ fontSize: '24px' }}>🖼️</span>
+                            </div>
+                            <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Gallery</span>
+                        </button>
+
                         <input
                             type="file"
                             accept="image/*"
@@ -1135,13 +1154,23 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                                         placeholder="Search to add sibling..."
                                     />
                                     {showSiblingSuggestions && filteredSiblings.length > 0 && (
-                                        <ul className="suggestions-list">
+                                        <div className="suggestions-dropdown">
+                                            <div className="suggestions-header">Possible Siblings</div>
                                             {filteredSiblings.map(node => (
-                                                <li key={node.nodeId} onClick={() => handleSiblingSelect(node)}>
-                                                    {node.name}
-                                                </li>
+                                                <div
+                                                    key={node.nodeId}
+                                                    className="suggestion-item"
+                                                    onClick={() => handleSiblingSelect(node)}
+                                                >
+                                                    <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: node.imageUrl ? `url(${getPhotoUrl(node.imageUrl)})` : 'none' }}>
+                                                        {!node.imageUrl && '?'}
+                                                    </div>
+                                                    <div className="suggestion-info">
+                                                        <div className="suggestion-name">{node.name}</div>
+                                                    </div>
+                                                </div>
                                             ))}
-                                        </ul>
+                                        </div>
                                     )}
                                 </div>
                             </>
