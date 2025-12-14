@@ -1,6 +1,7 @@
 import type { TreeDocument, PersonNode } from '../logic/types';
 import { listTreeFiles, getFileContent, acquireLock, releaseLock, updateTreeFile } from './drive';
 import { getISTTimestamp } from '../logic/dateUtils';
+import { getTreeNameFromFilename } from '../logic/fileUtils';
 
 // A cache for loaded trees to avoid re-fetching constantly
 // Key: treeId, Value: TreeDocument
@@ -387,5 +388,62 @@ export const GlobalTreeService = {
             console.error("Error finding user in trees", e);
             return null;
         }
-    }
+    },
+
+    async removeLinksToTree(deletedTreeId: string, userEmail: string, onProgress?: (msg: string) => void): Promise<void> {
+        console.log(`Starting deep cleanup for tree ${deletedTreeId}...`);
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const files = (await listTreeFiles()) as any[];
+            const otherFiles = files.filter(f => f.id !== deletedTreeId && !f.name.startsWith('backup_') && !f.name.startsWith('delete_'));
+
+            let processedCount = 0;
+            for (const file of otherFiles) {
+                processedCount++;
+                const percentage = Math.round((processedCount / otherFiles.length) * 100);
+                const properName = getTreeNameFromFilename(file.name);
+
+                if (onProgress) onProgress(`Scanning ${properName} (${percentage}%)...`);
+
+                try {
+                    const lockId = await acquireLock(file.id);
+                    if (!lockId) continue; // Skip if locked
+
+                    try {
+                        const content = await getFileContent(file.id);
+                        if (content && typeof content === 'object' && 'nodes' in content) {
+                            const treeDoc = content as TreeDocument;
+                            let modified = false;
+
+                            Object.values(treeDoc.nodes).forEach(node => {
+                                if (node.externalLink && node.externalLink.treeId === deletedTreeId) {
+                                    console.log(`Removing dead link node ${node.nodeId} in tree ${treeDoc.treeName}`);
+                                    delete treeDoc.nodes[node.nodeId];
+                                    modified = true;
+                                }
+                            });
+
+                            if (modified) {
+                                if (onProgress) onProgress(`Cleaning references in ${properName}...`);
+                                treeDoc.meta.nodeCount = Object.keys(treeDoc.nodes).length;
+                                treeDoc.summary.unshift({
+                                    editedTime: getISTTimestamp(),
+                                    editedBy: userEmail,
+                                    changes: `Removed dead links to deleted tree ${deletedTreeId}`
+                                });
+                                await updateTreeFile(file.id, treeDoc, "Deep Cleanup");
+                            }
+                        }
+                    } finally {
+                        await releaseLock(lockId);
+                    }
+
+                } catch (e) {
+                    console.warn(`Failed to process file ${file.name} during cleanup`, e);
+                }
+            }
+        } catch (e) {
+            console.error("Deep cleanup failed", e);
+        }
+    },
 };

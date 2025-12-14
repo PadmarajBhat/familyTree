@@ -24,6 +24,7 @@ interface TreeFile {
 export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTreeId, isEditor, enableAutoload = true }) => {
     const [trees, setTrees] = useState<TreeFile[]>([]);
     const [loading, setLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState<string>("Loading...");
     const [shortlistedIds, setShortlistedIds] = useState<string[]>([]);
     const [starredTreeNames, setStarredTreeNames] = useState<Set<string>>(new Set());
     const [treeIdMap, setTreeIdMap] = useState<Record<string, string[]>>({});
@@ -209,6 +210,16 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         if (!confirm(`Are you sure you want to delete tree "${originalFilename}"? This cannot be undone.`)) return;
 
         try {
+            setLoading(true);
+            setLoadingMessage("Scanning references in other trees...");
+
+            // Deep Cleanup: Remove shadow nodes in other trees that point to this one
+            await GlobalTreeService.removeLinksToTree(id, userEmail, (msg) => {
+                setLoadingMessage(msg);
+            });
+
+            setLoadingMessage("Deleting tree...");
+
             // Prefix delete_ to the FULL original filename
             await renameFile(id, `delete_${originalFilename}`);
 
@@ -231,6 +242,9 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         } catch (e) {
             console.error("Error deleting tree", e);
             alert("Failed to delete tree");
+        } finally {
+            setLoading(false);
+            setLoadingMessage("Loading...");
         }
     };
 
@@ -261,7 +275,7 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
             </header>
 
             {loading ? (
-                <div className="loading">Loading trees...</div>
+                <div className="loading">{loadingMessage}</div>
             ) : (
                 <div className="tree-list">
                     {starredTreeNames.size > 0 && (
