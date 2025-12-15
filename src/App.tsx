@@ -1380,6 +1380,7 @@ function App() {
                   onNodeClick={handleNodeClick}
                   onNodeLongPress={handleNodeLongPress}
                   maxDepth={viewDepth}
+                  showControls={!editorMode && !showFindRelation}
                 />
               </div>
             ) : (

@@ -215,4 +215,49 @@
     .find-relation-header h2 {
         font-size: 1.1rem;
     }
+
+    .find-relation-header h2 {
+        font-size: 1.1rem;
+    }
+}
+
+/* Fix for Layout Instability */
+.path-result {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    padding: 0 20px 20px 20px;
+    min-height: 0;
+    /* Important for FireFox/Flex child scrolling */
+}
+
+.path-tree-view {
+    flex: 1;
+    /* Take remaining space */
+    position: relative;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    display: flex;
+    /* Ensure TreeView wrapper fills it */
+}
+
+.path-tree-view>div {
+    /* Target the wrapperRef div in TreeView */
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* No-path and Empty state */
+.no-path-message,
+.empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    font-size: 1.2rem;
 }

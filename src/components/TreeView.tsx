@@ -13,7 +13,9 @@ interface TreeViewProps {
     isExporting?: boolean;
     compact?: boolean;
     path?: string[] | null;
+    showControls?: boolean;
 }
+
 
 interface HierarchyPersonNode extends PersonNode {
     children?: HierarchyPersonNode[];
@@ -26,7 +28,7 @@ interface ExtendedHierarchyNode extends d3.HierarchyNode<HierarchyPersonNode> {
     y0?: number;
 }
 
-export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth, isExporting, compact, path }) => {
+export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth, isExporting, compact, path, showControls = true }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -178,7 +180,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
             });
         }
 
-        const nodeWidth = compact ? 100 : 160;
+        const nodeWidth = compact ? 140 : 160;
         const nodeHeight = compact ? 120 : 200;
         const treeLayout = d3.tree<HierarchyPersonNode>().nodeSize([nodeWidth, nodeHeight]);
 
@@ -623,7 +625,7 @@ export const TreeView: React.FC<TreeViewProps> = ({ data, onNodeClick, maxDepth,
             position: 'relative'
         }}>
             <svg ref={svgRef}></svg>
-            {!isExporting && (
+            {!isExporting && showControls && (
                 <ZoomControls
                     onZoomIn={handleZoomIn}
                     onZoomOut={handleZoomOut}
