@@ -672,19 +672,24 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
 
                 <form onSubmit={(e) => handleSubmit(e, false)}>
                     <div className="form-actions top-actions">
-                        <button type="submit" disabled={uploading} className="primary-btn">
-                            {uploading ? 'Saving...' : 'Save'}
-                        </button>
-                        {mode === 'edit' && onDelete && initialData && (
-                            <button type="button" onClick={() => {
-                                if (window.confirm("Are you sure you want to delete this member?")) {
-                                    onDelete(initialData.nodeId);
-                                }
-                            }} className="delete-btn" style={{ backgroundColor: '#ff4444', color: 'white' }}>
-                                Delete
-                            </button>
-                        )}
+                        {/* Left: Cancel - Safer Isolation */}
                         <button type="button" onClick={onCancel} disabled={uploading} className="cancel-btn">Cancel</button>
+
+                        {/* Right: Primary Actions */}
+                        <div className="right-actions">
+                            {mode === 'edit' && onDelete && initialData && (childrenIds.length === 0 && spouseIds.length === 0) && (
+                                <button type="button" onClick={() => {
+                                    if (window.confirm("Are you sure you want to delete this member?")) {
+                                        onDelete(initialData.nodeId);
+                                    }
+                                }} className="delete-btn">
+                                    Delete
+                                </button>
+                            )}
+                            <button type="submit" disabled={uploading} className="primary-btn">
+                                {uploading ? 'Saving...' : 'Save'}
+                            </button>
+                        </div>
                     </div>
 
                     <div className="form-group image-upload" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '20px', marginBottom: '20px' }}>
