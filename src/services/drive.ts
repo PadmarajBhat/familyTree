@@ -39,8 +39,10 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                             // Store token info for silent login
                             localStorage.setItem('gapi_token', tokenResponse.access_token);
                             if (tokenResponse.expires_in) {
-                                const expiresAt = Date.now() + (tokenResponse.expires_in * 1000);
+                                const expiresInSec = Number(tokenResponse.expires_in);
+                                const expiresAt = Date.now() + (expiresInSec * 1000);
                                 localStorage.setItem('gapi_token_expires', expiresAt.toString());
+                                console.log(`Token received. Expires in ${expiresInSec}s (at ${new Date(expiresAt).toLocaleTimeString()})`);
                             }
                             gapi.client.setToken(tokenResponse);
                             updateSigninStatus(true);
@@ -55,32 +57,35 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                 if (storedToken && tokenExpires) {
                     const expiresAt = parseInt(tokenExpires, 10);
                     const now = Date.now();
+                    const timeLeft = (expiresAt - now) / 1000;
 
-                    // Check if token is still valid (with 5-minute buffer)
-                    if (expiresAt > now + (5 * 60 * 1000)) {
-                        console.log("Found valid stored token, attempting silent sign-in...");
+                    // Check if token is still valid (with 2-minute buffer)
+                    if (expiresAt > now + (2 * 60 * 1000)) {
+                        console.log(`Found stored token. Valid for ${timeLeft.toFixed(0)}s. Attempting silent sign-in...`);
                         accessToken = storedToken;
                         gapi.client.setToken({ access_token: storedToken });
 
                         // Verify token is actually valid by making a test API call
                         getUserProfile().then(profile => {
                             if (profile) {
-                                console.log("Silent sign-in successful!");
+                                console.log("Silent sign-in verified and successful!");
                                 updateSigninStatus(true);
                             } else {
-                                console.log("Stored token is invalid, clearing...");
+                                console.warn("Silent sign-in failed: User profile check returned null (likely 401). clearing...");
                                 localStorage.removeItem('gapi_token');
                                 localStorage.removeItem('gapi_token_expires');
                                 updateSigninStatus(false);
                             }
-                        }).catch(() => {
-                            console.log("Token validation failed, clearing...");
+                        }).catch((err) => {
+                            console.error("Silent sign-in validation received error:", err);
+                            // Only clear if it looks like an Auth error, otherwise keep it?
+                            // Actually, if we can't verify, we can't trust it. Safest to clear.
                             localStorage.removeItem('gapi_token');
                             localStorage.removeItem('gapi_token_expires');
                             updateSigninStatus(false);
                         });
                     } else {
-                        console.log("Stored token has expired, clearing...");
+                        console.log(`Stored token has expired (or is about to). Expired at ${new Date(expiresAt).toLocaleTimeString()}. Clearing...`);
                         localStorage.removeItem('gapi_token');
                         localStorage.removeItem('gapi_token_expires');
                         updateSigninStatus(false);
@@ -350,10 +355,20 @@ export const getUserProfile = async () => {
         if (response.ok) {
             return await response.json();
         }
-        return null;
+        
+        if (response.status === 401) {
+            console.warn("User profile fetch returned 401 Unauthorized.");
+            return null;
+        }
+
+        console.error(`User profile fetch failed: ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to fetch user profile: ${response.status}`);
     } catch (error) {
         console.error("Error fetching user profile", error);
-        return null;
+        // If it's a network error, we might want to throw to distinguish from "not signed in"
+        // But for now, returning null/throwing lets the caller decide.
+        // Current caller (initGoogleClient) treats reject as failure -> logout.
+        throw error;
     }
 };
 

@@ -1,0 +1,207 @@
+
+.gemini-live-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 2000;
+    font-family: 'Inter', sans-serif;
+}
+
+.gemini-fab {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gemini-fab:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+
+.gemini-panel {
+    width: 350px;
+    height: 500px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.3);
+}
+
+.dark-mode .gemini-panel {
+    background: rgba(30, 30, 30, 0.95);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #fff;
+}
+
+.gemini-header {
+    padding: 15px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.gemini-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.gemini-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    overflow: hidden;
+    position: relative;
+}
+
+.transcript-area {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 20px;
+}
+
+.message {
+    padding: 8px 12px;
+    border-radius: 12px;
+    max-width: 80%;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.message.user {
+    align-self: flex-end;
+    background: #e3f2fd;
+    color: #0d47a1;
+    border-bottom-right-radius: 4px;
+}
+
+.message.model {
+    align-self: flex-start;
+    background: #f5f5f5;
+    color: #333;
+    border-bottom-left-radius: 4px;
+}
+
+.dark-mode .message.model {
+    background: #424242;
+    color: #eee;
+}
+
+.dark-mode .message.user {
+    background: #1565c0;
+    color: #fff;
+}
+
+.placeholder {
+    text-align: center;
+    color: #888;
+    margin-top: 50%;
+    transform: translateY(-50%);
+}
+
+.gemini-footer {
+    padding: 15px;
+    border-top: 1px solid rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+}
+
+.start-btn, .stop-btn {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.start-btn {
+    background: #4caf50;
+    color: white;
+}
+
+.start-btn:hover {
+    background: #43a047;
+}
+
+.stop-btn {
+    background: #f44336;
+    color: white;
+}
+
+.stop-btn:hover {
+    background: #e53935;
+}
+
+.connection-status {
+    font-size: 12px;
+    color: #888;
+    text-transform: capitalize;
+}
+
+.connection-status.connected {
+    color: #4caf50;
+}
+
+.connection-status.error {
+    color: #f44336;
+}
+
+/* Visualizer Pulse */
+.visualizer {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.pulse-ring {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(102, 126, 234, 0.5);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(102, 126, 234, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(102, 126, 234, 0); }
+}

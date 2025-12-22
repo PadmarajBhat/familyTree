@@ -21,6 +21,7 @@ import { canEditNode, isGlobalEditor } from './logic/permissions';
 import { getISTTimestamp } from './logic/dateUtils';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
+import { GeminiLive } from './components/GeminiLive';
 
 import { getTreeNameFromFilename, generateFilename } from './logic/fileUtils';
 import './App.css';
@@ -1514,6 +1515,7 @@ function App() {
           />
         )}
       </main>
+      <GeminiLive />
     </div >
   );
 
