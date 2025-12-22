@@ -67,7 +67,7 @@ export class GeminiLiveService {
         };
 
         this.ws.onclose = (event) => {
-            console.log("WebSocket Closed", event.code, event.reason);
+            console.log("WebSocket Closed (Updated)", event.code, event.reason);
             this.isConnected = false;
             this.onStatusChange('disconnected');
             this.stopAudio();
@@ -96,42 +96,15 @@ export class GeminiLiveService {
         const setupMsg = {
             setup: {
                 model: "models/gemini-2.0-flash-exp",
-                tools: [
-                    {
-                        functionDeclarations: [
-                            {
-                                name: "searchFamilyTree",
-                                description: "Search for people in the family tree by name.",
-                                parameters: {
-                                    type: "object",
-                                    properties: {
-                                        query: { type: "string", description: "Name to search for" }
-                                    },
-                                    required: ["query"]
-                                }
-                            },
-                            {
-                                name: "getPersonDetails",
-                                description: "Get detailed information about a specific person using their treeId and nodeId found from search.",
-                                parameters: {
-                                    type: "object",
-                                    properties: {
-                                        treeId: { type: "string" },
-                                        nodeId: { type: "string" }
-                                    },
-                                    required: ["treeId", "nodeId"]
-                                }
-                            }
-                        ]
-                    }
-                ],
+                // Tools commented out for connection test
+                // tools: [...],
                 generationConfig: {
                     responseModalities: ["AUDIO"]
                 }
             }
         };
         this.ws.send(JSON.stringify(setupMsg));
-        console.log("Sent setup message");
+        console.log("Sent setup message (Simplified)");
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
