@@ -96,15 +96,42 @@ export class GeminiLiveService {
         const setupMsg = {
             setup: {
                 model: "models/gemini-2.0-flash-exp",
-                // Tools commented out for connection test
-                // tools: [...],
+                tools: [
+                    {
+                        functionDeclarations: [
+                            {
+                                name: "searchFamilyTree",
+                                description: "Search for people in the family tree by name.",
+                                parameters: {
+                                    type: "object",
+                                    properties: {
+                                        query: { type: "string", description: "Name to search for" }
+                                    },
+                                    required: ["query"]
+                                }
+                            },
+                            {
+                                name: "getPersonDetails",
+                                description: "Get detailed information about a specific person using their treeId and nodeId found from search.",
+                                parameters: {
+                                    type: "object",
+                                    properties: {
+                                        treeId: { type: "string" },
+                                        nodeId: { type: "string" }
+                                    },
+                                    required: ["treeId", "nodeId"]
+                                }
+                            }
+                        ]
+                    }
+                ],
                 generationConfig: {
                     responseModalities: ["AUDIO"]
                 }
             }
         };
         this.ws.send(JSON.stringify(setupMsg));
-        console.log("Sent setup message (Simplified)");
+        console.log("Sent setup message");
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
