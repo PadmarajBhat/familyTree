@@ -66,8 +66,8 @@ export class GeminiLiveService {
             this.onStatusChange('error');
         };
 
-        this.ws.onclose = () => {
-            console.log("WebSocket Closed");
+        this.ws.onclose = (event) => {
+            console.log("WebSocket Closed", event.code, event.reason);
             this.isConnected = false;
             this.onStatusChange('disconnected');
             this.stopAudio();
@@ -95,7 +95,7 @@ export class GeminiLiveService {
 
         const setupMsg = {
             setup: {
-                model: "models/gemini-2.0-flash-exp", // or equivalent
+                model: "models/gemini-2.0-flash-exp",
                 tools: [
                     {
                         functionDeclarations: [
@@ -103,9 +103,9 @@ export class GeminiLiveService {
                                 name: "searchFamilyTree",
                                 description: "Search for people in the family tree by name.",
                                 parameters: {
-                                    type: "OBJECT",
+                                    type: "object",
                                     properties: {
-                                        query: { type: "STRING", description: "Name to search for" }
+                                        query: { type: "string", description: "Name to search for" }
                                     },
                                     required: ["query"]
                                 }
@@ -114,10 +114,10 @@ export class GeminiLiveService {
                                 name: "getPersonDetails",
                                 description: "Get detailed information about a specific person using their treeId and nodeId found from search.",
                                 parameters: {
-                                    type: "OBJECT",
+                                    type: "object",
                                     properties: {
-                                        treeId: { type: "STRING" },
-                                        nodeId: { type: "STRING" }
+                                        treeId: { type: "string" },
+                                        nodeId: { type: "string" }
                                     },
                                     required: ["treeId", "nodeId"]
                                 }
