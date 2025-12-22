@@ -96,6 +96,11 @@ export class GeminiLiveService {
         const setupMsg = {
             setup: {
                 model: "models/gemini-2.0-flash-exp",
+                systemInstruction: {
+                    parts: [
+                        { text: "You are a helpful family tree assistant. You have access to the user's family tree data via tools. You can understand and speak mainly English, Kannada, Hindi, and other Indian languages. Always reply in the same language the user speaks to you. If they speak Kannada, reply in Kannada. If they speak English, reply in English." }
+                    ]
+                },
                 tools: [
                     {
                         functionDeclarations: [
