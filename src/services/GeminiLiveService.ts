@@ -98,7 +98,7 @@ export class GeminiLiveService {
                 model: "models/gemini-2.0-flash-exp",
                 systemInstruction: {
                     parts: [
-                        { text: "You are a helpful family tree assistant. You have access to the user's family tree data via tools. You can understand and speak mainly English, Kannada, Hindi, and other Indian languages. Always reply in the same language the user speaks to you. If they speak Kannada, reply in Kannada. If they speak English, reply in English." }
+                        { text: "You are a helpful family tree assistant. You have access to the user's family tree data via tools. You can understand and speak mainly English, Kannada, Hindi, and other Indian languages. Always reply in the same language the user speaks to you. If they speak Kannada, reply in Kannada. If they speak English, reply in English. IMPORTANT: When you need to use a tool to search or get details, ALWAYS say a brief phrase first like 'Let me check the records...' or 'Searching for that...' (in the appropriate language) to keep the user engaged while you look." }
                     ]
                 },
                 tools: [
@@ -170,48 +170,32 @@ export class GeminiLiveService {
 
         // Tool Call
         if (msg.toolCall) {
+            this.onStatusChange('searching');
             const toolCall = msg.toolCall as ToolCall;
             console.log("Received Tool Call:", toolCall);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const responses: any[] = [];
 
             for (const call of toolCall.functionCalls) {
-                if (call.name === 'searchFamilyTree') {
-                    const query = call.args.query;
-                    console.log(`Executing tool searchFamilyTree: ${query}`);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                let responseContent: any = {};
+                if (call.name === "searchFamilyTree") {
+                    const query = call.args["query"];
                     const results = GlobalTreeService.searchAllTrees(query);
-                    // Limit results to avoid token limit?
-                    const limitedResults = results.slice(0, 5).map(r => ({
-                        treeId: r.treeId,
-                        treeName: r.treeName,
-                        name: r.node.name,
-                        nodeId: r.node.nodeId,
-                        gender: r.node.gender,
-                        born: r.node.dob,
-                        parent: r.parentName
-                    }));
-                    responses.push({
-                        id: call.id,
-                        name: call.name,
-                        // response field structure for Bidi
-                        response: {
-                            name: call.name,
-                            content: { results: limitedResults }
-                        }
-                    });
-                } else if (call.name === 'getPersonDetails') {
-                    const { treeId, nodeId } = call.args;
-                    console.log(`Executing tool getPersonDetails: ${treeId} ${nodeId}`);
+                    // limit results
+                    responseContent = { results: results.slice(0, 10) };
+                } else if (call.name === "getPersonDetails") {
+                    const treeId = call.args["treeId"];
+                    const nodeId = call.args["nodeId"];
                     const node = GlobalTreeService.getNode(treeId, nodeId);
-                    responses.push({
-                        id: call.id,
-                        name: call.name,
-                        response: {
-                            name: call.name,
-                            content: { person: node } // Send full node details
-                        }
-                    });
+                    responseContent = { person: node };
                 }
+
+                responses.push({
+                    id: call.id,
+                    name: call.name,
+                    response: responseContent
+                });
             }
 
             // Send Tool Response
@@ -221,6 +205,7 @@ export class GeminiLiveService {
                 }
             };
             this.ws?.send(JSON.stringify(responseMsg));
+            // Status will naturally update when next model audio starts coming in or remains connected
         }
     }
 
