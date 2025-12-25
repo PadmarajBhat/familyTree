@@ -17,7 +17,7 @@ export class GeminiLiveService {
     private ws: WebSocket | null = null;
     private audioContext: AudioContext | null = null;
     private mediaStream: MediaStream | null = null;
-    private processor: ScriptProcessorNode | null = null;
+    private processor: ScriptProcessorNode | AudioWorkletNode | null = null;
 
     private videoStream: MediaStream | null = null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -219,16 +219,25 @@ export class GeminiLiveService {
             });
 
             this.audioContext = new AudioContext({ sampleRate: 16000 });
+
+            // Load the worklet
+            try {
+                await this.audioContext.audioWorklet.addModule('/audio-processor.js');
+            } catch (e) {
+                console.error("Failed to load audio-processor.js", e);
+                // Fallback or error handling
+            }
+
             const source = this.audioContext.createMediaStreamSource(this.mediaStream);
 
-            // Use ScriptProcessor for simplicity (AudioWorklet is better but more files)
-            // bufferSize 4096 gives ~250ms chunks at 16kHz
-            this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+            // Use AudioWorklet
+            const workletNode = new AudioWorkletNode(this.audioContext, 'audio-processor');
 
-            this.processor.onaudioprocess = (e) => {
+            workletNode.port.onmessage = (event) => {
                 if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-                const inputData = e.inputBuffer.getChannelData(0);
+                const inputData = event.data; // Float32Array from processor
+
                 // Convert Float32 to PCM 16-bit Little Endian
                 const pcmData = this.floatTo16BitPCM(inputData);
 
@@ -247,8 +256,19 @@ export class GeminiLiveService {
                 }));
             };
 
-            source.connect(this.processor);
-            this.processor.connect(this.audioContext.destination);
+            source.connect(workletNode);
+            // Worklet might not need destination connection if it doesn't output audio, 
+            // but connecting to destination keeps the graph alive in some implementations.
+            // If the worklet outputs silence, this is fine. 
+            // Our processor returns true but doesn't fill output buffer, so fine.
+            workletNode.connect(this.audioContext.destination);
+
+            // Store for cleanup
+            // We can reuse the `processor` variable but it's typed as ScriptProcessorNode
+            // We should update the type definition or just cast it for now if we don't want to change type signatures everywhere
+            // Better to update the type definition.
+            // For now, let's treat `processor` as any or update the class property.
+            this.processor = workletNode as unknown as ScriptProcessorNode;
 
         } catch (e) {
             console.error("Audio Access Error", e);
