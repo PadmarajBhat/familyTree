@@ -39,6 +39,7 @@ export class GeminiLiveService {
 
     private userEmail: string | null = null;
     private logBuffer: LogEntry[] = [];
+    private logFileId: string | null = null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private autosaveInterval: any | null = null;
 
@@ -157,7 +158,10 @@ export class GeminiLiveService {
         this.logBuffer = []; // Clear buffer immediately to avoid duplicates in next batch
 
         console.log(`Autosaving ${logsToSave.length} logs for ${this.userEmail}...`);
-        await saveGeminiLog(this.userEmail, logsToSave);
+        const fileId = await saveGeminiLog(this.userEmail, logsToSave, this.logFileId);
+        if (fileId) {
+            this.logFileId = fileId;
+        }
     }
 
     private sendSetupMessage() {

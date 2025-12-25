@@ -551,60 +551,46 @@ export const grantWritePermission = async (fileId: string, email: string) => {
     }
 };
 
-export const saveGeminiLog = async (email: string, logEntries: { type: string, text: string, data?: any, timestamp: Date }[]): Promise<void> => {
-    if (!email) return;
+export const saveGeminiLog = async (email: string, logEntries: { type: string, text: string, data?: any, timestamp: Date }[], existingFileId: string | null = null): Promise<string | null> => {
+    if (!email) return null;
 
     const fileName = `gemini_history_${email}.json`;
     const folderId = CONFIG.DRIVE_LOGS_FOLDER_ID;
+    let fileId: string | null = existingFileId;
 
     try {
-        // 1. Check if file exists in the specific folder
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const response = await (gapi.client as any).drive.files.list({
-            q: `'${folderId}' in parents and trashed = false and name = '${fileName}'`,
-            fields: 'files(id)',
-        });
-        const files = response.result.files;
+        // 1. Check if file exists in the specific folder if we don't have an ID
+        if (!fileId) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const response = await (gapi.client as any).drive.files.list({
+                q: `'${folderId}' in parents and trashed = false and name = '${fileName}'`,
+                fields: 'files(id)',
+            });
+            const files = response.result.files;
 
-        let fileId: string | null = null;
-        let currentContent: any[] = [];
-
-        if (files && files.length > 0) {
-            // 2. Read existing content
-            try {
-                if (fileId) {
-                    const content = await getFileContent(fileId);
-                    if (Array.isArray(content)) {
-                        currentContent = content;
-                    }
-                }
-            } catch (readErr) {
-                console.warn("Could not read existing log file, starting fresh.", readErr);
+            if (files && files.length > 0) {
+                fileId = files[0].id;
             }
         }
 
-        // 3. Append new entries
-        // We need to merge carefully. 
-        // If we just append everything passed in `logEntries`, we might duplicate if the service sends the *full* history every time.
-        // The service should probably send *new* entries or the full history and we overwrite?
-        // Let's assume the service sends the *full* history of the *current session*.
-        // But `gemini_history_email.json` implies *all* history ever?
-        // If it's a persistent history file, it will get huge.
-        // Maybe we should just append the new entries?
-        // Plan said: "If exists, read content, append new logs (or update current session), write back."
-        // Let's stick to appending. But the service needs to track what has been saved.
-        // OR: The service sends *all logs from current session*.
-        // We allow the file to store an array of sessions?
-        // Or just a flat list of logs?
-        // If flat list, we effectively just add the new items.
-        // But since we write the whole file, we need to read it first (which we did).
+        let currentContent: any[] = [];
 
-        // Actually, simpler approach for "Session based logging":
-        // The implementation plan said: "gemini_history_[email].json".
-        // Let's treat it as a list of log entries.
-        // The `logEntries` arg passed here will be the *new* entries to append.
+        // 2. Read existing content
+        try {
+            if (fileId) {
+                const content = await getFileContent(fileId);
+                if (Array.isArray(content)) {
+                    currentContent = content;
+                }
+            }
+        } catch (readErr) {
+            console.warn("Could not read existing log file, starting fresh.", readErr);
+        }
 
-        const updatedContent = [...currentContent, ...logEntries];
+        // 3. Prepend new entries (Newest at Top for user viewing)
+        // Reverse the *new* batch so newest of the batch is first, then prepend to current.
+        const reversedNewLogs = [...logEntries].reverse();
+        const updatedContent = [...reversedNewLogs, ...currentContent];
 
         const fileContent = JSON.stringify(updatedContent, null, 2);
         const file = new Blob([fileContent], { type: 'application/json' });
@@ -614,34 +600,37 @@ export const saveGeminiLog = async (email: string, logEntries: { type: string, t
         };
 
         const accessToken = gapi.auth.getToken().access_token;
-        const form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-        form.append('file', file);
+        const uploadForm = new FormData();
+        uploadForm.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        uploadForm.append('file', file);
 
         if (fileId) {
             // Update
             await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
                 method: 'PATCH',
                 headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
-                body: form,
+                body: uploadForm,
             });
+            return fileId;
         } else {
             // Create New
             metadata.name = fileName;
             metadata.parents = [folderId];
-            // Re-create form with name/parents
             const createForm = new FormData();
             createForm.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
             createForm.append('file', file);
 
-            await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+            const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
                 method: 'POST',
                 headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
                 body: createForm,
             });
+            const data = await res.json();
+            return data.id || null;
         }
 
     } catch (err) {
         console.error("Error saving Gemini log", err);
+        return fileId;
     }
 };
