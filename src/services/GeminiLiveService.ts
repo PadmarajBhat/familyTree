@@ -13,6 +13,14 @@ interface ToolCall {
     }[];
 }
 
+export interface LogEntry {
+    type: 'info' | 'user' | 'model' | 'tool-call' | 'tool-response';
+    text: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data?: any;
+    timestamp: Date;
+}
+
 export class GeminiLiveService {
     private ws: WebSocket | null = null;
     private audioContext: AudioContext | null = null;
@@ -26,24 +34,29 @@ export class GeminiLiveService {
     private isConnected: boolean = false;
     private onMessage: (text: string | null, audioData: string | null) => void;
     private onStatusChange: (status: string) => void;
+    private onLog: (entry: LogEntry) => void;
 
     constructor(
         onMessage: (text: string | null, audioData: string | null) => void,
-        onStatusChange: (status: string) => void
+        onStatusChange: (status: string) => void,
+        onLog: (entry: LogEntry) => void = () => { }
     ) {
         this.onMessage = onMessage;
         this.onStatusChange = onStatusChange;
+        this.onLog = onLog;
     }
 
     public async connect(useVideo: boolean = false) {
         if (this.isConnected) return;
 
         this.onStatusChange('connecting');
+        this.onLog({ type: 'info', text: 'Connecting to Gemini Live API...', timestamp: new Date() });
         console.log("Connecting to Gemini Live API...");
 
         const apiKey = CONFIG.API_KEY;
         if (!apiKey) {
             this.onStatusChange('error: missing api key');
+            this.onLog({ type: 'info', text: 'Error: Missing API Key', timestamp: new Date() });
             return;
         }
 
@@ -54,6 +67,7 @@ export class GeminiLiveService {
             console.log("WebSocket Connected");
             this.isConnected = true;
             this.onStatusChange('connected');
+            this.onLog({ type: 'info', text: 'Connected to Gemini Live', timestamp: new Date() });
             this.sendSetupMessage();
         };
 
@@ -64,12 +78,14 @@ export class GeminiLiveService {
         this.ws.onerror = (error) => {
             console.error("WebSocket Error:", error);
             this.onStatusChange('error');
+            this.onLog({ type: 'info', text: 'WebSocket Error', timestamp: new Date() });
         };
 
         this.ws.onclose = (event) => {
             console.log("WebSocket Closed (Updated)", event.code, event.reason);
             this.isConnected = false;
             this.onStatusChange('disconnected');
+            this.onLog({ type: 'info', text: 'Disconnected', timestamp: new Date() });
             this.stopAudio();
             this.stopVideo();
         };
@@ -78,6 +94,7 @@ export class GeminiLiveService {
         await this.startAudio();
         if (useVideo) {
             await this.startVideo();
+            this.onLog({ type: 'info', text: 'Video stream started', timestamp: new Date() });
         }
     }
 
@@ -137,6 +154,7 @@ export class GeminiLiveService {
         };
         this.ws.send(JSON.stringify(setupMsg));
         console.log("Sent setup message");
+        this.onLog({ type: 'info', text: 'Sent setup message', timestamp: new Date() });
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -159,6 +177,11 @@ export class GeminiLiveService {
                 for (const part of parts) {
                     if (part.text) {
                         this.onMessage(part.text, null);
+                        // We rely on the UI to log the model text via the onMessage callback, avoiding double entry logic?
+                        // Or we can just log here. UI currently displays transcript separately.
+                        // Let's rely on UI Transcript logic for main text, but here we can log "Model Spoke".
+                        // Actually better to have everything in logs if we want a full debug history.
+                        // But user sees transcript.
                     }
                     if (part.inlineData && part.inlineData.mimeType.startsWith('audio')) {
                         // Audio PCM?
@@ -177,6 +200,13 @@ export class GeminiLiveService {
             const responses: any[] = [];
 
             for (const call of toolCall.functionCalls) {
+                this.onLog({
+                    type: 'tool-call',
+                    text: `🛠️ Calling tool ${call.name}`,
+                    data: call.args,
+                    timestamp: new Date()
+                });
+
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 let responseContent: any = {};
                 if (call.name === "searchFamilyTree") {
@@ -184,11 +214,23 @@ export class GeminiLiveService {
                     const results = GlobalTreeService.searchAllTrees(query);
                     // limit results
                     responseContent = { results: results.slice(0, 10) };
+                    this.onLog({
+                        type: 'tool-response',
+                        text: `✅ Found ${results.length} results for '${query}'`,
+                        data: responseContent,
+                        timestamp: new Date()
+                    });
                 } else if (call.name === "getPersonDetails") {
                     const treeId = call.args["treeId"];
                     const nodeId = call.args["nodeId"];
                     const node = GlobalTreeService.getNode(treeId, nodeId);
                     responseContent = { person: node };
+                    this.onLog({
+                        type: 'tool-response',
+                        text: `✅ Retrieved details for ${node?.name || nodeId}`,
+                        data: responseContent,
+                        timestamp: new Date()
+                    });
                 }
 
                 responses.push({

@@ -7,6 +7,7 @@ export const CONFIG = {
 
     DRIVE_TREE_FOLDER_ID: '1vd_aUxnvFFARNE6YFetiCAp7LV8LdT7-',
     DRIVE_ZS_FOLDER_ID: '1P5ZkHNj4U0C1g5WAyZIcO0eOa0m7hW4Y', // Profile Pics
+    DRIVE_LOGS_FOLDER_ID: '1zdAVUGMdDfxfYxTtxrqUqsqEruEhztit', // Gemini Logs
 
     SCOPES: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
     // 'drive.file' only allows access to files created by this app. 

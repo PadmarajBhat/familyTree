@@ -1,13 +1,13 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { GeminiLiveService } from '../services/GeminiLiveService';
+import { GeminiLiveService, type LogEntry } from '../services/GeminiLiveService';
 import { PCMPlayer } from '../utils/pcmPlayer';
 import './GeminiLive.css';
 
 export const GeminiLive: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [status, setStatus] = useState('disconnected');
-    const [transcript, setTranscript] = useState<{ text: string; sender: 'user' | 'model' }[]>([]);
+    const [logs, setLogs] = useState<LogEntry[]>([]);
     const [isVideoEnabled, setIsVideoEnabled] = useState(false);
 
     // Services
@@ -26,7 +26,7 @@ export const GeminiLive: React.FC = () => {
         if (chatEndRef.current) {
             chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
         }
-    }, [transcript, isOpen]);
+    }, [logs, isOpen]);
 
     const handleConnect = async () => {
         if (!liveServiceRef.current) {
@@ -34,7 +34,7 @@ export const GeminiLive: React.FC = () => {
             liveServiceRef.current = new GeminiLiveService(
                 (text, audioData) => {
                     if (text) {
-                        setTranscript(prev => [...prev, { text, sender: 'model' }]);
+                        setLogs(prev => [...prev, { type: 'model', text, timestamp: new Date() }]);
                     }
                     if (audioData) {
                         audioPlayerRef.current?.play(audioData);
@@ -45,6 +45,9 @@ export const GeminiLive: React.FC = () => {
                     if (newStatus === 'disconnected') {
                         handleDisconnect();
                     }
+                },
+                (logEntry) => {
+                    setLogs(prev => [...prev, logEntry]);
                 }
             );
         }
@@ -62,6 +65,47 @@ export const GeminiLive: React.FC = () => {
 
     const toggleOpen = () => {
         setIsOpen(!isOpen);
+    };
+
+    // Helper to render log entries
+    const renderLogEntry = (entry: LogEntry, index: number) => {
+        switch (entry.type) {
+            case 'user':
+                return (
+                    <div key={index} className="message user">
+                        {entry.text}
+                    </div>
+                );
+            case 'model':
+                return (
+                    <div key={index} className="message model">
+                        {entry.text}
+                    </div>
+                );
+            case 'tool-call':
+                return (
+                    <div key={index} className="message tool-call">
+                        {entry.text}
+                        {entry.data && (
+                            <pre className="tool-data">{JSON.stringify(entry.data, null, 2)}</pre>
+                        )}
+                    </div>
+                );
+            case 'tool-response':
+                return (
+                    <div key={index} className="message tool-response">
+                        {entry.text}
+                    </div>
+                );
+            case 'info':
+                return (
+                    <div key={index} className="message system-info">
+                        <small>{entry.text}</small>
+                    </div>
+                );
+            default:
+                return null;
+        }
     };
 
     return (
@@ -83,12 +127,8 @@ export const GeminiLive: React.FC = () => {
 
                     <div className="gemini-content">
                         <div className="transcript-area">
-                            {transcript.length === 0 && <div className="placeholder">Say "Hello" to start...</div>}
-                            {transcript.map((t, i) => (
-                                <div key={i} className={`message ${t.sender}`}>
-                                    {t.text}
-                                </div>
-                            ))}
+                            {logs.length === 0 && <div className="placeholder">Say "Hello" to start...</div>}
+                            {logs.map((log, i) => renderLogEntry(log, i))}
                             <div ref={chatEndRef} />
                         </div>
 
