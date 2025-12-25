@@ -317,7 +317,8 @@ export class GeminiLiveService {
 
             // Load the worklet
             try {
-                await this.audioContext.audioWorklet.addModule('/audio-processor.js');
+                // Use resolved path or just name if served from same base
+                await this.audioContext.audioWorklet.addModule('audio-processor.js');
             } catch (e) {
                 console.error("Failed to load audio-processor.js", e);
                 // Fallback or error handling
