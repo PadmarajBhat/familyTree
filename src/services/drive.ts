@@ -355,7 +355,7 @@ export const getUserProfile = async () => {
         if (response.ok) {
             return await response.json();
         }
-        
+
         if (response.status === 401) {
             console.warn("User profile fetch returned 401 Unauthorized.");
             return null;
@@ -548,5 +548,100 @@ export const grantWritePermission = async (fileId: string, email: string) => {
         console.log(`Granted write permission to ${email}`);
     } catch (err) {
         console.error(`Failed to grant permission to ${email}`, err);
+    }
+};
+
+export const saveGeminiLog = async (email: string, logEntries: { type: string, text: string, data?: any, timestamp: Date }[]): Promise<void> => {
+    if (!email) return;
+
+    const fileName = `gemini_history_${email}.json`;
+    const folderId = CONFIG.DRIVE_LOGS_FOLDER_ID;
+
+    try {
+        // 1. Check if file exists in the specific folder
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = await (gapi.client as any).drive.files.list({
+            q: `'${folderId}' in parents and trashed = false and name = '${fileName}'`,
+            fields: 'files(id)',
+        });
+        const files = response.result.files;
+
+        let fileId: string | null = null;
+        let currentContent: any[] = [];
+
+        if (files && files.length > 0) {
+            // 2. Read existing content
+            try {
+                if (fileId) {
+                    const content = await getFileContent(fileId);
+                    if (Array.isArray(content)) {
+                        currentContent = content;
+                    }
+                }
+            } catch (readErr) {
+                console.warn("Could not read existing log file, starting fresh.", readErr);
+            }
+        }
+
+        // 3. Append new entries
+        // We need to merge carefully. 
+        // If we just append everything passed in `logEntries`, we might duplicate if the service sends the *full* history every time.
+        // The service should probably send *new* entries or the full history and we overwrite?
+        // Let's assume the service sends the *full* history of the *current session*.
+        // But `gemini_history_email.json` implies *all* history ever?
+        // If it's a persistent history file, it will get huge.
+        // Maybe we should just append the new entries?
+        // Plan said: "If exists, read content, append new logs (or update current session), write back."
+        // Let's stick to appending. But the service needs to track what has been saved.
+        // OR: The service sends *all logs from current session*.
+        // We allow the file to store an array of sessions?
+        // Or just a flat list of logs?
+        // If flat list, we effectively just add the new items.
+        // But since we write the whole file, we need to read it first (which we did).
+
+        // Actually, simpler approach for "Session based logging":
+        // The implementation plan said: "gemini_history_[email].json".
+        // Let's treat it as a list of log entries.
+        // The `logEntries` arg passed here will be the *new* entries to append.
+
+        const updatedContent = [...currentContent, ...logEntries];
+
+        const fileContent = JSON.stringify(updatedContent, null, 2);
+        const file = new Blob([fileContent], { type: 'application/json' });
+
+        const metadata: any = {
+            mimeType: 'application/json',
+        };
+
+        const accessToken = gapi.auth.getToken().access_token;
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', file);
+
+        if (fileId) {
+            // Update
+            await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
+                method: 'PATCH',
+                headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+                body: form,
+            });
+        } else {
+            // Create New
+            metadata.name = fileName;
+            metadata.parents = [folderId];
+            // Re-create form with name/parents
+            const createForm = new FormData();
+            createForm.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+            createForm.append('file', file);
+
+            await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                method: 'POST',
+                headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+                body: createForm,
+            });
+        }
+
+    } catch (err) {
+        console.error("Error saving Gemini log", err);
     }
 };

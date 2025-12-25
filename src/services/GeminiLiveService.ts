@@ -1,6 +1,7 @@
 
 import { CONFIG } from '../config';
 import { GlobalTreeService } from './GlobalTreeService';
+import { getUserProfile, saveGeminiLog } from './drive';
 
 // Gemini Multimodal Live API URL
 const WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent';
@@ -36,6 +37,11 @@ export class GeminiLiveService {
     private onStatusChange: (status: string) => void;
     private onLog: (entry: LogEntry) => void;
 
+    private userEmail: string | null = null;
+    private logBuffer: LogEntry[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private autosaveInterval: any | null = null;
+
     constructor(
         onMessage: (text: string | null, audioData: string | null) => void,
         onStatusChange: (status: string) => void,
@@ -43,7 +49,12 @@ export class GeminiLiveService {
     ) {
         this.onMessage = onMessage;
         this.onStatusChange = onStatusChange;
-        this.onLog = onLog;
+        this.onLog = (entry) => {
+            if (this.userEmail) {
+                this.logBuffer.push(entry);
+            }
+            onLog(entry);
+        };
     }
 
     public async connect(useVideo: boolean = false) {
@@ -63,11 +74,27 @@ export class GeminiLiveService {
         const url = `${WS_URL}?key=${apiKey}`;
         this.ws = new WebSocket(url);
 
-        this.ws.onopen = () => {
+        this.ws.onopen = async () => {
             console.log("WebSocket Connected");
             this.isConnected = true;
             this.onStatusChange('connected');
             this.onLog({ type: 'info', text: 'Connected to Gemini Live', timestamp: new Date() });
+
+            // Start Autosave
+            try {
+                const profile = await getUserProfile();
+                if (profile && profile.email) {
+                    this.userEmail = profile.email;
+                    console.log("Enabled autosave logs for", this.userEmail);
+
+                    this.autosaveInterval = setInterval(() => {
+                        this.flushLogs();
+                    }, 30000); // Save every 30 seconds
+                }
+            } catch (e) {
+                console.warn("Failed to enable autosave logs", e);
+            }
+
             this.sendSetupMessage();
         };
 
@@ -86,6 +113,14 @@ export class GeminiLiveService {
             this.isConnected = false;
             this.onStatusChange('disconnected');
             this.onLog({ type: 'info', text: 'Disconnected', timestamp: new Date() });
+
+            // Cleanup
+            this.flushLogs();
+            if (this.autosaveInterval) {
+                clearInterval(this.autosaveInterval);
+                this.autosaveInterval = null;
+            }
+
             this.stopAudio();
             this.stopVideo();
         };
@@ -103,8 +138,26 @@ export class GeminiLiveService {
             this.ws.close();
             this.ws = null;
         }
+
+        // Cleanup
+        this.flushLogs();
+        if (this.autosaveInterval) {
+            clearInterval(this.autosaveInterval);
+            this.autosaveInterval = null;
+        }
+
         this.stopAudio();
         this.stopVideo();
+    }
+
+    private async flushLogs() {
+        if (!this.userEmail || this.logBuffer.length === 0) return;
+
+        const logsToSave = [...this.logBuffer];
+        this.logBuffer = []; // Clear buffer immediately to avoid duplicates in next batch
+
+        console.log(`Autosaving ${logsToSave.length} logs for ${this.userEmail}...`);
+        await saveGeminiLog(this.userEmail, logsToSave);
     }
 
     private sendSetupMessage() {
