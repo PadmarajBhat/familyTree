@@ -201,7 +201,7 @@ export class GeminiLiveService {
                     }
                 },
                 generationConfig: {
-                    responseModalities: ["AUDIO"]
+                    responseModalities: ["AUDIO", "TEXT"]
                 }
             }
         };
@@ -220,6 +220,8 @@ export class GeminiLiveService {
         } else {
             msg = JSON.parse(data);
         }
+
+        // console.log("Gemini Message:", msg); // DEBUG
 
         // Server Content (Audio/Text)
         if (msg.serverContent) {
