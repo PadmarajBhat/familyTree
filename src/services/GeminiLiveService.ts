@@ -2,6 +2,7 @@
 import { CONFIG } from '../config';
 import { GlobalTreeService } from './GlobalTreeService';
 import { getUserProfile, saveGeminiLog } from './drive';
+import { GET_GEMINI_SYSTEM_PROMPT } from '../logic/prompts';
 
 // Gemini Multimodal Live API URL
 const WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent';
@@ -167,51 +168,46 @@ export class GeminiLiveService {
     private sendSetupMessage() {
         if (!this.ws) return;
 
+        // 1. Get All Tree Data
+        const allNodes = GlobalTreeService.getAllNodesFlat();
+
+        // 2. Optimize Data for Token Size
+        // We strip unnecessary fields to keep context small and focused on relationships
+        const contextData = allNodes.map(n => ({
+            id: n.nodeId,
+            name: n.name,
+            gender: n.gender,
+            spouses: n.spouseIds,
+            children: n.childrenIds,
+            parents: n.parentId ? [n.parentId] : [], // Normalize to array for easier reading
+            // Add other critical fields if needed (DOB, Location)
+            dob: n.dob,
+            loc: n.location?.district || n.location?.state
+        }));
+
+        const jsonContext = JSON.stringify(contextData);
+        console.log(`Injecting ${contextData.length} nodes into context (~${jsonContext.length} chars)`);
+
+        // 3. Construct System Prompt
+        const systemInstructionText = GET_GEMINI_SYSTEM_PROMPT(jsonContext);
+
         const setupMsg = {
             setup: {
                 model: "models/gemini-2.0-flash-exp",
                 systemInstruction: {
                     parts: [
-                        { text: "You are a helpful family tree assistant. You have access to the user's family tree data via tools. You can understand and speak mainly English, Kannada, Hindi, and other Indian languages. Always reply in the same language the user speaks to you. If they speak Kannada, reply in Kannada. If they speak English, reply in English. IMPORTANT: When you need to use a tool to search or get details, ALWAYS say a brief phrase first like 'Let me check the records...' or 'Searching for that...' (in the appropriate language) to keep the user engaged while you look." }
+                        { text: systemInstructionText }
                     ]
                 },
-                tools: [
-                    {
-                        functionDeclarations: [
-                            {
-                                name: "searchFamilyTree",
-                                description: "Search for people in the family tree by name.",
-                                parameters: {
-                                    type: "object",
-                                    properties: {
-                                        query: { type: "string", description: "Name to search for" }
-                                    },
-                                    required: ["query"]
-                                }
-                            },
-                            {
-                                name: "getPersonDetails",
-                                description: "Get detailed information about a specific person using their treeId and nodeId found from search.",
-                                parameters: {
-                                    type: "object",
-                                    properties: {
-                                        treeId: { type: "string" },
-                                        nodeId: { type: "string" }
-                                    },
-                                    required: ["treeId", "nodeId"]
-                                }
-                            }
-                        ]
-                    }
-                ],
+                // Tools REMOVED - we want pure reasoning on context
                 generationConfig: {
                     responseModalities: ["AUDIO"]
                 }
             }
         };
         this.ws.send(JSON.stringify(setupMsg));
-        console.log("Sent setup message");
-        this.onLog({ type: 'info', text: 'Sent setup message', timestamp: new Date() });
+        console.log("Sent setup message with Full Context");
+        this.onLog({ type: 'info', text: 'Sent setup message (Full Context)', timestamp: new Date() });
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -249,64 +245,19 @@ export class GeminiLiveService {
         }
 
         // Tool Call
-        if (msg.toolCall) {
-            this.onStatusChange('searching');
-            const toolCall = msg.toolCall as ToolCall;
-            console.log("Received Tool Call:", toolCall);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const responses: any[] = [];
 
-            for (const call of toolCall.functionCalls) {
-                this.onLog({
-                    type: 'tool-call',
-                    text: `🛠️ Calling tool ${call.name}`,
-                    data: call.args,
-                    timestamp: new Date()
-                });
-
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                let responseContent: any = {};
-                if (call.name === "searchFamilyTree") {
-                    const query = call.args["query"];
-                    const results = GlobalTreeService.searchAllTrees(query);
-                    // limit results
-                    responseContent = { results: results.slice(0, 10) };
-                    this.onLog({
-                        type: 'tool-response',
-                        text: `✅ Found ${results.length} results for '${query}'`,
-                        data: responseContent,
-                        timestamp: new Date()
-                    });
-                } else if (call.name === "getPersonDetails") {
-                    const treeId = call.args["treeId"];
-                    const nodeId = call.args["nodeId"];
-                    const node = GlobalTreeService.getNode(treeId, nodeId);
-                    responseContent = { person: node };
-                    this.onLog({
-                        type: 'tool-response',
-                        text: `✅ Retrieved details for ${node?.name || nodeId}`,
-                        data: responseContent,
-                        timestamp: new Date()
-                    });
-                }
-
-                responses.push({
-                    id: call.id,
-                    name: call.name,
-                    response: responseContent
-                });
-            }
-
-            // Send Tool Response
-            const responseMsg = {
-                toolResponse: {
-                    functionResponses: responses
-                }
-            };
-            this.ws?.send(JSON.stringify(responseMsg));
-            // Status will naturally update when next model audio starts coming in or remains connected
-        }
+        this.onStatusChange('searching');
+        // We shouldn't receive tool calls anymore, but if we do, log it.
+        console.log("Received Unexpected Tool Call:", msg.toolCall);
+        this.onLog({
+            type: 'info',
+            text: `⚠️ Unexpected tool call received`,
+            timestamp: new Date()
+        });
+        // We can send an empty response or error to keep flow alive if needed, 
+        // but effectively we want to discourage this path.
     }
+
 
     private async startAudio() {
         try {
