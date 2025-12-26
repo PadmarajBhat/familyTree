@@ -194,6 +194,31 @@ export class GeminiLiveService {
                         { text: systemInstructionText }
                     ]
                 },
+                tools: [
+                    {
+                        functionDeclarations: [
+                            {
+                                name: "report_response",
+                                description: "Reports the exact text of your spoken response to the user's screen. You MUST call this tool whenever you speak.",
+                                parameters: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        text: {
+                                            type: "STRING",
+                                            description: "The text of the response you are speaking."
+                                        }
+                                    },
+                                    required: ["text"]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                toolConfig: {
+                    functionCallingConfig: {
+                        mode: "ANY" // Encourage tool use? Or AUTO. ANY might trap it.
+                    }
+                },
                 generationConfig: {
                     speechConfig: {
                         voiceConfig: {
