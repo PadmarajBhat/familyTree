@@ -334,3 +334,23 @@
     background: rgba(0, 0, 0, 0.1);
     border-radius: 3px;
 }
+
+/* Transcript Indicator */
+.transcript-indicator {
+    position: absolute;
+    bottom: -18px;
+    right: 4px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.message-row.user .message-bubble {
+    position: relative;
+}
+
+.message-row.user {
+    margin-bottom: 5px;
+}

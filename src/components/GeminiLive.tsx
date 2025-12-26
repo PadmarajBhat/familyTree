@@ -81,6 +81,8 @@ export const GeminiLive: React.FC = () => {
         }
 
         const isUser = entry.type === 'user';
+        const isTranscript = isUser && entry.data?.isTranscript;
+
         return (
             <div key={index} className={`message-row ${isUser ? 'user' : 'model'}`}>
                 <div className="message-avatar">
@@ -88,6 +90,11 @@ export const GeminiLive: React.FC = () => {
                 </div>
                 <div className="message-bubble">
                     {entry.text}
+                    {isTranscript && (
+                        <div className="transcript-indicator">
+                            <span role="img" aria-label="microphone" title="Transcribed from audio">🎙️</span>
+                        </div>
+                    )}
                 </div>
             </div>
         );

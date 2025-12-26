@@ -144,6 +144,7 @@ export class GeminiLiveService {
 
         this.stopAudio();
         this.stopVideo();
+        this.stopSpeechRecognition();
     }
 
     private async flushLogs() {
@@ -193,18 +194,11 @@ export class GeminiLiveService {
                         { text: systemInstructionText }
                     ]
                 },
-                // Explicitly disable tools to prevent hallucination
-                tools: [],
-                toolConfig: {
-                    functionCallingConfig: {
-                        mode: "NONE"
-                    }
-                },
                 generationConfig: {
                     speechConfig: {
                         voiceConfig: {
                             prebuiltVoiceConfig: {
-                                voiceName: "Aoede" // Try specifying a voice to ensure audio 
+                                voiceName: "Aoede"
                             }
                         }
                     }
@@ -227,7 +221,7 @@ export class GeminiLiveService {
             msg = JSON.parse(data);
         }
 
-        // console.log("Gemini Message:", msg); // DEBUG
+        console.log("Gemini Message:", msg); // DEBUG
 
         // Server Content (Audio/Text)
         if (msg.serverContent) {
@@ -237,8 +231,15 @@ export class GeminiLiveService {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 for (const part of parts) {
                     if (part.text) {
-                        console.log("Creating Text Bubble:", part.text); // Explicit Log
+                        console.log("Creating Text Bubble:", part.text);
+                        // Update UI
                         this.onMessage(part.text, null);
+                        // Save to Drive Logs
+                        this.onLog({
+                            type: 'model',
+                            text: part.text,
+                            timestamp: new Date()
+                        });
                     }
                     if (part.inlineData && part.inlineData.mimeType.startsWith('audio')) {
                         // Audio PCM?
@@ -292,6 +293,9 @@ export class GeminiLiveService {
                 console.error("Failed to create AudioContext");
                 return;
             }
+
+            // Start STT
+            this.setupSpeechRecognition();
 
             // Load the worklet
             try {
@@ -449,5 +453,50 @@ export class GeminiLiveService {
             binary += String.fromCharCode(bytes[i]);
         }
         return window.btoa(binary);
+    }
+
+    // Client-side Speech Recognition
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private recognition: any | null = null;
+
+    private setupSpeechRecognition() {
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+            this.recognition = new SpeechRecognition();
+            this.recognition.continuous = true;
+            this.recognition.interimResults = true;
+            this.recognition.lang = 'en-US'; // Or detect?
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this.recognition.onresult = (event: any) => {
+                let finalTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    }
+                }
+                if (finalTranscript) {
+                    console.log("User Transcript (Client-Side):", finalTranscript);
+                    this.onLog({
+                        type: 'user',
+                        text: finalTranscript,
+                        timestamp: new Date(),
+                        data: { isTranscript: true }
+                    });
+                }
+            };
+
+            this.recognition.start();
+        } else {
+            console.warn("Speech Recognition not supported in this browser.");
+        }
+    }
+
+    private stopSpeechRecognition() {
+        if (this.recognition) {
+            this.recognition.stop();
+            this.recognition = null;
+        }
     }
 }
