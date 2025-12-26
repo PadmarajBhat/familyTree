@@ -34,7 +34,12 @@ export const GeminiLive: React.FC = () => {
             liveServiceRef.current = new GeminiLiveService(
                 (text, audioData) => {
                     if (text) {
-                        setLogs(prev => [...prev, { type: 'model', text, timestamp: new Date() }]);
+                        console.log("REACT: Received text update:", text);
+                        setLogs(prev => {
+                            const newLogs = [...prev, { type: 'model', text, timestamp: new Date() } as LogEntry];
+                            console.log("REACT: Updated logs count:", newLogs.length);
+                            return newLogs;
+                        });
                     }
                     if (audioData) {
                         audioPlayerRef.current?.play(audioData);
@@ -47,6 +52,7 @@ export const GeminiLive: React.FC = () => {
                     }
                 },
                 (logEntry) => {
+                    console.log("REACT: Received log entry:", logEntry);
                     setLogs(prev => [...prev, logEntry]);
                 }
             );

@@ -221,7 +221,7 @@ export class GeminiLiveService {
             msg = JSON.parse(data);
         }
 
-        console.log("Gemini Message:", msg); // DEBUG
+        console.log("Full Gemini Message:", JSON.stringify(msg, null, 2)); // DEEP DEBUG
 
         // Server Content (Audio/Text)
         if (msg.serverContent) {
