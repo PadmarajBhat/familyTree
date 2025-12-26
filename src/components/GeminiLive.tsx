@@ -69,82 +69,72 @@ export const GeminiLive: React.FC = () => {
 
     // Helper to render log entries
     const renderLogEntry = (entry: LogEntry, index: number) => {
-        switch (entry.type) {
-            case 'user':
-                return (
-                    <div key={index} className="message user">
-                        {entry.text}
+        if (entry.type === 'tool-call' || entry.type === 'tool-response' || entry.type === 'info') {
+            const isError = entry.text.includes('⚠️');
+            return (
+                <div key={index} className="system-bubble">
+                    <div className="system-content" style={isError ? { color: '#ef4444', background: 'rgba(239,68,68,0.1)' } : {}}>
+                        {entry.type === 'tool-call' ? '🛠️' : entry.type === 'info' ? 'ℹ️' : '✅'} {entry.text}
                     </div>
-                );
-            case 'model':
-                return (
-                    <div key={index} className="message model">
-                        {entry.text}
-                    </div>
-                );
-            case 'tool-call':
-                return (
-                    <div key={index} className="message tool-call">
-                        {entry.text}
-                        {entry.data && (
-                            <pre className="tool-data">{JSON.stringify(entry.data, null, 2)}</pre>
-                        )}
-                    </div>
-                );
-            case 'tool-response':
-                return (
-                    <div key={index} className="message tool-response">
-                        {entry.text}
-                    </div>
-                );
-            case 'info':
-                return (
-                    <div key={index} className="message system-info">
-                        <small>{entry.text}</small>
-                    </div>
-                );
-            default:
-                return null;
+                </div>
+            );
         }
+
+        const isUser = entry.type === 'user';
+        return (
+            <div key={index} className={`message-row ${isUser ? 'user' : 'model'}`}>
+                <div className="message-avatar">
+                    {isUser ? '👤' : '✨'}
+                </div>
+                <div className="message-bubble">
+                    {entry.text}
+                </div>
+            </div>
+        );
     };
 
     return (
         <div className={`gemini-live-container ${isOpen ? 'open' : ''}`}>
             {!isOpen && (
                 <button className="gemini-fab" onClick={toggleOpen} title="Ask Gemini Live">
-                    ✨
+                    <span role="img" aria-label="sparkles">✨</span>
                 </button>
             )}
 
             {isOpen && (
-                <div className="gemini-panel glass-panel">
+                <div className="gemini-panel">
                     <div className="gemini-header">
                         <h3>Gemini Live</h3>
-                        <div className="gemini-controls">
-                            <button className="close-btn" onClick={toggleOpen}>×</button>
-                        </div>
+                        <button className="close-btn" onClick={toggleOpen}>×</button>
                     </div>
 
                     <div className="gemini-content">
                         <div className="transcript-area">
-                            {logs.length === 0 && <div className="placeholder">Say "Hello" to start...</div>}
+                            {logs.length === 0 && (
+                                <div style={{ textAlign: 'center', color: '#9ca3af', marginTop: '50%' }}>
+                                    Tap start to chat with your family tree...
+                                </div>
+                            )}
                             {logs.map((log, i) => renderLogEntry(log, i))}
                             <div ref={chatEndRef} />
                         </div>
 
                         {status === 'connected' && (
-                            <div className="visualizer">
-                                <div className="pulse-ring"></div>
-                                <div className="status-text">
-                                    {isVideoEnabled ? "Listening & Watching..." : "Listening..."}
+                            <div className="visualizer-container">
+                                <div className="pulse-indicator">
+                                    <div className="pulse-core"></div>
+                                </div>
+                                <div className="status-label">
+                                    {isVideoEnabled ? "Watching & Listening..." : "Listening..."}
                                 </div>
                             </div>
                         )}
                     </div>
 
+
                     <div className="gemini-footer">
                         <div className="media-controls">
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', marginBottom: '8px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#4b5563', marginBottom: '12px' }}>
                                 <input
                                     type="checkbox"
                                     checked={isVideoEnabled}
@@ -156,17 +146,14 @@ export const GeminiLive: React.FC = () => {
                         </div>
 
                         {status === 'disconnected' ? (
-                            <button className="start-btn" onClick={handleConnect}>
-                                Start Live Conversation
+                            <button className="control-btn start" onClick={handleConnect}>
+                                Start Live Chat
                             </button>
                         ) : (
-                            <button className="stop-btn" onClick={handleDisconnect}>
+                            <button className="control-btn stop" onClick={handleDisconnect}>
                                 End Session
                             </button>
                         )}
-                        <div className={`connection-status ${status}`}>
-                            {status}
-                        </div>
                     </div>
                 </div>
             )}

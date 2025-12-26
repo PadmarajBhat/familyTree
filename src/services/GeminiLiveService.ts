@@ -193,14 +193,20 @@ export class GeminiLiveService {
                         { text: systemInstructionText }
                     ]
                 },
-                // Tools REMOVED - we want pure reasoning on context
+                // Explicitly disable tools to prevent hallucination
+                tools: [],
+                toolConfig: {
+                    functionCallingConfig: {
+                        mode: "NONE"
+                    }
+                },
                 generationConfig: {
                     responseModalities: ["AUDIO"]
                 }
             }
         };
         this.ws.send(JSON.stringify(setupMsg));
-        console.log("Sent setup message with Full Context");
+        console.log("Sent setup message with Full Context & Tools Disabled");
         this.onLog({ type: 'info', text: 'Sent setup message (Full Context)', timestamp: new Date() });
     }
 
@@ -224,11 +230,6 @@ export class GeminiLiveService {
                 for (const part of parts) {
                     if (part.text) {
                         this.onMessage(part.text, null);
-                        // We rely on the UI to log the model text via the onMessage callback, avoiding double entry logic?
-                        // Or we can just log here. UI currently displays transcript separately.
-                        // Let's rely on UI Transcript logic for main text, but here we can log "Model Spoke".
-                        // Actually better to have everything in logs if we want a full debug history.
-                        // But user sees transcript.
                     }
                     if (part.inlineData && part.inlineData.mimeType.startsWith('audio')) {
                         // Audio PCM?
@@ -239,17 +240,32 @@ export class GeminiLiveService {
         }
 
         // Tool Call
+        if (msg.toolCall) {
+            console.log("Received Unexpected Tool Call:", msg.toolCall);
+            this.onLog({
+                type: 'info',
+                text: `⚠️ Unexpected tool call. Sending correction...`,
+                timestamp: new Date()
+            });
 
-        this.onStatusChange('searching');
-        // We shouldn't receive tool calls anymore, but if we do, log it.
-        console.log("Received Unexpected Tool Call:", msg.toolCall);
-        this.onLog({
-            type: 'info',
-            text: `⚠️ Unexpected tool call received`,
-            timestamp: new Date()
-        });
-        // We can send an empty response or error to keep flow alive if needed, 
-        // but effectively we want to discourage this path.
+            // Send a "compliance" response to snap the model out of tool mode
+            // We pretend we are the tool system returning an error/instruction
+            const toolCall = msg.toolCall;
+            const functionResponses = toolCall.functionCalls.map((fc: any) => ({
+                id: fc.id,
+                name: fc.name,
+                response: {
+                    result: "system_error: Tools are disabled. Use the provided JSON context to answer."
+                }
+            }));
+
+            const responseMsg = {
+                toolResponse: {
+                    functionResponses
+                }
+            };
+            this.ws?.send(JSON.stringify(responseMsg));
+        }
     }
 
 
