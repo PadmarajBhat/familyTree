@@ -7,13 +7,7 @@ import { GET_GEMINI_SYSTEM_PROMPT } from '../logic/prompts';
 // Gemini Multimodal Live API URL
 const WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent';
 
-interface ToolCall {
-    functionCalls: {
-        name: string;
-        args: Record<string, any>;
-        id: string;
-    }[];
-}
+
 
 export interface LogEntry {
     type: 'info' | 'user' | 'model' | 'tool-call' | 'tool-response';
