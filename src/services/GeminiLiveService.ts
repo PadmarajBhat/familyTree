@@ -201,7 +201,13 @@ export class GeminiLiveService {
                     }
                 },
                 generationConfig: {
-                    responseModalities: ["AUDIO", "TEXT"]
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: {
+                                voiceName: "Aoede" // Try specifying a voice to ensure audio 
+                            }
+                        }
+                    }
                 }
             }
         };
