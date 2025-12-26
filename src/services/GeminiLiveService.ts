@@ -237,6 +237,7 @@ export class GeminiLiveService {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 for (const part of parts) {
                     if (part.text) {
+                        console.log("Creating Text Bubble:", part.text); // Explicit Log
                         this.onMessage(part.text, null);
                     }
                     if (part.inlineData && part.inlineData.mimeType.startsWith('audio')) {
@@ -287,6 +288,10 @@ export class GeminiLiveService {
             });
 
             this.audioContext = new AudioContext({ sampleRate: 16000 });
+            if (!this.audioContext) {
+                console.error("Failed to create AudioContext");
+                return;
+            }
 
             // Load the worklet
             try {
