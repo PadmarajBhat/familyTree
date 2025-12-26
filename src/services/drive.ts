@@ -561,15 +561,25 @@ export const saveGeminiLog = async (email: string, logEntries: { type: string, t
     try {
         // 1. Check if file exists in the specific folder if we don't have an ID
         if (!fileId) {
+            console.log(`Searching for log file: ${fileName} in folder ${folderId}`);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const response = await (gapi.client as any).drive.files.list({
                 q: `'${folderId}' in parents and trashed = false and name = '${fileName}'`,
-                fields: 'files(id)',
+                fields: 'files(id, name, createdTime)',
+                orderBy: 'createdTime desc', // Sort by newest first
             });
             const files = response.result.files;
 
+            console.log(`Found ${files ? files.length : 0} existing log files.`);
+
             if (files && files.length > 0) {
-                fileId = files[0].id;
+                fileId = files[0].id; // Use the newest file
+                console.log(`Using existing log file: ${fileId} (Created: ${files[0].createdTime})`);
+                if (files.length > 1) {
+                    console.warn(`Duplicate log files found! Using most recent.`);
+                }
+            } else {
+                console.log("No existing log file found. Creating new.");
             }
         }
 
