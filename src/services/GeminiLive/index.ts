@@ -227,18 +227,6 @@ export class GeminiLiveService {
                 tools: [{
                     functionDeclarations: [
                         {
-                            name: "report_response",
-                            description: "Reports the exact text of your spoken response to the user's screen. You MUST call this tool whenever you speak.",
-                            parameters: {
-                                type: "OBJECT",
-                                properties: {
-                                    text: { type: "STRING", description: "The text of the response you are speaking." },
-                                    user_transcript: { type: "STRING", description: "The text of what the user just said, as you understood it. If you heard nothing, return empty string." }
-                                },
-                                required: ["text"]
-                            }
-                        },
-                        {
                             name: "add_person",
                             description: "Add a new person to the family tree. Provide as much detail as known.",
                             parameters: {
@@ -275,14 +263,28 @@ export class GeminiLiveService {
                 }],
                 toolConfig: { functionCallingConfig: { mode: "ANY" } },
                 generationConfig: {
+                    responseModalities: ["AUDIO"],
                     speechConfig: {
                         voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: "Aoede" }
+                            prebuiltVoiceConfig: { voiceName: "Puck" }
                         }
                     }
                 }
             }
         };
+        // Add input_audio_transcription if supported by API version. 
+        // Note: The user provided snippet shows it at top level or setup level?
+        // User snippet:
+        /*
+          setup: {
+            ...
+            input_audio_transcription: { model: "google-provided-model" }
+          }
+        */
+        // Let's add it to setup object.
+        // @ts-ignore
+        setupMsg.setup.input_audio_transcription = { model: "google-provided-model" };
+
         this.ws.send(JSON.stringify(setupMsg));
         console.log("Sent setup message with Full Context & Tools");
         this.onLog({ type: 'info', text: 'Sent setup message (Full Context + Tools)', timestamp: new Date() });
@@ -303,15 +305,22 @@ export class GeminiLiveService {
             console.log("Setup Complete received. Starting Audio...");
             this.onLog({ type: 'info', text: 'Setup Complete. Starting Audio...', timestamp: new Date() });
 
-            // Start both Audio Stream (Input) and Speech Recognition (STT)
+            // Start Audio Stream (Input) ONLY. Disable SpeechService (Client-side STT).
             await this.audioService.start();
-            this.speechService.start();
+            // this.speechService.start(); // DISABLED to use Server-Side STT
             return;
         }
 
         // console.log("Full Gemini Message:", JSON.stringify(msg, null, 2));
 
         if (msg.serverContent) {
+            // Log user transcript if provided by server (input_audio_transcription)
+            if (msg.serverContent.turnComplete && msg.serverContent.inputAudioTranscription) {
+                // Check if there is a transcript? The API docs are vague on exact location.
+                // Actually, often it comes as a separate 'turnComplete' or similar.
+                // If not explicit, we rely on the model's response.
+            }
+
             if (msg.serverContent.modelTurn) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const parts = msg.serverContent.modelTurn.parts;
