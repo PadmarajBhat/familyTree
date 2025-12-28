@@ -276,6 +276,44 @@ export class GeminiLiveService {
 
         // Tool Call
         if (msg.toolCall) {
+            console.log("Received Tool Call:", msg.toolCall);
+            const toolCall = msg.toolCall;
+
+            // Check if it's our "Transcript Hack" tool
+            const transcriptCall = toolCall.functionCalls.find((fc: any) => fc.name === "report_response");
+            if (transcriptCall) {
+                const text = transcriptCall.args.text;
+                console.log("FORCE TRANSCRIPT:", text);
+
+                // Update UI with the text
+                this.onMessage(text, null);
+
+                // Log to persistent storage
+                this.onLog({
+                    type: 'model',
+                    text: text,
+                    timestamp: new Date()
+                });
+
+                // Send a success response to satisfy the model
+                const functionResponses = toolCall.functionCalls.map((fc: any) => ({
+                    id: fc.id,
+                    name: fc.name,
+                    response: {
+                        result: "Transcript displayed to user."
+                    }
+                }));
+
+                const responseMsg = {
+                    toolResponse: {
+                        functionResponses
+                    }
+                };
+                this.ws?.send(JSON.stringify(responseMsg));
+                return; // Done
+            }
+
+            // Fallback for truly unexpected tools
             console.log("Received Unexpected Tool Call:", msg.toolCall);
             this.onLog({
                 type: 'info',
@@ -284,8 +322,6 @@ export class GeminiLiveService {
             });
 
             // Send a "compliance" response to snap the model out of tool mode
-            // We pretend we are the tool system returning an error/instruction
-            const toolCall = msg.toolCall;
             const functionResponses = toolCall.functionCalls.map((fc: any) => ({
                 id: fc.id,
                 name: fc.name,
