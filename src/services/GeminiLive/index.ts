@@ -311,9 +311,10 @@ export class GeminiLiveService {
         if (msg.serverContent) {
             console.log("RAW SERVER CONTENT:", JSON.stringify(msg.serverContent, null, 2));
 
-            // Log user transcript if provided by server (input_audio_transcription)
-            if (msg.serverContent.inputAudioTranscription) {
-                const transcript = msg.serverContent.inputAudioTranscription.transcript;
+            // Log user transcript if provided by server
+            const inputTrans = msg.serverContent.inputAudioTranscription || msg.serverContent.inputTranscription;
+            if (inputTrans) {
+                const transcript = inputTrans.transcript || inputTrans.text;
                 if (transcript) {
                     console.log("User Transcript (Server):", transcript);
                     // Use 'user' type for server-side transcripts 
@@ -328,9 +329,10 @@ export class GeminiLiveService {
                 }
             }
 
-            // Log model transcript if provided by server (output_audio_transcription)
-            if (msg.serverContent.outputAudioTranscription) {
-                const transcript = msg.serverContent.outputAudioTranscription.transcript;
+            // Log model transcript if provided by server
+            const outputTrans = msg.serverContent.outputAudioTranscription || msg.serverContent.outputTranscription;
+            if (outputTrans) {
+                const transcript = outputTrans.transcript || outputTrans.text;
                 if (transcript) {
                     console.log("Model Transcript (Server):", transcript);
                     this.onMessage(transcript, null, 'model');
