@@ -332,6 +332,16 @@ export class GeminiLiveService {
                 }
             }
 
+            // Log model transcript if provided by server (output_audio_transcription)
+            if (msg.serverContent.outputAudioTranscription) {
+                const transcript = msg.serverContent.outputAudioTranscription.transcript;
+                if (transcript) {
+                    console.log("Model Transcript (Server):", transcript);
+                    this.onMessage(transcript, null, 'model');
+                    this.onLog({ type: 'model', text: transcript, timestamp: new Date() });
+                }
+            }
+
             if (msg.serverContent.modelTurn) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const parts = msg.serverContent.modelTurn.parts;
