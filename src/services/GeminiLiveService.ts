@@ -121,8 +121,8 @@ export class GeminiLiveService {
             this.stopVideo();
         };
 
-        // Start Audio
-        await this.startAudio();
+        // Start Audio (Moved after setup)
+        // await this.startAudio(); 
         if (useVideo) {
             await this.startVideo();
             this.onLog({ type: 'info', text: 'Video stream started', timestamp: new Date() });
@@ -250,6 +250,16 @@ export class GeminiLiveService {
             msg = JSON.parse(data);
         }
 
+        // console.log("Full Gemini Message:", JSON.stringify(msg, null, 2)); // DEEP DEBUG
+
+        // 0. Handle Setup Complete
+        if (msg.setupComplete) {
+            console.log("Setup Complete received. Starting Audio...");
+            this.onLog({ type: 'info', text: 'Setup Complete. Starting Audio...', timestamp: new Date() });
+            await this.startAudio();
+            return;
+        }
+
         console.log("Full Gemini Message:", JSON.stringify(msg, null, 2)); // DEEP DEBUG
 
         // Server Content (Audio/Text)
@@ -290,7 +300,8 @@ export class GeminiLiveService {
                 console.log("FORCE TRANSCRIPT:", text);
 
                 // Update UI with the text
-                this.onMessage(text, null);
+                // REMOVED: this.onMessage(text, null); // Prevent Double Rendering: onLog below handles display + history
+
 
                 // Handle User Transcript if provided
                 if (transcriptCall.args.user_transcript) {
@@ -553,6 +564,14 @@ export class GeminiLiveService {
                 console.error("Speech Recognition Error", event.error);
                 if (event.error === 'not-allowed') {
                     this.onLog({ type: 'info', text: 'Microphone access denied for transcription.', timestamp: new Date() });
+                }
+
+                // Prevent infinite loop on network errors
+                if (event.error === 'network') {
+                    console.warn("Network error in speech recognition. Stopping auto-restart.");
+                    this.recognition.onend = null; // Disable restart handler
+                    this.stopSpeechRecognition();
+                    this.onLog({ type: 'info', text: 'Speech recognition stopped due to network error.', timestamp: new Date() });
                 }
             };
 
