@@ -3,10 +3,11 @@ import { v4 as uuidv4 } from 'uuid';
 import type { PersonNode } from '../logic/types';
 import { getISTTimestamp, deriveDobFromAge, calculateAge, formatDateToDDMMYYYY, parseDateFromDDMMYYYY } from '../logic/dateUtils';
 import { isAncestor } from '../logic/relationshipUtils';
-import { uploadImage, getPhotoUrl, deleteFile } from '../services/drive';
+import { uploadImage, uploadVideo, getPhotoUrl, deleteFile } from '../services/drive';
 import { GlobalTreeService, type SearchResult } from '../services/GlobalTreeService';
 import { generateAllTranslations } from '../services/TransliterationService';
 import { CloseButton } from './CloseButton';
+import { validatePersonData } from '../logic/validation';
 import './MemberEditor.css';
 
 interface MemberEditorProps {
@@ -145,6 +146,97 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
+
+    // Video Recording State
+    const [isRecording, setIsRecording] = useState(false);
+    const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+    const [videoPreview, setVideoPreview] = useState<string | null>(initialData?.videoUrl ? getPhotoUrl(initialData.videoUrl) : null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const videoRef = useRef<HTMLVideoElement>(null); // For live preview
+    const playbackRef = useRef<HTMLVideoElement>(null); // For playback
+    const chunksRef = useRef<Blob[]>([]);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+            }
+
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            chunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    chunksRef.current.push(e.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+                setVideoBlob(blob);
+                const url = URL.createObjectURL(blob);
+                setVideoPreview(url);
+
+                // Stop all tracks
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+            setRecordingTime(0);
+
+            timerRef.current = setInterval(() => {
+                setRecordingTime(prev => {
+                    if (prev >= 15) {
+                        stopRecording();
+                        return 15;
+                    }
+                    return prev + 1;
+                });
+            }, 1000);
+
+        } catch (err) {
+            console.error("Error accessing camera:", err);
+            alert("Could not access camera. Please allow permissions.");
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
+        }
+    };
+
+    const captureFrameFromVideo = () => {
+        if (playbackRef.current) {
+            const video = playbackRef.current;
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const dataUrl = canvas.toDataURL('image/jpeg');
+                setImagePreview(dataUrl);
+                // Convert to file for upload
+                fetch(dataUrl)
+                    .then(res => res.blob())
+                    .then(blob => {
+                        const file = new File([blob], "profile_frame.jpg", { type: "image/jpeg" });
+                        setImageFile(file);
+                    });
+            }
+        }
+    };
 
     // Initialize computed age if dob exists but age doesn't
     useEffect(() => {
@@ -414,10 +506,29 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     const handleSubmit = async (e: React.FormEvent, shouldAddChild: boolean = false) => {
         e.preventDefault();
 
-        // Email is only required for editors
-        const isEditor = initialData?.isEditor || false;
-        if (isEditor && (!email || !email.trim())) {
-            alert("Email is required for editors.");
+        // Prepare data for validation
+        let finalDob = dob;
+        let dobInferred = initialData?.dobInferred || false;
+
+        if (!dob && age) {
+            finalDob = deriveDobFromAge(parseInt(age), isAlive ? null : dod);
+            dobInferred = true;
+        } else if (dob) {
+            dobInferred = false;
+        }
+
+        const dataToValidate: Partial<PersonNode> = {
+            name,
+            email,
+            dob: finalDob,
+            dod: !isAlive ? (dod || null) : null,
+            isEditor: initialData?.isEditor || false,
+            ageProvided: age ? parseInt(age) : null
+        };
+
+        const validation = validatePersonData(dataToValidate, initialData?.isEditor);
+        if (!validation.valid) {
+            alert(validation.errors.join('\n'));
             return;
         }
 
@@ -444,14 +555,15 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                 imageUrl = await uploadImage(imageFile);
             }
 
-            let finalDob = dob;
-            let dobInferred = initialData?.dobInferred || false;
-
-            if (!dob && age) {
-                finalDob = deriveDobFromAge(parseInt(age), isAlive ? null : dod);
-                dobInferred = true;
-            } else if (dob) {
-                dobInferred = false;
+            let finalVideoUrl = initialData?.videoUrl || null;
+            if (videoBlob) {
+                // Delete old video if exists
+                if (initialData?.videoUrl) {
+                    try {
+                        await deleteFile(initialData.videoUrl);
+                    } catch (e) { console.warn("Failed to delete old video", e); }
+                }
+                finalVideoUrl = await uploadVideo(videoBlob, `video_${initialData?.nodeId || 'new'}.webm`);
             }
 
             const now = getISTTimestamp();
@@ -460,6 +572,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                 nodeId: initialData?.nodeId || uuidv4(),
                 name: name || null,
                 imageUrl: imageUrl,
+                videoUrl: finalVideoUrl,
                 phone: phone || null,
                 phoneE164: phone ? phone.replace(/\D/g, '') : null,
                 email: email ? email.toLowerCase() : null,
@@ -745,6 +858,36 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                             onChange={handleImageChange}
                             style={{ display: 'none' }}
                         />
+                    </div>
+
+                    {/* Video Recording Section */}
+                    <div className="form-group video-section" style={{ textAlign: 'center', marginBottom: '20px' }}>
+                        {!isRecording && !videoPreview && (
+                            <button type="button" onClick={startRecording} className="secondary-btn" style={{ background: '#fce4ec', color: '#c2185b', border: '1px solid #f8bbd0' }}>
+                                🎥 Record 15s Video Profile
+                            </button>
+                        )}
+
+                        {isRecording && (
+                            <div className="recording-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <video ref={videoRef} autoPlay muted playsInline style={{ width: '100%', maxWidth: '300px', borderRadius: '8px', border: '2px solid #e91e63' }} />
+                                <div style={{ marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                    <span style={{ color: '#e91e63', fontWeight: 'bold' }}>🔴 Recording: {recordingTime}s / 15s</span>
+                                    <button type="button" onClick={stopRecording} className="primary-btn" style={{ background: '#e91e63' }}>Stop</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {!isRecording && videoPreview && (
+                            <div className="preview-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <video ref={playbackRef} src={videoPreview} controls style={{ width: '100%', maxWidth: '300px', borderRadius: '8px', marginBottom: '10px' }} />
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button type="button" onClick={startRecording} className="secondary-btn">Retake</button>
+                                    <button type="button" onClick={() => { setVideoPreview(null); setVideoBlob(null); }} className="secondary-btn">Clear</button>
+                                    <button type="button" onClick={captureFrameFromVideo} className="primary-btn" title="Extract smiling photo">📸 Use Frame as Photo</button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* 1. Name */}

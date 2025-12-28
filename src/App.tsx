@@ -22,8 +22,10 @@ import { getISTTimestamp } from './logic/dateUtils';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
 import { GeminiLive } from './components/GeminiLive';
+import { v4 as uuidv4 } from 'uuid';
 
 import { getTreeNameFromFilename, generateFilename } from './logic/fileUtils';
+import { IdentifyKin } from './components/IdentifyKin';
 import './App.css';
 
 function App() {
@@ -50,6 +52,7 @@ function App() {
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [viewState, setViewState] = useState<'home' | 'tree'>('home');
   const [showDashboard, setShowDashboard] = useState(false);
+  const [showIdentifyModal, setShowIdentifyModal] = useState(false);
   const [currentTreeId, setCurrentTreeId] = useState<string | null>(null);
   const [currentTreeName, setCurrentTreeName] = useState<string>('family_tree');
   const [findRelationIds, setFindRelationIds] = useState<{ p1: string | null; p2: string | null }>({ p1: null, p2: null });
@@ -1249,6 +1252,15 @@ function App() {
                     >
                       {t('menu.findRelation')}
                     </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => {
+                        setShowIdentifyModal(true);
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      📷 Identify Member
+                    </button>
                     {currentUser && (
                       <button
                         className="menu-item"
@@ -1515,7 +1527,118 @@ function App() {
           />
         )}
       </main>
-      <GeminiLive />
+      <GeminiLive
+        onAddPerson={async (data) => {
+          console.log("Gemini requested Add:", data);
+          if (!tree) return { success: false, message: "No family tree loaded." };
+          if (!currentUser) return { success: false, message: "Please sign in to edit." };
+          // Simple permission check
+          if (!canEdit(currentUser.email)) return { success: false, message: "You do not have permission to edit this tree." };
+
+          try {
+            let resultMessage = "";
+            await executeWithLock(async (latestTree, _lockId) => {
+              if (!latestTree) throw new Error("Failed to load tree for locking.");
+
+              // Create new node
+              const newNodeId = uuidv4();
+              const now = getISTTimestamp();
+
+              const newNode: PersonNode = {
+                nodeId: newNodeId,
+                name: data.name || "Unknown",
+                gender: data.gender || undefined,
+                dob: data.dob || null,
+                dod: data.dod || null,
+                email: data.email || null,
+                // Defaults
+                imageUrl: null, phone: null, phoneE164: null, dobApprox: { known: false, year: null, month: null, day: null },
+                dodApprox: { known: false, year: null, month: null, day: null }, dobInferred: false,
+                ageProvided: null,
+                address: { freeform: null }, location: null,
+                spouseIds: [], childrenIds: [], parentId: null,
+                isEditor: false, editorSince: null,
+                editedBy: currentUser.email, editedTime: now,
+                externalLink: undefined, nameTranslations: {}
+              };
+
+              // Linking
+              const changes: string[] = [`Added ${newNode.name}`];
+
+              // Parent Link
+              if (data.parentId && latestTree.nodes[data.parentId]) {
+                const parent = latestTree.nodes[data.parentId];
+                newNode.parentId = parent.nodeId;
+                if (!parent.childrenIds.includes(newNodeId)) {
+                  parent.childrenIds.push(newNodeId);
+                  parent.editedBy = currentUser.email;
+                  parent.editedTime = now;
+                  changes.push(`Linked as child of ${parent.name}`);
+                }
+              }
+
+              // Spouse Link can be added later if tool supports it
+
+              latestTree.nodes[newNodeId] = newNode;
+              latestTree.meta.nodeCount = Object.keys(latestTree.nodes).length;
+
+              const summary = changes.join(", ");
+              await saveWithMerge(latestTree, summary);
+              resultMessage = `Added ${newNode.name} successfully.`;
+            });
+            return { success: true, message: resultMessage };
+          } catch (e) {
+            console.error("Gemini Add Error", e);
+            return { success: false, message: "Failed to add person: " + (e as Error).message };
+          }
+        }}
+        onUpdatePerson={async (data) => {
+          console.log("Gemini requested Update:", data);
+          if (!tree) return { success: false, message: "No tree loaded." };
+          if (!currentUser) return { success: false, message: "Please sign in." };
+          if (!data.nodeId) return { success: false, message: "Node ID missing." };
+          if (!canEdit(currentUser.email)) return { success: false, message: "Permission denied." };
+
+          try {
+            let resultMessage = "";
+            await executeWithLock(async (latestTree, _lockId) => {
+              if (!latestTree) throw new Error("Failed to load tree.");
+              const node = latestTree.nodes[data.nodeId!];
+              if (!node) throw new Error("Node not found.");
+
+              // Update fields
+              let changed = false;
+              if (data.name) { node.name = data.name; changed = true; }
+              if (data.dob !== undefined) { node.dob = data.dob; changed = true; }
+              if (data.dod !== undefined) { node.dod = data.dod; changed = true; }
+              if (data.gender) { node.gender = data.gender; changed = true; }
+              if (data.email) { node.email = data.email; changed = true; }
+
+              if (changed) {
+                node.editedBy = currentUser.email;
+                node.editedTime = getISTTimestamp();
+                await saveWithMerge(latestTree, `Updated ${node.name} details`);
+                resultMessage = `Updated ${node.name}.`;
+              } else {
+                resultMessage = "No changes needed.";
+              }
+            });
+            return { success: true, message: resultMessage };
+          } catch (e) {
+            return { success: false, message: (e as Error).message };
+          }
+        }}
+      />
+      {showIdentifyModal && tree && (
+        <IdentifyKin
+          onClose={() => setShowIdentifyModal(false)}
+          onIdentify={(nodeId) => {
+            setShowIdentifyModal(false);
+            handleNodeClick(nodeId);
+          }}
+          allNodes={tree.nodes}
+        />
+      )}
     </div >
   );
 

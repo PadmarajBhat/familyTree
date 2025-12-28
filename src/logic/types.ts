@@ -2,6 +2,7 @@ export interface PersonNode {
   nodeId: string;
   name: string | null;
   imageUrl: string | null;
+  videoUrl?: string | null;
   phone: string | null;
   phoneE164: string | null;
   email: string | null;

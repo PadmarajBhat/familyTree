@@ -403,6 +403,38 @@ export const uploadImage = async (file: File): Promise<string> => {
     }
 };
 
+export const uploadVideo = async (file: Blob, filename: string): Promise<string> => {
+    // Reusing ZS folder for now, or we could define a new constant
+    const metadata = {
+        name: filename,
+        parents: [CONFIG.DRIVE_ZS_FOLDER_ID],
+        mimeType: file.type || 'video/webm', // Fallback or strict?
+    };
+
+    const accessToken = gapi.client.getToken()?.access_token;
+    if (!accessToken) throw new Error("No access token");
+
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', file);
+
+    try {
+        const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+            method: 'POST',
+            headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+            body: form,
+        });
+        const result = await response.json();
+        if (result.id) {
+            return result.id;
+        }
+        throw new Error("Video upload failed, no ID returned");
+    } catch (err) {
+        console.error("Error uploading video", err);
+        throw err;
+    }
+};
+
 export const getPhotoUrl = (fileIdOrUrl: string | null): string | null => {
     if (!fileIdOrUrl) return null;
     if (fileIdOrUrl.startsWith('http') || fileIdOrUrl.startsWith('data:')) {

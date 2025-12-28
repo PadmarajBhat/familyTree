@@ -1,11 +1,17 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { GeminiLiveService } from '../services/GeminiLive';
+import { GeminiLiveService, type ToolResult } from '../services/GeminiLive';
 import { type LogEntry } from '../services/GeminiLive/types';
 import { PCMPlayer } from '../utils/pcmPlayer';
+import type { PersonNode } from '../logic/types';
 import './GeminiLive.css';
 
-export const GeminiLive: React.FC = () => {
+interface GeminiLiveProps {
+    onAddPerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
+    onUpdatePerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
+}
+
+export const GeminiLive: React.FC<GeminiLiveProps> = ({ onAddPerson, onUpdatePerson }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [status, setStatus] = useState('disconnected');
     const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -55,7 +61,9 @@ export const GeminiLive: React.FC = () => {
                 (logEntry) => {
                     console.log("REACT: Received log entry:", logEntry);
                     setLogs(prev => [...prev, logEntry]);
-                }
+                },
+                onAddPerson,
+                onUpdatePerson
             );
         }
 

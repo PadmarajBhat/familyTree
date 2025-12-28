@@ -2,12 +2,19 @@ import { CONFIG } from '../../config';
 import { GlobalTreeService } from '../GlobalTreeService';
 import { getUserProfile, saveGeminiLog } from '../drive';
 import { GET_GEMINI_SYSTEM_PROMPT } from '../../logic/prompts';
+import { validatePersonData } from '../../logic/validation';
 import type { LogEntry } from './types';
 import { AudioService } from './AudioService';
 import { VideoService } from './VideoService';
 import { SpeechService } from './SpeechService';
+import type { PersonNode } from '../../logic/types';
 
 const WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent';
+
+export interface ToolResult {
+    success: boolean;
+    message: string;
+}
 
 export class GeminiLiveService {
     private ws: WebSocket | null = null;
@@ -20,6 +27,10 @@ export class GeminiLiveService {
     private onStatusChange: (status: string) => void;
     private onLogCallback: (entry: LogEntry) => void;
 
+    // Tool Callbacks
+    private onAddPerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
+    private onUpdatePerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
+
     private userEmail: string | null = null;
     private logBuffer: LogEntry[] = [];
     private logFileId: string | null = null;
@@ -29,11 +40,15 @@ export class GeminiLiveService {
     constructor(
         onMessage: (text: string | null, audioData: string | null) => void,
         onStatusChange: (status: string) => void,
-        onLog: (entry: LogEntry) => void = () => { }
+        onLog: (entry: LogEntry) => void = () => { },
+        onAddPerson: (data: Partial<PersonNode>) => Promise<ToolResult> = async () => ({ success: false, message: "Tool not implemented" }),
+        onUpdatePerson: (data: Partial<PersonNode>) => Promise<ToolResult> = async () => ({ success: false, message: "Tool not implemented" })
     ) {
         this.onMessage = onMessage;
         this.onStatusChange = onStatusChange;
         this.onLogCallback = onLog;
+        this.onAddPerson = onAddPerson;
+        this.onUpdatePerson = onUpdatePerson;
 
         this.audioService = new AudioService(
             (base64Data) => this.sendAudioChunk(base64Data),
@@ -186,7 +201,8 @@ export class GeminiLiveService {
             children: n.childrenIds,
             parents: n.parentId ? [n.parentId] : [],
             dob: n.dob,
-            loc: n.location?.district || n.location?.state
+            loc: n.location?.district || n.location?.state,
+            email: n.email
         }));
 
         const jsonContext = JSON.stringify(contextData);
@@ -199,18 +215,53 @@ export class GeminiLiveService {
                 model: "models/gemini-2.0-flash-exp",
                 systemInstruction: { parts: [{ text: systemInstructionText }] },
                 tools: [{
-                    functionDeclarations: [{
-                        name: "report_response",
-                        description: "Reports the exact text of your spoken response to the user's screen. You MUST call this tool whenever you speak.",
-                        parameters: {
-                            type: "OBJECT",
-                            properties: {
-                                text: { type: "STRING", description: "The text of the response you are speaking." },
-                                user_transcript: { type: "STRING", description: "The text of what the user just said, as you understood it. If you heard nothing, return empty string." }
-                            },
-                            required: ["text"]
+                    functionDeclarations: [
+                        {
+                            name: "report_response",
+                            description: "Reports the exact text of your spoken response to the user's screen. You MUST call this tool whenever you speak.",
+                            parameters: {
+                                type: "OBJECT",
+                                properties: {
+                                    text: { type: "STRING", description: "The text of the response you are speaking." },
+                                    user_transcript: { type: "STRING", description: "The text of what the user just said, as you understood it. If you heard nothing, return empty string." }
+                                },
+                                required: ["text"]
+                            }
+                        },
+                        {
+                            name: "add_person",
+                            description: "Add a new person to the family tree. Provide as much detail as known.",
+                            parameters: {
+                                type: "OBJECT",
+                                properties: {
+                                    name: { type: "STRING", description: "Full name of the person." },
+                                    gender: { type: "STRING", enum: ["male", "female", "other"], description: "Gender of the person." },
+                                    dob: { type: "STRING", description: "Date of Birth in YYYY-MM-DD format. Required if known." },
+                                    dod: { type: "STRING", description: "Date of Death in YYYY-MM-DD format. If deceased." },
+                                    parent_id: { type: "STRING", description: "ID of the parent (nodeId) if known. Use existing IDs from the JSON." },
+                                    spouse_id: { type: "STRING", description: "ID of the spouse (nodeId) if known." },
+                                    relation_type: { type: "STRING", description: "Contextual relation note (e.g. 'son of X')." }
+                                },
+                                required: ["name"]
+                            }
+                        },
+                        {
+                            name: "update_person",
+                            description: "Update details of an existing person in the family tree.",
+                            parameters: {
+                                type: "OBJECT",
+                                properties: {
+                                    node_id: { type: "STRING", description: "The unique ID (nodeId) of the person to update. MUST exist in the JSON." },
+                                    name: { type: "STRING", description: "Updated name." },
+                                    dob: { type: "STRING", description: "Updated DOB (YYYY-MM-DD)." },
+                                    dod: { type: "STRING", description: "Updated DOD (YYYY-MM-DD)." },
+                                    gender: { type: "STRING", enum: ["male", "female", "other"] },
+                                    email: { type: "STRING", description: "Email address." }
+                                },
+                                required: ["node_id"]
+                            }
                         }
-                    }]
+                    ]
                 }],
                 toolConfig: { functionCallingConfig: { mode: "ANY" } },
                 generationConfig: {
@@ -223,8 +274,8 @@ export class GeminiLiveService {
             }
         };
         this.ws.send(JSON.stringify(setupMsg));
-        console.log("Sent setup message with Full Context & Tools Disabled");
-        this.onLog({ type: 'info', text: 'Sent setup message (Full Context)', timestamp: new Date() });
+        console.log("Sent setup message with Full Context & Tools");
+        this.onLog({ type: 'info', text: 'Sent setup message (Full Context + Tools)', timestamp: new Date() });
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -271,48 +322,86 @@ export class GeminiLiveService {
         if (msg.toolCall) {
             console.log("Received Tool Call:", msg.toolCall);
             const toolCall = msg.toolCall;
+            const functionResponses = [];
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const transcriptCall = toolCall.functionCalls.find((fc: any) => fc.name === "report_response");
+            for (const fc of toolCall.functionCalls) {
+                const { name, args, id } = fc;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                let result: any = {};
 
-            if (transcriptCall) {
-                const text = transcriptCall.args.text;
-                console.log("FORCE TRANSCRIPT:", text);
+                if (name === "report_response") {
+                    const text = args.text;
+                    console.log("FORCE TRANSCRIPT:", text);
+                    if (args.user_transcript) {
+                        const userText = args.user_transcript;
+                        this.onLog({
+                            type: 'user',
+                            text: userText,
+                            timestamp: new Date(),
+                            data: { isTranscript: true }
+                        });
+                    }
+                    this.onLog({ type: 'model', text: text, timestamp: new Date() });
+                    result = { result: "Transcript displayed to user." };
+                } else if (name === "add_person") {
+                    this.onLog({ type: 'tool-call', text: `Adding person: ${args.name}`, timestamp: new Date() });
 
-                // REMOVED: this.onMessage(text, null); // Handled by onLog below
+                    // Validate
+                    const validation = validatePersonData(args);
+                    if (!validation.valid) {
+                        result = { error: `Validation Failed: ${validation.errors.join(", ")}` };
+                    } else {
+                        // Execute
+                        const response = await this.onAddPerson({
+                            name: args.name,
+                            gender: args.gender || null,
+                            dob: args.dob || null,
+                            dod: args.dod || null,
+                            parentId: args.parent_id || null, // Note: Gemini might guess parent_id. App must verify.
+                            // spouseId requires handling multiple spouses, simplistic here.
+                            // For simplicity, we assume parent_id linkage is main way.
 
-                if (transcriptCall.args.user_transcript) {
-                    const userText = transcriptCall.args.user_transcript;
-                    console.log("FORCE USER TRANSCRIPT:", userText);
-                    this.onLog({
-                        type: 'user',
-                        text: userText,
-                        timestamp: new Date(),
-                        data: { isTranscript: true }
-                    });
+                            // Hack: pass context in notes or special field if needed? 
+                            // For now, map args to partial Node
+                        });
+                        if (response.success) {
+                            // If parent_id was provided, we can try to link? 
+                            // Wait, onAddPerson receives "Partial<PersonNode>". 
+                            // It should handle the linkage args (parentId, spouseId) if they were in the object?
+                            // But PersonNode has parentId.
+                        }
+                        result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
+                        this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
+                    }
+                } else if (name === "update_person") {
+                    this.onLog({ type: 'tool-call', text: `Updating person: ${args.node_id}`, timestamp: new Date() });
+                    const validation = validatePersonData(args); // Simple field check
+                    if (!validation.valid) {
+                        result = { error: `Validation Failed: ${validation.errors.join(", ")}` };
+                    } else {
+                        const response = await this.onUpdatePerson({
+                            nodeId: args.node_id,
+                            name: args.name,
+                            dob: args.dob,
+                            dod: args.dod,
+                            gender: args.gender,
+                            email: args.email
+                        });
+                        result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
+                        this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
+                    }
+                } else {
+                    result = { result: "system_error: Unknown tool." };
                 }
 
-                this.onLog({ type: 'model', text: text, timestamp: new Date() });
-
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const functionResponses = toolCall.functionCalls.map((fc: any) => ({
-                    id: fc.id,
-                    name: fc.name,
-                    response: { result: "Transcript displayed to user." }
-                }));
-
-                this.ws?.send(JSON.stringify({ toolResponse: { functionResponses } }));
-                return;
+                functionResponses.push({
+                    id: id,
+                    name: name,
+                    response: result
+                });
             }
 
-            console.log("Received Unexpected Tool Call:", msg.toolCall);
-            this.onLog({ type: 'info', text: `⚠️ Unexpected tool call. Sending correction...`, timestamp: new Date() });
-
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const functionResponses = toolCall.functionCalls.map((fc: any) => ({
-                id: fc.id,
-                name: fc.name,
-                response: { result: "system_error: Tools are disabled. Use the provided JSON context to answer." }
-            }));
             this.ws?.send(JSON.stringify({ toolResponse: { functionResponses } }));
         }
     }
