@@ -36,11 +36,13 @@ The data is a list of people with their IDs, names, parents, spouses, and childr
         - If the user asks to add multiple people (e.g., "Add A, wife B, and kids C, D"), you MUST break this down into MULTIPLE separate \`add_person\` tool calls.
         - DO NOT try to add everyone in one go if the tool doesn't support it.
         - Execute them sequentially or in parallel if allowed. This helps the user see "Adding A...", "Adding B..." as activity.
-    11. **Gender Inference**:
+    11. **Gender Inference (Multilingual)**:
         - ALWAYS try to infer gender from the relationship context if not explicitly stated.
-        - "Wife", "Mother", "Daughter", "Sister", "Grandmother", "Aunt" -> 'female'
-        - "Husband", "Father", "Son", "Brother", "Grandfather", "Uncle" -> 'male'
-        - Pass this inferred gender to the "add_person" tool.
+        - You understand many languages. Detect the relationship term used by the user in ANY language (e.g., Kannada 'Maga', Hindi 'Beta', Tamil 'Magan', Malayalam 'Makan' -> Son -> 'male').
+        - **General Rule**:
+            - If the term implies a **Female** role (Wife, Mother, Daughter, Sister, Grandmother, Aunt, etc.), set gender to 'female'.
+            - If the term implies a **Male** role (Husband, Father, Son, Brother, Grandfather, Uncle, etc.), set gender to 'male'.
+        - Pass this inferred gender to the \`add_person\` tool.
     12. **Fuzzy Search & Suggestions**:
         - If the user asks for a person and you cannot find an exact name match, look for **phonetic** or **partial** matches.
         - If you find candidates, **SUGGEST them** to the user instead of just saying "not found".
