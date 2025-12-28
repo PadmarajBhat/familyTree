@@ -1,6 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { GeminiLiveService, type LogEntry } from '../services/GeminiLiveService';
+import { GeminiLiveService } from '../services/GeminiLive';
+import { type LogEntry } from '../services/GeminiLive/types';
 import { PCMPlayer } from '../utils/pcmPlayer';
 import './GeminiLive.css';
 
