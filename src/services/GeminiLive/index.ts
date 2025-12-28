@@ -176,16 +176,26 @@ export class GeminiLiveService {
         }
     }
 
-    private async flushLogs() {
-        if (!this.userEmail || this.logBuffer.length === 0) return;
+    private isFlushing = false;
 
+    private async flushLogs() {
+        if (!this.userEmail || this.logBuffer.length === 0 || this.isFlushing) return;
+
+        this.isFlushing = true;
         const logsToSave = [...this.logBuffer];
         this.logBuffer = [];
 
         console.log(`Autosaving ${logsToSave.length} logs for ${this.userEmail}...`);
-        const fileId = await saveGeminiLog(this.userEmail, logsToSave, this.logFileId);
-        if (fileId) {
-            this.logFileId = fileId;
+        try {
+            const fileId = await saveGeminiLog(this.userEmail, logsToSave, this.logFileId);
+            if (fileId) {
+                this.logFileId = fileId;
+            }
+        } catch (e) {
+            console.error("Autosave failed", e);
+            // Re-queue logs? Maybe too complex. Just log error.
+        } finally {
+            this.isFlushing = false;
         }
     }
 
