@@ -71,7 +71,14 @@ export class GeminiLiveService {
 
     private onLog(entry: LogEntry) {
         if (this.userEmail) {
-            this.logBuffer.push(entry);
+            const lastEntry = this.logBuffer[this.logBuffer.length - 1];
+            if (lastEntry && (entry.type === 'user' || entry.type === 'model') && lastEntry.type === entry.type) {
+                // Aggregate text for streaming responses/transcripts
+                lastEntry.text += entry.text;
+                lastEntry.timestamp = entry.timestamp; // Update timestamp to latest
+            } else {
+                this.logBuffer.push(entry);
+            }
         }
         this.onLogCallback(entry);
     }
