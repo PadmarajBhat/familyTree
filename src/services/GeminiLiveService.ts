@@ -206,9 +206,13 @@ export class GeminiLiveService {
                                         text: {
                                             type: "STRING",
                                             description: "The text of the response you are speaking."
+                                        },
+                                        user_transcript: {
+                                            type: "STRING",
+                                            description: "The text of what the user just said, as you understood it. If you heard nothing, return empty string."
                                         }
                                     },
-                                    required: ["text"]
+                                    required: ["text", "user_transcript"]
                                 }
                             }
                         ]
@@ -287,6 +291,18 @@ export class GeminiLiveService {
 
                 // Update UI with the text
                 this.onMessage(text, null);
+
+                // Handle User Transcript if provided
+                if (transcriptCall.args.user_transcript) {
+                    const userText = transcriptCall.args.user_transcript;
+                    console.log("FORCE USER TRANSCRIPT:", userText);
+                    this.onLog({
+                        type: 'user',
+                        text: userText,
+                        timestamp: new Date(),
+                        data: { isTranscript: true }
+                    });
+                }
 
                 // Log to persistent storage
                 this.onLog({
