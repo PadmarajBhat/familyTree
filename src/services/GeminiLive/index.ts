@@ -283,9 +283,9 @@ export class GeminiLiveService {
         */
         // Let's add it to setup object.
         // input_audio_transcription configuration.
-        // Enable transcription with default model settings.
+        // Enable transcription with default settings.
         // @ts-ignore
-        setupMsg.setup.input_audio_transcription = { model: "google-provided-model" };
+        setupMsg.setup.input_audio_transcription = {};
 
         this.ws.send(JSON.stringify(setupMsg));
         console.log("Sent setup message with Full Context & Tools");
