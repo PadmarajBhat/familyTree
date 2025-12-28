@@ -22,6 +22,18 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({ onAddPerson, onUpdatePer
     const audioPlayerRef = useRef<PCMPlayer | null>(null);
     const chatEndRef = useRef<HTMLDivElement>(null);
 
+    // Keep latest callbacks in refs to avoid stale closures in the service
+    const onAddPersonRef = useRef(onAddPerson);
+    const onUpdatePersonRef = useRef(onUpdatePerson);
+
+    useEffect(() => {
+        onAddPersonRef.current = onAddPerson;
+    }, [onAddPerson]);
+
+    useEffect(() => {
+        onUpdatePersonRef.current = onUpdatePerson;
+    }, [onUpdatePerson]);
+
     useEffect(() => {
         // Cleanup on unmount
         return () => {
@@ -85,8 +97,8 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({ onAddPerson, onUpdatePer
                     console.log("REACT: Received log entry:", logEntry);
                     setLogs(prev => [...prev, logEntry]);
                 },
-                onAddPerson,
-                onUpdatePerson
+                (data) => onAddPersonRef.current(data),
+                (data) => onUpdatePersonRef.current(data)
             );
         }
 
