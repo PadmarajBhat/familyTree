@@ -262,14 +262,21 @@ export class GeminiLiveService {
                     ]
                 }],
                 toolConfig: { functionCallingConfig: { mode: "ANY" } },
-                generationConfig: {
-                    responseModalities: ["AUDIO", "TEXT"],
-                    // @ts-ignore
-                    inputAudioTranscription: {},
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: "Puck" }
+                // @ts-ignore
+                generation_config: {
+                    response_modalities: ["AUDIO"],
+                    speech_config: {
+                        voice_config: {
+                            prebuilt_voice_config: {
+                                voice_name: "Puck"
+                            }
                         }
+                    },
+                    input_audio_transcription: {
+                        model: "google-1" // Enable User Transcription
+                    },
+                    output_audio_transcription: {
+                        model: "google-1" // Enable Model Transcription
                     }
                 }
             }
