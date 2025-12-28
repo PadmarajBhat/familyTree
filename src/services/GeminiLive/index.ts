@@ -264,6 +264,8 @@ export class GeminiLiveService {
                 toolConfig: { functionCallingConfig: { mode: "ANY" } },
                 generationConfig: {
                     responseModalities: ["AUDIO", "TEXT"],
+                    // @ts-ignore
+                    inputAudioTranscription: {},
                     speechConfig: {
                         voiceConfig: {
                             prebuiltVoiceConfig: { voiceName: "Puck" }
@@ -272,20 +274,6 @@ export class GeminiLiveService {
                 }
             }
         };
-        // Add input_audio_transcription if supported by API version. 
-        // Note: The user provided snippet shows it at top level or setup level?
-        // User snippet:
-        /*
-          setup: {
-            ...
-            input_audio_transcription: { model: "google-provided-model" }
-          }
-        */
-        // Let's add it to setup object.
-        // input_audio_transcription configuration.
-        // Enable transcription with default settings.
-        // @ts-ignore
-        setupMsg.setup.input_audio_transcription = {};
 
         this.ws.send(JSON.stringify(setupMsg));
         console.log("Sent setup message with Full Context & Tools");
