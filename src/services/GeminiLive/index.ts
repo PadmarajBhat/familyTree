@@ -264,7 +264,7 @@ export class GeminiLiveService {
                 toolConfig: { functionCallingConfig: { mode: "ANY" } },
                 // @ts-ignore
                 generation_config: {
-                    response_modalities: ["AUDIO", "TEXT"],
+                    response_modalities: ["AUDIO"],
                     speech_config: {
                         voice_config: {
                             prebuilt_voice_config: {
@@ -274,7 +274,13 @@ export class GeminiLiveService {
                     }
                 },
                 // @ts-ignore
-                input_audio_transcription: {}
+                input_audio_transcription: {
+                    model: "google-1"
+                },
+                // @ts-ignore
+                output_audio_transcription: {
+                    model: "google-1"
+                }
             }
         };
 
