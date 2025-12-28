@@ -59,13 +59,8 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({ onAddPerson, onUpdatePer
                                 const updatedLogs = [...prev];
                                 const updatedEntry = { ...lastEntry };
 
-                                if (type === 'model') {
-                                    // Append for model (streaming)
-                                    updatedEntry.text += text;
-                                } else {
-                                    // Replace for user (transcript corrections)
-                                    updatedEntry.text = text;
-                                }
+                                // Append for both model and user (streaming deltas)
+                                updatedEntry.text += text;
 
                                 updatedEntry.timestamp = new Date(); // Update timestamp to latest activity
                                 updatedLogs[updatedLogs.length - 1] = updatedEntry;
