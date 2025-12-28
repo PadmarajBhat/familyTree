@@ -274,13 +274,9 @@ export class GeminiLiveService {
                     }
                 },
                 // @ts-ignore
-                input_audio_transcription: {
-                    model: "google-1"
-                },
+                input_audio_transcription: {},
                 // @ts-ignore
-                output_audio_transcription: {
-                    model: "google-1"
-                }
+                output_audio_transcription: {}
             }
         };
 
