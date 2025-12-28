@@ -263,7 +263,7 @@ export class GeminiLiveService {
                 }],
                 toolConfig: { functionCallingConfig: { mode: "ANY" } },
                 generationConfig: {
-                    responseModalities: ["AUDIO"],
+                    responseModalities: ["AUDIO", "TEXT"],
                     speechConfig: {
                         voiceConfig: {
                             prebuiltVoiceConfig: { voiceName: "Puck" }
@@ -316,6 +316,8 @@ export class GeminiLiveService {
         // console.log("Full Gemini Message:", JSON.stringify(msg, null, 2));
 
         if (msg.serverContent) {
+            // console.log("RAW SERVER CONTENT:", JSON.stringify(msg.serverContent, null, 2));
+
             // Log user transcript if provided by server (input_audio_transcription)
             if (msg.serverContent.inputAudioTranscription) {
                 const transcript = msg.serverContent.inputAudioTranscription.transcript;
