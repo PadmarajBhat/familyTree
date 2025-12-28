@@ -527,35 +527,72 @@ export class GeminiLiveService {
             this.recognition = new SpeechRecognition();
             this.recognition.continuous = true;
             this.recognition.interimResults = true;
-            this.recognition.lang = 'en-US'; // Or detect?
+            // this.recognition.lang = 'en-US'; // REMOVED to allow auto-detect / browser default for Hindi support
+
+            this.recognition.onstart = () => {
+                console.log("Speech Recognition Started");
+            };
+
+            this.recognition.onerror = (event: any) => {
+                console.error("Speech Recognition Error", event.error);
+                if (event.error === 'not-allowed') {
+                    this.onLog({ type: 'info', text: 'Microphone access denied for transcription.', timestamp: new Date() });
+                }
+            };
+
+            this.recognition.onend = () => {
+                console.log("Speech Recognition Ended");
+                // Auto-restart if we are still connected
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    console.log("Restarting Speech Recognition...");
+                    try {
+                        this.recognition.start();
+                    } catch (e) {
+                        // Ignore if already started
+                    }
+                }
+            };
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             this.recognition.onresult = (event: any) => {
                 let finalTranscript = '';
+                let interimTranscript = ''; // Capture interim for debugging if needed
+
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
                     if (event.results[i].isFinal) {
                         finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
                     }
                 }
+
                 if (finalTranscript) {
-                    console.log("User Transcript (Client-Side):", finalTranscript);
+                    console.log("User Transcript (Final):", finalTranscript);
                     this.onLog({
                         type: 'user',
                         text: finalTranscript,
                         timestamp: new Date(),
                         data: { isTranscript: true }
                     });
+                } else if (interimTranscript) {
+                    console.log("User Transcript (Interim):", interimTranscript);
                 }
             };
 
-            this.recognition.start();
+            try {
+                this.recognition.start();
+            } catch (e) {
+                console.error("Failed to start speech recognition:", e);
+            }
         } else {
             console.warn("Speech Recognition not supported in this browser.");
+            this.onLog({ type: 'info', text: 'Browser does not support Speech Recognition.', timestamp: new Date() });
         }
     }
 
     private stopSpeechRecognition() {
         if (this.recognition) {
+            this.recognition.onend = null; // Prevent auto-restart
             this.recognition.stop();
             this.recognition = null;
         }
