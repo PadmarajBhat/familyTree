@@ -283,7 +283,10 @@ export class GeminiLiveService {
         */
         // Let's add it to setup object.
         // @ts-ignore
-        setupMsg.setup.input_audio_transcription = { model: "google-provided-model" };
+        // input_audio_transcription configuration.
+        // The API error 'Unknown name "model"' suggests 'model' field is not supported.
+        // We will try sending an empty object to enable it with defaults.
+        setupMsg.setup.input_audio_transcription = {};
 
         this.ws.send(JSON.stringify(setupMsg));
         console.log("Sent setup message with Full Context & Tools");

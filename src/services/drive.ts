@@ -608,7 +608,13 @@ export const saveGeminiLog = async (email: string, logEntries: { type: string, t
                 fileId = files[0].id; // Use the newest file
                 console.log(`Using existing log file: ${fileId} (Created: ${files[0].createdTime})`);
                 if (files.length > 1) {
-                    console.warn(`Duplicate log files found! Using most recent.`);
+                    console.warn(`Duplicate log files found! Deleting ${files.length - 1} older copies.`);
+                    // Delete duplicates (slice 1 to end)
+                    for (let i = 1; i < files.length; i++) {
+                        if (files[i]?.id) {
+                            deleteFile(files[i].id).catch(e => console.error("Failed to delete duplicate log", e));
+                        }
+                    }
                 }
             } else {
                 console.log("No existing log file found. Creating new.");
