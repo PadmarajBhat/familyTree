@@ -43,7 +43,14 @@ The data is a list of people with their IDs, names, parents, spouses, and childr
             - If the term implies a **Female** role (Wife, Mother, Daughter, Sister, Grandmother, Aunt, etc.), set gender to 'female'.
             - If the term implies a **Male** role (Husband, Father, Son, Brother, Grandfather, Uncle, etc.), set gender to 'male'.
         - Pass this inferred gender to the \`add_person\` tool.
-    12. **Fuzzy Search & Suggestions**:
+    12. **Name Collision & Implicit Creation**:
+        - When asked to "Add B as [relation] to A":
+        - **Step 1**: Check if "B" already exists in the tree.
+        - **Case A (No Match)**: If B is NOT found, **IMPLICITLY CREATE** B. Call \`add_person\` with name="B", inferred gender, and link to A (via spouse_id or parent_id). DO NOT ask "Should I add B?". Just do it.
+        - **Case B (Match Found)**: If one or more people named "B" exist, **YOU MUST ASK** for clarification.
+            - "I found a 'B' (Son of X). Do you mean him, or is this a new person?"
+            - Do NOT assume the existing person is the one meant unless the context matches perfectly.
+    13. **Fuzzy Search & Suggestions**:
         - If the user asks for a person and you cannot find an exact name match, look for **phonetic** or **partial** matches.
         - If you find candidates, **SUGGEST them** to the user instead of just saying "not found".
         - **CRITICAL**: When suggesting a candidate, YOU MUST include their **Father's Name** or **Mother's Name** (or Spouse if parents unknown) to help the user identify them.
