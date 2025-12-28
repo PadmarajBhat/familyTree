@@ -39,13 +39,37 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({ onAddPerson, onUpdatePer
         if (!liveServiceRef.current) {
             audioPlayerRef.current = new PCMPlayer(24000); // 24kHz response
             liveServiceRef.current = new GeminiLiveService(
-                (text, audioData) => {
+                (text, audioData, type) => {
                     if (text) {
-                        console.log("REACT: Received text update:", text);
                         setLogs(prev => {
-                            const newLogs = [...prev, { type: 'model', text, timestamp: new Date() } as LogEntry];
-                            console.log("REACT: Updated logs count:", newLogs.length);
-                            return newLogs;
+                            const lastEntry = prev[prev.length - 1];
+                            const isNewEntry = !lastEntry || lastEntry.type !== type;
+
+                            if (isNewEntry) {
+                                // Create new bubble
+                                return [...prev, {
+                                    type: type as 'user' | 'model',
+                                    text: text,
+                                    timestamp: new Date(),
+                                    data: type === 'user' ? { isTranscript: true } : undefined
+                                } as LogEntry];
+                            } else {
+                                // Update existing bubble
+                                const updatedLogs = [...prev];
+                                const updatedEntry = { ...lastEntry };
+
+                                if (type === 'model') {
+                                    // Append for model (streaming)
+                                    updatedEntry.text += text;
+                                } else {
+                                    // Replace for user (transcript corrections)
+                                    updatedEntry.text = text;
+                                }
+
+                                updatedEntry.timestamp = new Date(); // Update timestamp to latest activity
+                                updatedLogs[updatedLogs.length - 1] = updatedEntry;
+                                return updatedLogs;
+                            }
                         });
                     }
                     if (audioData) {
@@ -59,6 +83,10 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({ onAddPerson, onUpdatePer
                     }
                 },
                 (logEntry) => {
+                    // Ignore model and user text entries from here to avoid duplication/fragmentation,
+                    // as they are handled by onMessage for streaming.
+                    if (logEntry.type === 'model' || logEntry.type === 'user') return;
+
                     console.log("REACT: Received log entry:", logEntry);
                     setLogs(prev => [...prev, logEntry]);
                 },

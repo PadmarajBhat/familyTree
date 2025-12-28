@@ -23,7 +23,7 @@ export class GeminiLiveService {
     private speechService: SpeechService;
 
     private isConnected: boolean = false;
-    private onMessage: (text: string | null, audioData: string | null) => void;
+    private onMessage: (text: string | null, audioData: string | null, type: 'user' | 'model' | 'tool-response') => void;
     private onStatusChange: (status: string) => void;
     private onLogCallback: (entry: LogEntry) => void;
 
@@ -38,7 +38,7 @@ export class GeminiLiveService {
     private autosaveInterval: any | null = null;
 
     constructor(
-        onMessage: (text: string | null, audioData: string | null) => void,
+        onMessage: (text: string | null, audioData: string | null, type: 'user' | 'model' | 'tool-response') => void,
         onStatusChange: (status: string) => void,
         onLog: (entry: LogEntry) => void = () => { },
         onAddPerson: (data: Partial<PersonNode>) => Promise<ToolResult> = async () => ({ success: false, message: "Tool not implemented" }),
@@ -282,11 +282,10 @@ export class GeminiLiveService {
           }
         */
         // Let's add it to setup object.
-        // @ts-ignore
         // input_audio_transcription configuration.
-        // The API error 'Unknown name "model"' suggests 'model' field is not supported.
-        // We will try sending an empty object to enable it with defaults.
-        setupMsg.setup.input_audio_transcription = {};
+        // Enable transcription with default model settings.
+        // @ts-ignore
+        setupMsg.setup.input_audio_transcription = { model: "google-provided-model" };
 
         this.ws.send(JSON.stringify(setupMsg));
         console.log("Sent setup message with Full Context & Tools");
@@ -318,10 +317,20 @@ export class GeminiLiveService {
 
         if (msg.serverContent) {
             // Log user transcript if provided by server (input_audio_transcription)
-            if (msg.serverContent.turnComplete && msg.serverContent.inputAudioTranscription) {
-                // Check if there is a transcript? The API docs are vague on exact location.
-                // Actually, often it comes as a separate 'turnComplete' or similar.
-                // If not explicit, we rely on the model's response.
+            if (msg.serverContent.inputAudioTranscription) {
+                const transcript = msg.serverContent.inputAudioTranscription.transcript;
+                if (transcript) {
+                    console.log("User Transcript (Server):", transcript);
+                    // Use 'user' type for server-side transcripts 
+                    this.onMessage(transcript, null, 'user');
+
+                    this.onLog({
+                        type: 'user',
+                        text: transcript,
+                        timestamp: new Date(),
+                        data: { isTranscript: true }
+                    });
+                }
             }
 
             if (msg.serverContent.modelTurn) {
@@ -331,11 +340,11 @@ export class GeminiLiveService {
                 for (const part of parts) {
                     if (part.text) {
                         console.log("Creating Text Bubble:", part.text);
-                        this.onMessage(part.text, null);
+                        this.onMessage(part.text, null, 'model');
                         this.onLog({ type: 'model', text: part.text, timestamp: new Date() });
                     }
                     if (part.inlineData && part.inlineData.mimeType.startsWith('audio')) {
-                        this.onMessage(null, part.inlineData.data);
+                        this.onMessage(null, part.inlineData.data, 'model');
                     }
                 }
             }
