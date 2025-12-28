@@ -6,7 +6,7 @@ import { validatePersonData } from '../../logic/validation';
 import type { LogEntry } from './types';
 import { AudioService } from './AudioService';
 import { VideoService } from './VideoService';
-import { SpeechService } from './SpeechService';
+
 import type { PersonNode } from '../../logic/types';
 
 const WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent';
@@ -20,7 +20,7 @@ export class GeminiLiveService {
     private ws: WebSocket | null = null;
     private audioService: AudioService;
     private videoService: VideoService;
-    private speechService: SpeechService;
+
 
     private isConnected: boolean = false;
     private onMessage: (text: string | null, audioData: string | null, type: 'user' | 'model' | 'tool-response') => void;
@@ -66,22 +66,7 @@ export class GeminiLiveService {
             }
         );
 
-        this.speechService = new SpeechService(
-            (text, isFinal) => {
-                if (isFinal) {
-                    console.log("User Transcript (Final):", text);
-                    this.onLog({
-                        type: 'user',
-                        text: text,
-                        timestamp: new Date(),
-                        data: { isTranscript: true }
-                    });
-                } else {
-                    // console.log("User Transcript (Interim):", text);
-                }
-            },
-            (entry) => this.onLog(entry)
-        );
+
     }
 
     private onLog(entry: LogEntry) {
@@ -158,7 +143,7 @@ export class GeminiLiveService {
         }
         this.audioService.stop();
         this.videoService.stop();
-        this.speechService.stop();
+
     }
 
     private async setupAutosave() {
@@ -297,26 +282,26 @@ export class GeminiLiveService {
         }
 
         if (msg.setupComplete) {
-            console.log("Setup Complete received. Starting Audio...");
+
             this.onLog({ type: 'info', text: 'Setup Complete. Starting Audio...', timestamp: new Date() });
 
             // Start Audio Stream (Input) ONLY. Disable SpeechService (Client-side STT).
             await this.audioService.start();
-            // this.speechService.start(); // DISABLED to use Server-Side STT
+
             return;
         }
 
         // console.log("Full Gemini Message:", JSON.stringify(msg, null, 2));
 
         if (msg.serverContent) {
-            console.log("RAW SERVER CONTENT:", JSON.stringify(msg.serverContent, null, 2));
+
 
             // Log user transcript if provided by server
             const inputTrans = msg.serverContent.inputAudioTranscription || msg.serverContent.inputTranscription;
             if (inputTrans) {
                 const transcript = inputTrans.transcript || inputTrans.text;
                 if (transcript) {
-                    console.log("User Transcript (Server):", transcript);
+
                     // Use 'user' type for server-side transcripts 
                     this.onMessage(transcript, null, 'user');
 
@@ -334,7 +319,7 @@ export class GeminiLiveService {
             if (outputTrans) {
                 const transcript = outputTrans.transcript || outputTrans.text;
                 if (transcript) {
-                    console.log("Model Transcript (Server):", transcript);
+
                     this.onMessage(transcript, null, 'model');
                     this.onLog({ type: 'model', text: transcript, timestamp: new Date() });
                 }
@@ -346,7 +331,7 @@ export class GeminiLiveService {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 for (const part of parts) {
                     if (part.text) {
-                        console.log("Creating Text Bubble:", part.text);
+
                         this.onMessage(part.text, null, 'model');
                         this.onLog({ type: 'model', text: part.text, timestamp: new Date() });
                     }

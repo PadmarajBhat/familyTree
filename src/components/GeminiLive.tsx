@@ -41,7 +41,6 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({ onAddPerson, onUpdatePer
             liveServiceRef.current = new GeminiLiveService(
                 (text, audioData, type) => {
                     if (text) {
-                        console.log(`REACT: Received ${type} update:`, text);
                         setLogs(prev => {
                             const lastEntry = prev[prev.length - 1];
                             const isNewEntry = !lastEntry || lastEntry.type !== type;
