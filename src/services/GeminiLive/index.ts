@@ -225,7 +225,7 @@ export class GeminiLiveService {
                                 type: "OBJECT",
                                 properties: {
                                     name: { type: "STRING", description: "Full name of the person." },
-                                    gender: { type: "STRING", enum: ["male", "female", "other"], description: "Gender of the person." },
+                                    gender: { type: "STRING", enum: ["male", "female", "other"], description: "Gender. Infer from context (e.g. 'son'->male, 'grandmother'->female)." },
                                     dob: { type: "STRING", description: "Date of Birth in YYYY-MM-DD format. Required if known." },
                                     dod: { type: "STRING", description: "Date of Death in YYYY-MM-DD format. If deceased." },
                                     parent_id: { type: "STRING", description: "ID of the parent (nodeId) if known. Use existing IDs from the JSON." },
@@ -246,7 +246,8 @@ export class GeminiLiveService {
                                     dob: { type: "STRING", description: "Updated DOB (YYYY-MM-DD)." },
                                     dod: { type: "STRING", description: "Updated DOD (YYYY-MM-DD)." },
                                     gender: { type: "STRING", enum: ["male", "female", "other"] },
-                                    email: { type: "STRING", description: "Email address." }
+                                    email: { type: "STRING", description: "Email address." },
+                                    spouse_id: { type: "STRING", description: "ID of the spouse to link (nodeId)." }
                                 },
                                 required: ["node_id"]
                             }
@@ -388,12 +389,8 @@ export class GeminiLiveService {
                             gender: args.gender || null,
                             dob: args.dob || null,
                             dod: args.dod || null,
-                            parentId: args.parent_id || null, // Note: Gemini might guess parent_id. App must verify.
-                            // spouseId requires handling multiple spouses, simplistic here.
-                            // For simplicity, we assume parent_id linkage is main way.
-
-                            // Hack: pass context in notes or special field if needed? 
-                            // For now, map args to partial Node
+                            parentId: args.parent_id || null,
+                            spouseIds: args.spouse_id ? [args.spouse_id] : [],
                         });
                         if (response.success) {
                             // If parent_id was provided, we can try to link? 
@@ -416,7 +413,8 @@ export class GeminiLiveService {
                             dob: args.dob,
                             dod: args.dod,
                             gender: args.gender,
-                            email: args.email
+                            email: args.email,
+                            spouseIds: args.spouse_id ? [args.spouse_id] : []
                         });
                         result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
                         this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });

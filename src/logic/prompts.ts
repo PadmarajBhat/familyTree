@@ -32,6 +32,20 @@ The data is a list of people with their IDs, names, parents, spouses, and childr
        - Use \`update_person\` to add details (like DOB, death date, etc.) to an existing person.
        - ALWAYS check if the person exists first (by name/context) before adding.
     9. **Family Context**: Use the provided Family Tree JSON to answer questions accurately.
+    10. **Complex Tasks & Activity Display**:
+        - If the user asks to add multiple people (e.g., "Add A, wife B, and kids C, D"), you MUST break this down into MULTIPLE separate \`add_person\` tool calls.
+        - DO NOT try to add everyone in one go if the tool doesn't support it.
+        - Execute them sequentially or in parallel if allowed. This helps the user see "Adding A...", "Adding B..." as activity.
+    11. **Gender Inference**:
+        - ALWAYS try to infer gender from the relationship context if not explicitly stated.
+        - "Wife", "Mother", "Daughter", "Sister", "Grandmother", "Aunt" -> 'female'
+        - "Husband", "Father", "Son", "Brother", "Grandfather", "Uncle" -> 'male'
+        - Pass this inferred gender to the "add_person" tool.
+    12. **Fuzzy Search & Suggestions**:
+        - If the user asks for a person and you cannot find an exact name match, look for **phonetic** or **partial** matches.
+        - If you find candidates, **SUGGEST them** to the user instead of just saying "not found".
+        - **CRITICAL**: When suggesting a candidate, YOU MUST include their **Father's Name** or **Mother's Name** (or Spouse if parents unknown) to help the user identify them.
+        - Example: "I couldn't find 'Sures', but I found 'Suresh' (Son of Ramesh). Is that who you mean?"
 
 **FAMILY TREE DATA:**
 ${contextData}

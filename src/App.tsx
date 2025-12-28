@@ -19,6 +19,7 @@ import { LoadingOverlay } from './components/LoadingOverlay';
 import { canEdit } from './logic/accessControl';
 import { canEditNode, isGlobalEditor } from './logic/permissions';
 import { getISTTimestamp } from './logic/dateUtils';
+import { generateAllTranslations } from './services/TransliterationService';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
 import { GeminiLive } from './components/GeminiLive';
@@ -1544,6 +1545,16 @@ function App() {
               const newNodeId = uuidv4();
               const now = getISTTimestamp();
 
+              // Generate Translations
+              let nameTranslations = {};
+              if (data.name) {
+                try {
+                  nameTranslations = await generateAllTranslations(data.name);
+                } catch (err) {
+                  console.warn("Failed to generate translations for new person", err);
+                }
+              }
+
               const newNode: PersonNode = {
                 nodeId: newNodeId,
                 name: data.name || "Unknown",
@@ -1559,7 +1570,8 @@ function App() {
                 spouseIds: [], childrenIds: [], parentId: null,
                 isEditor: false, editorSince: null,
                 editedBy: currentUser.email, editedTime: now,
-                externalLink: undefined, nameTranslations: {}
+                externalLink: undefined,
+                nameTranslations: nameTranslations
               };
 
               // Linking
@@ -1577,7 +1589,25 @@ function App() {
                 }
               }
 
-              // Spouse Link can be added later if tool supports it
+              // Spouse Link
+              if (data.spouseIds && data.spouseIds.length > 0) {
+                data.spouseIds.forEach(spouseId => {
+                  const spouse = latestTree.nodes[spouseId];
+                  if (spouse) {
+                    // Link new node to spouse
+                    if (!newNode.spouseIds.includes(spouseId)) {
+                      newNode.spouseIds.push(spouseId);
+                    }
+                    // Link spouse to new node
+                    if (!spouse.spouseIds.includes(newNodeId)) {
+                      spouse.spouseIds.push(newNodeId);
+                      spouse.editedBy = currentUser.email;
+                      spouse.editedTime = now;
+                      changes.push(`Linked as spouse of ${spouse.name}`);
+                    }
+                  }
+                });
+              }
 
               latestTree.nodes[newNodeId] = newNode;
               latestTree.meta.nodeCount = Object.keys(latestTree.nodes).length;
@@ -1608,11 +1638,33 @@ function App() {
 
               // Update fields
               let changed = false;
+              const now = getISTTimestamp();
+
               if (data.name) { node.name = data.name; changed = true; }
               if (data.dob !== undefined) { node.dob = data.dob; changed = true; }
               if (data.dod !== undefined) { node.dod = data.dod; changed = true; }
               if (data.gender) { node.gender = data.gender; changed = true; }
               if (data.email) { node.email = data.email; changed = true; }
+
+              // Handle Spouse Linking
+              if (data.spouseIds && data.spouseIds.length > 0) {
+                data.spouseIds.forEach(spouseId => {
+                  const spouse = latestTree.nodes[spouseId];
+                  if (spouse) {
+                    if (!node.spouseIds.includes(spouseId)) {
+                      node.spouseIds.push(spouseId);
+                      changed = true;
+                    }
+                    if (!spouse.spouseIds.includes(node.nodeId)) {
+                      spouse.spouseIds.push(node.nodeId);
+                      spouse.editedBy = currentUser.email;
+                      spouse.editedTime = now;
+                      // Note: We are modifying 'spouse' node here which is part of latestTree.nodes, 
+                      // so it will be saved. We can add a log for it too, or just consider it part of the update.
+                    }
+                  }
+                });
+              }
 
               if (changed) {
                 node.editedBy = currentUser.email;
