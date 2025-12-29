@@ -497,6 +497,9 @@ function App() {
 
         setLoadingMessage("Saving changes...");
         await action(latestTree, lockId);
+
+        // Force UI update with mutated tree
+        setTree({ ...latestTree } as TreeDocument);
       } catch (e) {
         console.error("Error during locked operation", e);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1684,7 +1687,7 @@ function App() {
 
                   const summary = changes.join(", ");
                   await saveWithMerge(latestTree, summary);
-                  resultMessage = `Added ${newNode.name} successfully.`;
+                  resultMessage = `Added ${newNode.name} (ID: ${newNode.nodeId}) successfully.`;
                 });
                 return { success: true, message: resultMessage };
               } catch (e) {
@@ -1740,7 +1743,7 @@ function App() {
                     node.editedBy = currentUser.email;
                     node.editedTime = now;
                     await saveWithMerge(latestTree, `Updated ${node.name}`);
-                    resultMessage = `Updated ${node.name}.`;
+                    resultMessage = `Updated ${node.name} (ID: ${node.nodeId}).`;
                   } else {
                     resultMessage = "No changes detected.";
                   }
