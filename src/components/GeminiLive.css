@@ -3,7 +3,8 @@
 .gemini-live-container {
     position: fixed;
     bottom: 30px;
-    right: 30px;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 9999;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }

@@ -1528,159 +1528,163 @@ function App() {
           />
         )}
       </main>
-      <GeminiLive
-        onAddPerson={async (data) => {
-          console.log("Gemini requested Add:", data);
-          if (!tree) return { success: false, message: "No family tree loaded." };
-          if (!currentUser) return { success: false, message: "Please sign in to edit." };
-          // Simple permission check
-          if (!canEdit(currentUser.email)) return { success: false, message: "You do not have permission to edit this tree." };
+      {tree && (
+        <GeminiLive
+          onAddPerson={async (data) => {
+            console.log("Gemini requested Add:", data);
+            if (!tree) return { success: false, message: "No family tree loaded." };
+            if (!currentUser) return { success: false, message: "Please sign in to edit." };
+            // Simple permission check
+            if (!canEdit(currentUser.email)) return { success: false, message: "You do not have permission to edit this tree." };
 
-          try {
-            let resultMessage = "";
-            await executeWithLock(async (latestTree, _lockId) => {
-              if (!latestTree) throw new Error("Failed to load tree for locking.");
+            try {
+              let resultMessage = "";
+              await executeWithLock(async (latestTree, _lockId) => {
+                if (!latestTree) throw new Error("Failed to load tree for locking.");
 
-              // Create new node
-              const newNodeId = uuidv4();
-              const now = getISTTimestamp();
+                // Create new node
+                const newNodeId = uuidv4();
+                const now = getISTTimestamp();
 
-              // Generate Translations
-              let nameTranslations = {};
-              if (data.name) {
-                try {
-                  nameTranslations = await generateAllTranslations(data.name);
-                } catch (err) {
-                  console.warn("Failed to generate translations for new person", err);
-                }
-              }
-
-              const newNode: PersonNode = {
-                nodeId: newNodeId,
-                name: data.name || "Unknown",
-                gender: data.gender || undefined,
-                dob: data.dob || null,
-                dod: data.dod || null,
-                email: data.email || null,
-                // Defaults
-                imageUrl: null, phone: null, phoneE164: null, dobApprox: { known: false, year: null, month: null, day: null },
-                dodApprox: { known: false, year: null, month: null, day: null }, dobInferred: false,
-                ageProvided: null,
-                address: { freeform: null }, location: null,
-                spouseIds: [], childrenIds: [], parentId: null,
-                isEditor: false, editorSince: null,
-                editedBy: currentUser.email, editedTime: now,
-                externalLink: undefined,
-                nameTranslations: nameTranslations
-              };
-
-              // Linking
-              const changes: string[] = [`Added ${newNode.name}`];
-
-              // Parent Link
-              if (data.parentId && latestTree.nodes[data.parentId]) {
-                const parent = latestTree.nodes[data.parentId];
-                newNode.parentId = parent.nodeId;
-                if (!parent.childrenIds.includes(newNodeId)) {
-                  parent.childrenIds.push(newNodeId);
-                  parent.editedBy = currentUser.email;
-                  parent.editedTime = now;
-                  changes.push(`Linked as child of ${parent.name}`);
-                }
-              }
-
-              // Spouse Link
-              if (data.spouseIds && data.spouseIds.length > 0) {
-                data.spouseIds.forEach(spouseId => {
-                  const spouse = latestTree.nodes[spouseId];
-                  if (spouse) {
-                    // Link new node to spouse
-                    if (!newNode.spouseIds.includes(spouseId)) {
-                      newNode.spouseIds.push(spouseId);
-                    }
-                    // Link spouse to new node
-                    if (!spouse.spouseIds.includes(newNodeId)) {
-                      spouse.spouseIds.push(newNodeId);
-                      spouse.editedBy = currentUser.email;
-                      spouse.editedTime = now;
-                      changes.push(`Linked as spouse of ${spouse.name}`);
-                    }
+                // Generate Translations
+                let nameTranslations = {};
+                if (data.name) {
+                  try {
+                    nameTranslations = await generateAllTranslations(data.name);
+                  } catch (err) {
+                    console.warn("Failed to generate translations for new person", err);
                   }
-                });
-              }
+                }
 
-              latestTree.nodes[newNodeId] = newNode;
-              latestTree.meta.nodeCount = Object.keys(latestTree.nodes).length;
+                const newNode: PersonNode = {
+                  nodeId: newNodeId,
+                  name: data.name || "Unknown",
+                  gender: data.gender || undefined,
+                  dob: data.dob || null,
+                  dod: data.dod || null,
+                  email: data.email || null,
+                  // Defaults
+                  imageUrl: null, phone: null, phoneE164: null, dobApprox: { known: false, year: null, month: null, day: null },
+                  dodApprox: { known: false, year: null, month: null, day: null }, dobInferred: false,
+                  ageProvided: null,
+                  address: { freeform: null }, location: null,
+                  spouseIds: [], childrenIds: [], parentId: null,
+                  isEditor: false, editorSince: null,
+                  editedBy: currentUser.email, editedTime: now,
+                  externalLink: undefined,
+                  nameTranslations: nameTranslations
+                };
 
-              const summary = changes.join(", ");
-              await saveWithMerge(latestTree, summary);
-              resultMessage = `Added ${newNode.name} successfully.`;
-            });
-            return { success: true, message: resultMessage };
-          } catch (e) {
-            console.error("Gemini Add Error", e);
-            return { success: false, message: "Failed to add person: " + (e as Error).message };
-          }
-        }}
-        onUpdatePerson={async (data) => {
-          console.log("Gemini requested Update:", data);
-          if (!tree) return { success: false, message: "No tree loaded." };
-          if (!currentUser) return { success: false, message: "Please sign in." };
-          if (!data.nodeId) return { success: false, message: "Node ID missing." };
-          if (!canEdit(currentUser.email)) return { success: false, message: "Permission denied." };
+                // Linking
+                const changes: string[] = [`Added ${newNode.name}`];
 
-          try {
-            let resultMessage = "";
-            await executeWithLock(async (latestTree, _lockId) => {
-              if (!latestTree) throw new Error("Failed to load tree.");
-              const node = latestTree.nodes[data.nodeId!];
-              if (!node) throw new Error("Node not found.");
-
-              // Update fields
-              let changed = false;
-              const now = getISTTimestamp();
-
-              if (data.name) { node.name = data.name; changed = true; }
-              if (data.dob !== undefined) { node.dob = data.dob; changed = true; }
-              if (data.dod !== undefined) { node.dod = data.dod; changed = true; }
-              if (data.gender) { node.gender = data.gender; changed = true; }
-              if (data.email) { node.email = data.email; changed = true; }
-
-              // Handle Spouse Linking
-              if (data.spouseIds && data.spouseIds.length > 0) {
-                data.spouseIds.forEach(spouseId => {
-                  const spouse = latestTree.nodes[spouseId];
-                  if (spouse) {
-                    if (!node.spouseIds.includes(spouseId)) {
-                      node.spouseIds.push(spouseId);
-                      changed = true;
-                    }
-                    if (!spouse.spouseIds.includes(node.nodeId)) {
-                      spouse.spouseIds.push(node.nodeId);
-                      spouse.editedBy = currentUser.email;
-                      spouse.editedTime = now;
-                      // Note: We are modifying 'spouse' node here which is part of latestTree.nodes, 
-                      // so it will be saved. We can add a log for it too, or just consider it part of the update.
-                    }
+                // Parent Link
+                if (data.parentId && latestTree.nodes[data.parentId]) {
+                  const parent = latestTree.nodes[data.parentId];
+                  newNode.parentId = parent.nodeId;
+                  if (!parent.childrenIds.includes(newNodeId)) {
+                    parent.childrenIds.push(newNodeId);
+                    parent.editedBy = currentUser.email;
+                    parent.editedTime = now;
+                    changes.push(`Linked as child of ${parent.name}`);
                   }
-                });
-              }
+                }
 
-              if (changed) {
-                node.editedBy = currentUser.email;
-                node.editedTime = getISTTimestamp();
-                await saveWithMerge(latestTree, `Updated ${node.name} details`);
-                resultMessage = `Updated ${node.name}.`;
-              } else {
-                resultMessage = "No changes needed.";
-              }
-            });
-            return { success: true, message: resultMessage };
-          } catch (e) {
-            return { success: false, message: (e as Error).message };
-          }
-        }}
-      />
+                // Spouse Link
+                if (data.spouseIds && data.spouseIds.length > 0) {
+                  data.spouseIds.forEach(spouseId => {
+                    const spouse = latestTree.nodes[spouseId];
+                    if (spouse) {
+                      // Link new node to spouse
+                      if (!newNode.spouseIds.includes(spouseId)) {
+                        newNode.spouseIds.push(spouseId);
+                      }
+                      // Link spouse to new node
+                      if (!spouse.spouseIds.includes(newNodeId)) {
+                        spouse.spouseIds.push(newNodeId);
+                        spouse.editedBy = currentUser.email;
+                        spouse.editedTime = now;
+                        changes.push(`Linked as spouse of ${spouse.name}`);
+                      }
+                    }
+                  });
+                }
+
+                latestTree.nodes[newNodeId] = newNode;
+                latestTree.meta.nodeCount = Object.keys(latestTree.nodes).length;
+
+                const summary = changes.join(", ");
+                await saveWithMerge(latestTree, summary);
+                resultMessage = `Added ${newNode.name} successfully.`;
+              });
+              return { success: true, message: resultMessage };
+            } catch (e) {
+              console.error("Gemini Add Error", e);
+              return { success: false, message: "Failed to add person: " + (e as Error).message };
+            }
+          }}
+          onUpdatePerson={async (data) => {
+            console.log("Gemini requested Update:", data);
+            if (!tree) return { success: false, message: "No tree loaded." };
+            if (!currentUser) return { success: false, message: "Please sign in." };
+            if (!data.nodeId) return { success: false, message: "Node ID missing." };
+            if (!canEdit(currentUser.email)) return { success: false, message: "Permission denied." };
+
+            try {
+              let resultMessage = "";
+              await executeWithLock(async (latestTree, _lockId) => {
+                if (!latestTree) throw new Error("Failed to load tree.");
+                const node = latestTree.nodes[data.nodeId!];
+                if (!node) throw new Error("Node not found.");
+
+                // Update fields
+                let changed = false;
+                const now = getISTTimestamp();
+
+                if (data.name) { node.name = data.name; changed = true; }
+                if (data.dob !== undefined) { node.dob = data.dob; changed = true; }
+                if (data.dod !== undefined) { node.dod = data.dod; changed = true; }
+                if (data.gender) { node.gender = data.gender; changed = true; }
+                if (data.email) { node.email = data.email; changed = true; }
+
+                // Handle Spouse Linking
+                if (data.spouseIds && data.spouseIds.length > 0) {
+                  data.spouseIds.forEach(spouseId => {
+                    const spouse = latestTree.nodes[spouseId];
+                    if (spouse) {
+                      if (!node.spouseIds.includes(spouseId)) {
+                        node.spouseIds.push(spouseId);
+                        changed = true;
+                      }
+                      if (!spouse.spouseIds.includes(node.nodeId)) {
+                        spouse.spouseIds.push(node.nodeId);
+                        spouse.editedBy = currentUser.email;
+                        spouse.editedTime = now;
+                        // Note: We are modifying 'spouse' node here which is part of latestTree.nodes, 
+                        // so it will be saved. We can add a log for it too, or just consider it part of the update.
+                      }
+                    }
+                  });
+                }
+
+                if (changed) {
+                  node.editedBy = currentUser.email;
+                  node.editedTime = now;
+                  await saveWithMerge(latestTree, `Updated ${node.name}`);
+                  resultMessage = `Updated ${node.name}.`;
+                } else {
+                  resultMessage = "No changes detected.";
+                }
+              });
+              return { success: true, message: resultMessage };
+            } catch (e) {
+              console.error("Gemini Update Error", e);
+              return { success: false, message: "Update failed: " + (e as Error).message };
+            }
+          }}
+        />
+      )}
+
       {showIdentifyModal && tree && (
         <IdentifyKin
           onClose={() => setShowIdentifyModal(false)}
