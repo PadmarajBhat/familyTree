@@ -1538,6 +1538,42 @@ function App() {
             )}
           </Suspense>
         )}
+
+        {loading && (
+          <LoadingOverlay
+            message={loadingMessage}
+            onForceUnlock={async () => {
+              // Logic to find current target file ID (replicated from executeWithLock logic, imperfect but sufficient)
+              try {
+                const files = await listTreeFiles();
+                if (files && files.length > 0) {
+                  let targetFileId = files[0].id;
+                  if (currentTreeName) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const matching = files.filter((f: any) => getTreeNameFromFilename(f.name) === currentTreeName);
+                    if (matching.length > 0) targetFileId = matching[0].id;
+                    else if (currentTreeId) {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const current = files.find((f: any) => f.id === currentTreeId);
+                      if (current) targetFileId = current.id;
+                    }
+                  }
+
+                  if (targetFileId) {
+                    // Let's import ensureLockFile/releaseLock from drive.ts (already imported).
+                    const { releaseLock, ensureLockFile } = await import('./services/drive');
+                    await releaseLock(await ensureLockFile(targetFileId!));
+                    alert("Forced unlock. Please try again.");
+                    setLoading(false); // Reset UI
+                  }
+                }
+              } catch (e) {
+                console.error("Force unlock failed", e);
+                alert("Failed to force unlock.");
+              }
+            }}
+          />
+        )}
       </main>
       <Suspense fallback={<LoadingOverlay message="Loading Assistant..." />}>
         {tree && (

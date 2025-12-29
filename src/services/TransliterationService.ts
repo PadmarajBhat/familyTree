@@ -35,8 +35,13 @@ async function transliterateToIndic(englishText: string, targetLang: string): Pr
     if (!itc) return englishText;
 
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s Timeout
+
         const url = `${GOOGLE_INPUT_TOOLS_URL}?text=${encodeURIComponent(englishText)}&itc=${itc}&num=1&cp=0&cs=1&ie=utf-8&oe=utf-8&app=demopage`;
-        const response = await fetch(url);
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
         if (!response.ok) throw new Error('Network response was not ok');
 
         const data = await response.json();

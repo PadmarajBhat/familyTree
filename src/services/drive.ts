@@ -282,11 +282,16 @@ export const saveTreeFile = async (name: string, content: unknown, description?:
     form.append('file', file);
 
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s Timeout
+
         const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
             method: 'POST',
             headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
             body: form,
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
         return await response.json();
     } catch (err) {
         console.error("Error saving file", err);
@@ -312,11 +317,16 @@ export const updateTreeFile = async (fileId: string, content: unknown, descripti
     form.append('file', file);
 
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s Timeout
+
         const response = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
             method: 'PATCH',
             headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
             body: form,
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
         return await response.json();
     } catch (err) {
         console.error("Error updating file", err);
