@@ -1,32 +1,36 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense, lazy } from 'react';
 import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, grantWritePermission, grantLockFilePermission, renameFile, updateUserStarredTrees } from './services/drive';
 import { useTranslation } from 'react-i18next';
 import { GlobalTreeService } from './services/GlobalTreeService';
 import type { TreeDocument, PersonNode } from './logic/types';
 import { mergeTrees } from './logic/merge';
-import { TreeView } from './components/TreeView';
-import { PersonDetail } from './components/PersonDetail';
-import { MemberEditor } from './components/MemberEditor';
-import { MemberSearch } from './components/MemberSearch';
-import { CollaboratorList } from './components/CollaboratorList';
-import { FindRelation } from './components/FindRelation';
-import { VersionHistory } from './components/VersionHistory';
-import { FanChartView } from './components/FanChartView';
-import { Home } from './components/Home';
-import { Dashboard } from './components/Dashboard';
+// Lazy Load Components
+const TreeView = lazy(() => import('./components/TreeView').then(module => ({ default: module.TreeView })));
+const PersonDetail = lazy(() => import('./components/PersonDetail').then(module => ({ default: module.PersonDetail })));
+const MemberEditor = lazy(() => import('./components/MemberEditor').then(module => ({ default: module.MemberEditor })));
+const MemberSearch = lazy(() => import('./components/MemberSearch').then(module => ({ default: module.MemberSearch })));
+const CollaboratorList = lazy(() => import('./components/CollaboratorList').then(module => ({ default: module.CollaboratorList })));
+const FindRelation = lazy(() => import('./components/FindRelation').then(module => ({ default: module.FindRelation })));
+const VersionHistory = lazy(() => import('./components/VersionHistory').then(module => ({ default: module.VersionHistory })));
+const FanChartView = lazy(() => import('./components/FanChartView').then(module => ({ default: module.FanChartView })));
+const Home = lazy(() => import('./components/Home').then(module => ({ default: module.Home })));
+const Dashboard = lazy(() => import('./components/Dashboard').then(module => ({ default: module.Dashboard })));
+const IdentifyKin = lazy(() => import('./components/IdentifyKin').then(module => ({ default: module.IdentifyKin })));
+const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy')); // Default export
+const TermsOfService = lazy(() => import('./components/TermsOfService')); // Default export
+const GeminiLive = lazy(() => import('./components/GeminiLive').then(module => ({ default: module.GeminiLive })));
+
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { canEdit } from './logic/accessControl';
 import { canEditNode, isGlobalEditor } from './logic/permissions';
 import { getISTTimestamp } from './logic/dateUtils';
 import { generateAllTranslations } from './services/TransliterationService';
-import PrivacyPolicy from './components/PrivacyPolicy';
-import TermsOfService from './components/TermsOfService';
-import { GeminiLive } from './components/GeminiLive';
+
 import { v4 as uuidv4 } from 'uuid';
 
 import { getTreeNameFromFilename, generateFilename } from './logic/fileUtils';
-import { IdentifyKin } from './components/IdentifyKin';
+
 import './App.css';
 
 function App() {
@@ -1385,318 +1389,333 @@ function App() {
           </div>
         )}
 
-        {tree && !loading && !error && !accessDenied && !showDashboard && viewState === 'tree' && (
-          <>
-            {treeViewType === 'standard' ? (
-              <div className="tree-container">
-                <TreeView
-                  data={tree}
-                  onNodeClick={handleNodeClick}
-                  onNodeLongPress={handleNodeLongPress}
-                  maxDepth={viewDepth}
-                  showControls={!editorMode && !showFindRelation}
-                />
-              </div>
-            ) : (
-              <div className="tree-container">
-                <FanChartView
-                  key="hourglass"
-                  data={tree}
-                  rootNodeId={fanRootId || selectedNodeId || tree.rootNodeId}
-                  onNodeClick={handleNodeClick}
-                  initialMode="hourglass"
-                  onResetRoot={handleResetRoot}
-                />
-              </div>
+        {!loading && !error && (
+          <Suspense fallback={<LoadingOverlay message="Loading UI..." />}>
+            {tree && !accessDenied && !showDashboard && viewState === 'tree' && (
+              <>
+                {treeViewType === 'standard' ? (
+                  <div className="tree-container">
+                    <TreeView
+                      data={tree}
+                      onNodeClick={handleNodeClick}
+                      onNodeLongPress={handleNodeLongPress}
+                      maxDepth={viewDepth}
+                      showControls={!editorMode && !showFindRelation}
+                    />
+                  </div>
+                ) : (
+                  <div className="tree-container">
+                    <FanChartView
+                      key="hourglass"
+                      data={tree}
+                      rootNodeId={fanRootId || selectedNodeId || tree.rootNodeId}
+                      onNodeClick={handleNodeClick}
+                      initialMode="hourglass"
+                      onResetRoot={handleResetRoot}
+                    />
+                  </div>
+                )}
+                {isAuthorized && (
+                  <button
+                    className="fab-add"
+                    onClick={handleAddClick}
+                    title="Add Member"
+                  >
+                    +
+                  </button>
+                )}
+              </>
             )}
-            {isAuthorized && (
-              <button
-                className="fab-add"
-                onClick={handleAddClick}
-                title="Add Member"
-              >
-                +
-              </button>
+
+            {/* Welcome Screen Removed */}
+
+            {viewState === 'home' && currentUser && (
+              <Home
+                userEmail={currentUser.email}
+                onSelectTree={async (treeId) => {
+                  await loadTree(false, treeId);
+                  setViewState('tree');
+                }}
+                currentTreeId={currentTreeId}
+                isEditor={canEdit(currentUser?.email)}
+                enableAutoload={homeAutoloadEnabled}
+              />
             )}
-          </>
-        )}
 
+            {showSearch && tree && (
+              <MemberSearch
+                nodes={tree.nodes}
+                onMemberClick={(nodeId) => {
+                  setSelectedNodeId(nodeId);
+                  setShowSearch(false);
+                }}
+                onClose={handleManualClose}
+              />
+            )}
 
+            {showCollaborators && tree && currentUser && (
+              <CollaboratorList
+                nodes={tree.nodes}
+                currentUserEmail={currentUser.email}
+                canToggle={!!isAuthorized}
+                onToggleEditor={handleToggleEditor}
+                onClose={handleManualClose}
+              />
+            )}
 
-        {/* Welcome Screen Removed */}
+            {showFindRelation && tree && (
+              <FindRelation
+                nodes={tree.nodes}
+                onMemberClick={(nodeId) => {
+                  setSelectedNodeId(nodeId);
+                  setShowFindRelation(false);
+                }}
+                onClose={handleManualClose}
+                initialPerson1Id={findRelationIds.p1}
+                initialPerson2Id={findRelationIds.p2}
+              />
+            )}
 
-        {viewState === 'home' && currentUser && !loading && (
-          <Home
-            userEmail={currentUser.email}
-            onSelectTree={async (treeId) => {
-              await loadTree(false, treeId);
-              setViewState('tree');
-            }}
-            currentTreeId={currentTreeId}
-            isEditor={canEdit(currentUser?.email)}
-            enableAutoload={homeAutoloadEnabled}
-          />
-        )}
+            {showVersionHistory && tree && (
+              <VersionHistory
+                summary={tree.summary}
+                nodes={tree.nodes}
+                // Note: tree.treeName might be available in the tree object itself, but currentTreeName is state managed.
+                // Using currentTreeName from App state is safer as it comes from filename/load logic.
+                treeName={currentTreeName || tree.treeName || 'Family Tree'}
+                onClose={handleManualClose}
+                onSelectNode={(nodeId) => {
+                  setShowVersionHistory(false);
+                  setSelectedNodeId(nodeId);
+                }}
+                filterNodeId={historyFilterNodeId}
+              />
+            )}
 
-        {showSearch && tree && (
-          <MemberSearch
-            nodes={tree.nodes}
-            onMemberClick={(nodeId) => {
-              setSelectedNodeId(nodeId);
-              setShowSearch(false);
-            }}
-            onClose={handleManualClose}
-          />
-        )}
+            {showDashboard && tree && (
+              <Dashboard
+                tree={tree}
+                onClose={() => setShowDashboard(false)}
+                onNodeClick={(nodeId) => {
+                  // Same drill down logic
+                  setShowDashboard(false);
+                  setViewState('tree');
+                  setSelectedNodeId(nodeId);
+                }}
+              />
+            )}
 
-        {showCollaborators && tree && currentUser && (
-          <CollaboratorList
-            nodes={tree.nodes}
-            currentUserEmail={currentUser.email}
-            canToggle={!!isAuthorized}
-            onToggleEditor={handleToggleEditor}
-            onClose={handleManualClose}
-          />
-        )}
+            {/* TreePicker removed */}
 
-        {showFindRelation && tree && (
-          <FindRelation
-            nodes={tree.nodes}
-            onMemberClick={(nodeId) => {
-              setSelectedNodeId(nodeId);
-              setShowFindRelation(false);
-            }}
-            onClose={handleManualClose}
-            initialPerson1Id={findRelationIds.p1}
-            initialPerson2Id={findRelationIds.p2}
-          />
-        )}
+            {selectedNodeId && tree && tree.nodes[selectedNodeId] && (
+              <PersonDetail
+                node={tree.nodes[selectedNodeId]}
+                tree={tree}
+                currentUser={currentUser}
+                onClose={handleManualClose}
+                onEdit={handleEditClick}
+                onDelete={handleDeleteMember}
 
-        {showVersionHistory && tree && (
-          <VersionHistory
-            summary={tree.summary}
-            nodes={tree.nodes}
-            // Note: tree.treeName might be available in the tree object itself, but currentTreeName is state managed.
-            // Using currentTreeName from App state is safer as it comes from filename/load logic.
-            treeName={currentTreeName || tree.treeName || 'Family Tree'}
-            onClose={handleManualClose}
-            onSelectNode={(nodeId) => {
-              setShowVersionHistory(false);
-              setSelectedNodeId(nodeId);
-            }}
-            filterNodeId={historyFilterNodeId}
-          />
-        )}
+                onNodeClick={handleNodeClick}
+                onFindRelation={handleFindRelation}
+                onViewHistory={handleViewHistory}
+              />
+            )}
 
-        {showDashboard && tree && (
-          <Dashboard
-            tree={tree}
-            onClose={handleManualClose}
-            onNodeClick={handleNodeClick}
-          />
-        )}
-
-        {/* TreePicker removed */}
-
-        {selectedNodeId && tree && tree.nodes[selectedNodeId] && (
-          <PersonDetail
-            node={tree.nodes[selectedNodeId]}
-            tree={tree}
-            currentUser={currentUser}
-            onClose={handleManualClose}
-            onEdit={handleEditClick}
-            onDelete={handleDeleteMember}
-
-            onNodeClick={handleNodeClick}
-            onFindRelation={handleFindRelation}
-            onViewHistory={handleViewHistory}
-          />
-        )}
-
-        {editorMode && currentUser && (
-          <MemberEditor
-            currentUserEmail={currentUser.email}
-            mode={editorMode}
-            initialData={editorMode === 'edit' && editingNodeId && tree ? tree.nodes[editingNodeId] : undefined}
-            existingNodes={tree ? tree.nodes : {}}
-            onSave={handleSaveMember}
-            onCancel={handleManualClose}
-            onDelete={(nodeId) => {
-              handleDeleteMember(nodeId);
-              handleManualClose();
-            }}
-          />
+            {editorMode && currentUser && (
+              <MemberEditor
+                currentUserEmail={currentUser.email}
+                mode={editorMode}
+                initialData={editorMode === 'edit' && editingNodeId && tree ? tree.nodes[editingNodeId] : undefined}
+                existingNodes={tree ? tree.nodes : {}}
+                onSave={handleSaveMember}
+                onCancel={handleManualClose}
+                onDelete={(nodeId) => {
+                  handleDeleteMember(nodeId);
+                  handleManualClose();
+                }}
+              />
+            )}
+          </Suspense>
         )}
       </main>
-      {tree && (
-        <GeminiLive
-          onAddPerson={async (data) => {
-            console.log("Gemini requested Add:", data);
-            if (!tree) return { success: false, message: "No family tree loaded." };
-            if (!currentUser) return { success: false, message: "Please sign in to edit." };
-            // Simple permission check
-            if (!canEdit(currentUser.email)) return { success: false, message: "You do not have permission to edit this tree." };
+      <Suspense fallback={<LoadingOverlay message="Loading Assistant..." />}>
+        {tree && (
+          <GeminiLive
+            onAddPerson={async (data) => {
+              console.log("Gemini requested Add:", data);
+              if (!tree) return { success: false, message: "No family tree loaded." };
+              if (!currentUser) return { success: false, message: "Please sign in to edit." };
+              // Simple permission check
+              if (!canEdit(currentUser.email)) return { success: false, message: "You do not have permission to edit this tree." };
 
-            try {
-              let resultMessage = "";
-              await executeWithLock(async (latestTree, _lockId) => {
-                if (!latestTree) throw new Error("Failed to load tree for locking.");
+              try {
+                let resultMessage = "";
+                await executeWithLock(async (latestTree, _lockId) => {
+                  if (!latestTree) throw new Error("Failed to load tree for locking.");
 
-                // Create new node
-                const newNodeId = uuidv4();
-                const now = getISTTimestamp();
+                  // Create new node
+                  const newNodeId = uuidv4();
+                  const now = getISTTimestamp();
 
-                // Generate Translations
-                let nameTranslations = {};
-                if (data.name) {
-                  try {
-                    nameTranslations = await generateAllTranslations(data.name);
-                  } catch (err) {
-                    console.warn("Failed to generate translations for new person", err);
-                  }
-                }
-
-                const newNode: PersonNode = {
-                  nodeId: newNodeId,
-                  name: data.name || "Unknown",
-                  gender: data.gender || undefined,
-                  dob: data.dob || null,
-                  dod: data.dod || null,
-                  email: data.email || null,
-                  // Defaults
-                  imageUrl: null, phone: null, phoneE164: null, dobApprox: { known: false, year: null, month: null, day: null },
-                  dodApprox: { known: false, year: null, month: null, day: null }, dobInferred: false,
-                  ageProvided: null,
-                  address: { freeform: null }, location: null,
-                  spouseIds: [], childrenIds: [], parentId: null,
-                  isEditor: false, editorSince: null,
-                  editedBy: currentUser.email, editedTime: now,
-                  externalLink: undefined,
-                  nameTranslations: nameTranslations
-                };
-
-                // Linking
-                const changes: string[] = [`Added ${newNode.name}`];
-
-                // Parent Link
-                if (data.parentId && latestTree.nodes[data.parentId]) {
-                  const parent = latestTree.nodes[data.parentId];
-                  newNode.parentId = parent.nodeId;
-                  if (!parent.childrenIds.includes(newNodeId)) {
-                    parent.childrenIds.push(newNodeId);
-                    parent.editedBy = currentUser.email;
-                    parent.editedTime = now;
-                    changes.push(`Linked as child of ${parent.name}`);
-                  }
-                }
-
-                // Spouse Link
-                if (data.spouseIds && data.spouseIds.length > 0) {
-                  data.spouseIds.forEach(spouseId => {
-                    const spouse = latestTree.nodes[spouseId];
-                    if (spouse) {
-                      // Link new node to spouse
-                      if (!newNode.spouseIds.includes(spouseId)) {
-                        newNode.spouseIds.push(spouseId);
-                      }
-                      // Link spouse to new node
-                      if (!spouse.spouseIds.includes(newNodeId)) {
-                        spouse.spouseIds.push(newNodeId);
-                        spouse.editedBy = currentUser.email;
-                        spouse.editedTime = now;
-                        changes.push(`Linked as spouse of ${spouse.name}`);
-                      }
+                  // Generate Translations
+                  let nameTranslations = {};
+                  if (data.name) {
+                    try {
+                      nameTranslations = await generateAllTranslations(data.name);
+                    } catch (err) {
+                      console.warn("Failed to generate translations for new person", err);
                     }
-                  });
-                }
+                  }
 
-                latestTree.nodes[newNodeId] = newNode;
-                latestTree.meta.nodeCount = Object.keys(latestTree.nodes).length;
+                  const newNode: PersonNode = {
+                    nodeId: newNodeId,
+                    name: data.name || "Unknown",
+                    gender: data.gender || undefined,
+                    dob: data.dob || null,
+                    dod: data.dod || null,
+                    email: data.email || null,
+                    // Defaults
+                    imageUrl: null, phone: null, phoneE164: null, dobApprox: { known: false, year: null, month: null, day: null },
+                    dodApprox: { known: false, year: null, month: null, day: null }, dobInferred: false,
+                    ageProvided: null,
+                    address: { freeform: null }, location: null,
+                    spouseIds: [], childrenIds: [], parentId: null,
+                    isEditor: false, editorSince: null,
+                    editedBy: currentUser.email, editedTime: now,
+                    externalLink: undefined,
+                    nameTranslations: nameTranslations
+                  };
 
-                const summary = changes.join(", ");
-                await saveWithMerge(latestTree, summary);
-                resultMessage = `Added ${newNode.name} successfully.`;
-              });
-              return { success: true, message: resultMessage };
-            } catch (e) {
-              console.error("Gemini Add Error", e);
-              return { success: false, message: "Failed to add person: " + (e as Error).message };
-            }
-          }}
-          onUpdatePerson={async (data) => {
-            console.log("Gemini requested Update:", data);
-            if (!tree) return { success: false, message: "No tree loaded." };
-            if (!currentUser) return { success: false, message: "Please sign in." };
-            if (!data.nodeId) return { success: false, message: "Node ID missing." };
-            if (!canEdit(currentUser.email)) return { success: false, message: "Permission denied." };
+                  // Linking
+                  const changes: string[] = [`Added ${newNode.name}`];
 
-            try {
-              let resultMessage = "";
-              await executeWithLock(async (latestTree, _lockId) => {
-                if (!latestTree) throw new Error("Failed to load tree.");
-                const node = latestTree.nodes[data.nodeId!];
-                if (!node) throw new Error("Node not found.");
-
-                // Update fields
-                let changed = false;
-                const now = getISTTimestamp();
-
-                if (data.name) { node.name = data.name; changed = true; }
-                if (data.dob !== undefined) { node.dob = data.dob; changed = true; }
-                if (data.dod !== undefined) { node.dod = data.dod; changed = true; }
-                if (data.gender) { node.gender = data.gender; changed = true; }
-                if (data.email) { node.email = data.email; changed = true; }
-
-                // Handle Spouse Linking
-                if (data.spouseIds && data.spouseIds.length > 0) {
-                  data.spouseIds.forEach(spouseId => {
-                    const spouse = latestTree.nodes[spouseId];
-                    if (spouse) {
-                      if (!node.spouseIds.includes(spouseId)) {
-                        node.spouseIds.push(spouseId);
-                        changed = true;
-                      }
-                      if (!spouse.spouseIds.includes(node.nodeId)) {
-                        spouse.spouseIds.push(node.nodeId);
-                        spouse.editedBy = currentUser.email;
-                        spouse.editedTime = now;
-                        // Note: We are modifying 'spouse' node here which is part of latestTree.nodes, 
-                        // so it will be saved. We can add a log for it too, or just consider it part of the update.
-                      }
+                  // Parent Link
+                  if (data.parentId && latestTree.nodes[data.parentId]) {
+                    const parent = latestTree.nodes[data.parentId];
+                    newNode.parentId = parent.nodeId;
+                    if (!parent.childrenIds.includes(newNodeId)) {
+                      parent.childrenIds.push(newNodeId);
+                      parent.editedBy = currentUser.email;
+                      parent.editedTime = now;
+                      changes.push(`Linked as child of ${parent.name}`);
                     }
-                  });
-                }
+                  }
 
-                if (changed) {
-                  node.editedBy = currentUser.email;
-                  node.editedTime = now;
-                  await saveWithMerge(latestTree, `Updated ${node.name}`);
-                  resultMessage = `Updated ${node.name}.`;
-                } else {
-                  resultMessage = "No changes detected.";
-                }
-              });
-              return { success: true, message: resultMessage };
-            } catch (e) {
-              console.error("Gemini Update Error", e);
-              return { success: false, message: "Update failed: " + (e as Error).message };
-            }
-          }}
-        />
-      )}
+                  // Spouse Link
+                  if (data.spouseIds && data.spouseIds.length > 0) {
+                    data.spouseIds.forEach(spouseId => {
+                      const spouse = latestTree.nodes[spouseId];
+                      if (spouse) {
+                        // Link new node to spouse
+                        if (!newNode.spouseIds.includes(spouseId)) {
+                          newNode.spouseIds.push(spouseId);
+                        }
+                        // Link spouse to new node
+                        if (!spouse.spouseIds.includes(newNodeId)) {
+                          spouse.spouseIds.push(newNodeId);
+                          spouse.editedBy = currentUser.email;
+                          spouse.editedTime = now;
+                          changes.push(`Linked as spouse of ${spouse.name}`);
+                        }
+                      }
+                    });
+                  }
+
+                  latestTree.nodes[newNodeId] = newNode;
+                  latestTree.meta.nodeCount = Object.keys(latestTree.nodes).length;
+
+                  const summary = changes.join(", ");
+                  await saveWithMerge(latestTree, summary);
+                  resultMessage = `Added ${newNode.name} successfully.`;
+                });
+                return { success: true, message: resultMessage };
+              } catch (e) {
+                console.error("Gemini Add Error", e);
+                return { success: false, message: "Failed to add person: " + (e as Error).message };
+              }
+            }}
+            onUpdatePerson={async (data) => {
+              console.log("Gemini requested Update:", data);
+              if (!tree) return { success: false, message: "No tree loaded." };
+              if (!currentUser) return { success: false, message: "Please sign in." };
+              if (!data.nodeId) return { success: false, message: "Node ID missing." };
+              if (!canEdit(currentUser.email)) return { success: false, message: "Permission denied." };
+
+              try {
+                let resultMessage = "";
+                await executeWithLock(async (latestTree, _lockId) => {
+                  if (!latestTree) throw new Error("Failed to load tree.");
+                  const node = latestTree.nodes[data.nodeId!];
+                  if (!node) throw new Error("Node not found.");
+
+                  // Update fields
+                  let changed = false;
+                  const now = getISTTimestamp();
+
+                  if (data.name) { node.name = data.name; changed = true; }
+                  if (data.dob !== undefined) { node.dob = data.dob; changed = true; }
+                  if (data.dod !== undefined) { node.dod = data.dod; changed = true; }
+                  if (data.gender) { node.gender = data.gender; changed = true; }
+                  if (data.email) { node.email = data.email; changed = true; }
+
+                  // Handle Spouse Linking
+                  if (data.spouseIds && data.spouseIds.length > 0) {
+                    data.spouseIds.forEach(spouseId => {
+                      const spouse = latestTree.nodes[spouseId];
+                      if (spouse) {
+                        if (!node.spouseIds.includes(spouseId)) {
+                          node.spouseIds.push(spouseId);
+                          changed = true;
+                        }
+                        if (!spouse.spouseIds.includes(node.nodeId)) {
+                          spouse.spouseIds.push(node.nodeId);
+                          spouse.editedBy = currentUser.email;
+                          spouse.editedTime = now;
+                          // Note: We are modifying 'spouse' node here which is part of latestTree.nodes, 
+                          // so it will be saved. We can add a log for it too, or just consider it part of the update.
+                        }
+                      }
+                    });
+                  }
+
+                  if (changed) {
+                    node.editedBy = currentUser.email;
+                    node.editedTime = now;
+                    await saveWithMerge(latestTree, `Updated ${node.name}`);
+                    resultMessage = `Updated ${node.name}.`;
+                  } else {
+                    resultMessage = "No changes detected.";
+                  }
+                });
+                return { success: true, message: resultMessage };
+              } catch (e) {
+                console.error("Gemini Update Error", e);
+                return { success: false, message: "Update failed: " + (e as Error).message };
+              }
+            }}
+          />
+        )}
+      </Suspense>
 
       {showIdentifyModal && tree && (
-        <IdentifyKin
-          onClose={() => setShowIdentifyModal(false)}
-          onIdentify={(nodeId) => {
-            setShowIdentifyModal(false);
-            handleNodeClick(nodeId);
-          }}
-          allNodes={tree.nodes}
-        />
+        <Suspense fallback={<LoadingOverlay message="Loading Camera..." />}>
+          <IdentifyKin
+            onClose={() => setShowIdentifyModal(false)}
+            onIdentify={(nodeId) => {
+              setViewState('tree');
+              setEditingNodeId(null);
+              setEditorMode(null);
+              setSelectedNodeId(nodeId);
+              setShowIdentifyModal(false);
+            }}
+            allNodes={tree.nodes}
+          />
+        </Suspense>
       )}
     </div >
   );
+
 
 }
 

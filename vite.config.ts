@@ -11,12 +11,14 @@ export default defineConfig({
     },
   },
   build: {
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
           charts: ['recharts', 'd3'],
+          faceapi: ['face-api.js'],
+          maps: ['leaflet', 'react-leaflet'],
           jspdf: ['jspdf'],
           html2canvas: ['html2canvas'],
           utils: ['date-fns', 'uuid'],
