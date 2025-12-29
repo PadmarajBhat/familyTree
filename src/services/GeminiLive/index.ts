@@ -20,6 +20,7 @@ export class GeminiLiveService {
     private ws: WebSocket | null = null;
     private audioService: AudioService;
     private videoService: VideoService;
+    private processingToolCalls: Set<string> = new Set();
 
 
     private isConnected: boolean = false;
@@ -361,76 +362,92 @@ export class GeminiLiveService {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             for (const fc of toolCall.functionCalls) {
                 const { name, args, id } = fc;
+                const callSignature = `${name}:${JSON.stringify(args)}`;
+
+                if (this.processingToolCalls.has(callSignature)) {
+                    console.warn(`[GeminiLive] Duplicate tool call ignored: ${callSignature}`);
+                    functionResponses.push({
+                        id, name,
+                        response: { result: "Duplicate call ignored. Operation already in progress." }
+                    });
+                    continue;
+                }
+                this.processingToolCalls.add(callSignature);
+
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 let result: any = {};
+                try {
 
-                if (name === "report_response") {
-                    const text = args.text;
-                    console.log("FORCE TRANSCRIPT:", text);
-                    if (args.user_transcript) {
-                        const userText = args.user_transcript;
-                        this.onLog({
-                            type: 'user',
-                            text: userText,
-                            timestamp: new Date(),
-                            data: { isTranscript: true }
-                        });
-                    }
-                    this.onLog({ type: 'model', text: text, timestamp: new Date() });
-                    result = { result: "Transcript displayed to user." };
-                } else if (name === "add_person") {
-                    this.onLog({ type: 'tool-call', text: `Adding person: ${args.name}`, timestamp: new Date() });
-
-                    // Validate
-                    const validation = validatePersonData(args);
-                    if (!validation.valid) {
-                        result = { error: `Validation Failed: ${validation.errors.join(", ")}` };
-                    } else {
-                        // Execute
-                        const response = await this.onAddPerson({
-                            name: args.name,
-                            gender: args.gender || null,
-                            dob: args.dob || null,
-                            dod: args.dod || null,
-                            parentId: args.parent_id || null,
-                            spouseIds: args.spouse_id ? [args.spouse_id] : [],
-                        });
-                        if (response.success) {
-                            // If parent_id was provided, we can try to link? 
-                            // Wait, onAddPerson receives "Partial<PersonNode>". 
-                            // It should handle the linkage args (parentId, spouseId) if they were in the object?
-                            // But PersonNode has parentId.
+                    if (name === "report_response") {
+                        const text = args.text;
+                        console.log("FORCE TRANSCRIPT:", text);
+                        if (args.user_transcript) {
+                            const userText = args.user_transcript;
+                            this.onLog({
+                                type: 'user',
+                                text: userText,
+                                timestamp: new Date(),
+                                data: { isTranscript: true }
+                            });
                         }
-                        result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
-                        this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
-                    }
-                } else if (name === "update_person") {
-                    this.onLog({ type: 'tool-call', text: `Updating person: ${args.node_id}`, timestamp: new Date() });
-                    const validation = validatePersonData(args); // Simple field check
-                    if (!validation.valid) {
-                        result = { error: `Validation Failed: ${validation.errors.join(", ")}` };
-                    } else {
-                        const response = await this.onUpdatePerson({
-                            nodeId: args.node_id,
-                            name: args.name,
-                            dob: args.dob,
-                            dod: args.dod,
-                            gender: args.gender,
-                            email: args.email,
-                            spouseIds: args.spouse_id ? [args.spouse_id] : []
-                        });
-                        result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
-                        this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
-                    }
-                } else {
-                    result = { result: "system_error: Unknown tool." };
-                }
+                        this.onLog({ type: 'model', text: text, timestamp: new Date() });
+                        result = { result: "Transcript displayed to user." };
+                    } else if (name === "add_person") {
+                        this.onLog({ type: 'tool-call', text: `Adding person: ${args.name}`, timestamp: new Date() });
 
-                functionResponses.push({
-                    id: id,
-                    name: name,
-                    response: result
-                });
+                        // Validate
+                        const validation = validatePersonData(args);
+                        if (!validation.valid) {
+                            result = { error: `Validation Failed: ${validation.errors.join(", ")}` };
+                        } else {
+                            // Execute
+                            const response = await this.onAddPerson({
+                                name: args.name,
+                                gender: args.gender || null,
+                                dob: args.dob || null,
+                                dod: args.dod || null,
+                                parentId: args.parent_id || null,
+                                spouseIds: args.spouse_id ? [args.spouse_id] : [],
+                            });
+                            if (response.success) {
+                                // If parent_id was provided, we can try to link? 
+                                // Wait, onAddPerson receives "Partial<PersonNode>". 
+                                // It should handle the linkage args (parentId, spouseId) if they were in the object?
+                                // But PersonNode has parentId.
+                            }
+                            result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
+                            this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
+                        }
+                    } else if (name === "update_person") {
+                        this.onLog({ type: 'tool-call', text: `Updating person: ${args.node_id}`, timestamp: new Date() });
+                        const validation = validatePersonData(args); // Simple field check
+                        if (!validation.valid) {
+                            result = { error: `Validation Failed: ${validation.errors.join(", ")}` };
+                        } else {
+                            const response = await this.onUpdatePerson({
+                                nodeId: args.node_id,
+                                name: args.name,
+                                dob: args.dob,
+                                dod: args.dod,
+                                gender: args.gender,
+                                email: args.email,
+                                spouseIds: args.spouse_id ? [args.spouse_id] : []
+                            });
+                            result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
+                            this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
+                        }
+                    } else {
+                        result = { result: "system_error: Unknown tool." };
+                    }
+
+                    functionResponses.push({
+                        id: id,
+                        name: name,
+                        response: result
+                    });
+                } finally {
+                    this.processingToolCalls.delete(callSignature);
+                }
             }
 
             this.ws?.send(JSON.stringify({ toolResponse: { functionResponses } }));
