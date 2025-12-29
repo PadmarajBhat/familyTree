@@ -16,7 +16,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
-          charts: ['recharts', 'd3'],
+          recharts: ['recharts'],
+          d3: ['d3'],
           faceapi: ['face-api.js'],
           maps: ['leaflet', 'react-leaflet'],
           jspdf: ['jspdf'],

@@ -293,6 +293,9 @@ export class GeminiLiveService {
 
             this.onLog({ type: 'info', text: 'Setup Complete. Starting Audio...', timestamp: new Date() });
 
+            // Trigger Model Greeting by sending an empty turn
+            this.sendContinueSignal();
+
             // Start Audio Stream (Input) ONLY. Disable SpeechService (Client-side STT).
             await this.audioService.start();
 
@@ -448,6 +451,16 @@ export class GeminiLiveService {
         this.ws.send(JSON.stringify({
             realtimeInput: {
                 mediaChunks: [{ mimeType: "image/jpeg", data: base64Image }]
+            }
+        }));
+    }
+
+    private sendContinueSignal() {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+        this.ws.send(JSON.stringify({
+            clientContent: {
+                turns: [{ role: "user", parts: [{ text: "" }] }],
+                turnComplete: true
             }
         }));
     }

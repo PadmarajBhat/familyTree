@@ -161,6 +161,27 @@ function App() {
     }
   }, [isSignedIn, isGapiReady]);
 
+  // Intelligent Prefetching
+  useEffect(() => {
+    if (tree && !loading) {
+      const prefetchTimer = setTimeout(() => {
+        console.log("Prefetching secondary components...");
+        const prefetch = (importFn: () => Promise<unknown>) => {
+          importFn().catch(err => console.debug("Prefetch failed ignored", err));
+        };
+
+        // Prefetch heavy/likely components
+        prefetch(() => import('./components/Dashboard'));
+        prefetch(() => import('./components/GeminiLive'));
+        prefetch(() => import('./components/MemberEditor'));
+        prefetch(() => import('./components/IdentifyKin'));
+        prefetch(() => import('./components/PersonDetail'));
+      }, 5000); // Wait 5s after load to avoid contention
+
+      return () => clearTimeout(prefetchTimer);
+    }
+  }, [tree, loading]);
+
   // Sync GlobalTreeService with shortlisted trees for Unified Search
   useEffect(() => {
     if (currentUser?.email && isGapiReady && isSignedIn) {
