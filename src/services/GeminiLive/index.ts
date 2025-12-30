@@ -1,6 +1,6 @@
 import { CONFIG } from '../../config';
 import { GlobalTreeService } from '../GlobalTreeService';
-import { getUserProfile, saveGeminiLog } from '../drive';
+import { getUserProfile, saveGeminiLog, loadGeminiLog, updateTreeFile } from '../drive';
 import { GET_GEMINI_SYSTEM_PROMPT } from '../../logic/prompts';
 import { validatePersonData } from '../../logic/validation';
 import type { LogEntry } from './types';
@@ -34,6 +34,8 @@ export class GeminiLiveService {
 
     private userEmail: string | null = null;
     private logBuffer: LogEntry[] = [];
+    private fullLogHistory: LogEntry[] = [];
+    private isHistoryLoaded: boolean = false;
     private logFileId: string | null = null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private autosaveInterval: any | null = null;
@@ -160,9 +162,17 @@ export class GeminiLiveService {
             if (profile && profile.email) {
                 this.userEmail = profile.email;
                 console.log("Enabled autosave logs for", this.userEmail);
+
+                // Load existing history once
+                const { id, content } = await loadGeminiLog(profile.email);
+                this.logFileId = id;
+                this.fullLogHistory = content;
+                this.isHistoryLoaded = true;
+                console.log(`Loaded ${this.fullLogHistory.length} existing logs.`);
+
                 this.autosaveInterval = setInterval(() => {
                     this.flushLogs();
-                }, 30000);
+                }, 30000); // 30s
             }
         } catch (e) {
             console.warn("Failed to enable autosave logs", e);
@@ -174,19 +184,53 @@ export class GeminiLiveService {
     private async flushLogs() {
         if (!this.userEmail || this.logBuffer.length === 0 || this.isFlushing) return;
 
+        // Safety check: ensure history is loaded before we try to append and save
+        if (!this.isHistoryLoaded) {
+            console.log("Skipping autosave: History not loaded yet.");
+            return;
+        }
+
         this.isFlushing = true;
+
+        // Take buffer
         const logsToSave = [...this.logBuffer];
         this.logBuffer = [];
 
-        console.log(`Autosaving ${logsToSave.length} logs for ${this.userEmail}...`);
+        // Prepend new logs to full history (logsToSave is Oldest->Newest, we want Newest->Oldest in file)
+        // Actually, logBuffer is chronological [0: old, 1: new].
+        // The file expects [Newest, ..., Oldest].
+        // So we reverse logsToSave and prepend.
+        const reversedNew = [...logsToSave].reverse();
+        this.fullLogHistory = [...reversedNew, ...this.fullLogHistory];
+
+        console.log(`Autosaving ${logsToSave.length} new logs (Total: ${this.fullLogHistory.length})...`);
+
         try {
-            const fileId = await saveGeminiLog(this.userEmail, logsToSave, this.logFileId);
-            if (fileId) {
-                this.logFileId = fileId;
+            if (this.logFileId) {
+                // Update existing file using cached history - NO READ required
+                await updateTreeFile(this.logFileId, this.fullLogHistory);
+            } else {
+                // First creation - use saveGeminiLog logic (which creates file)
+                const fileId = await saveGeminiLog(this.userEmail, logsToSave, null);
+                // saveGeminiLog reads?, yes. But if null ID, it creates. 
+                // But it assumes prepending to nothing.
+                // Wait, if we use saveGeminiLog, it might be safer for first creation.
+                // But we already have fullLogHistory populated.
+                if (fileId) {
+                    this.logFileId = fileId;
+                    // loadGeminiLog logic ensures this.fullLogHistory is synced if we reload, 
+                    // but for now we trust memory.
+                }
             }
         } catch (e) {
             console.error("Autosave failed", e);
-            // Re-queue logs? Maybe too complex. Just log error.
+            // Put logs back in buffer? 
+            // If we failed to WRITE, our in-memory fullLogHistory is still updated.
+            // Next time we try to write, fullLogHistory has the data.
+            // So we don't need to push back to logBuffer.
+            // UNLESS updateTreeFile failed and we want to retry persisting this state.
+            // But fullLogHistory keeps the state. Next flush will try to save fullLogHistory again (with even more new logs).
+            // So this approach is resilient.
         } finally {
             this.isFlushing = false;
         }
@@ -303,154 +347,161 @@ export class GeminiLiveService {
             return;
         }
 
-        // console.log("Full Gemini Message:", JSON.stringify(msg, null, 2));
+        // FORCE DEBUGGING LOG to trap the "Missing Tool Call" issue
+        // This will print every message from Gemini to the console.
+        console.log("Full Gemini Message:", JSON.stringify(msg, null, 2));
 
-        if (msg.serverContent) {
+        try {
+            if (msg.serverContent) {
 
 
-            // Log user transcript if provided by server
-            const inputTrans = msg.serverContent.inputAudioTranscription || msg.serverContent.inputTranscription;
-            if (inputTrans) {
-                const transcript = inputTrans.transcript || inputTrans.text;
-                if (transcript) {
+                // Log user transcript if provided by server
+                const inputTrans = msg.serverContent.inputAudioTranscription || msg.serverContent.inputTranscription;
+                if (inputTrans) {
+                    const transcript = inputTrans.transcript || inputTrans.text;
+                    if (transcript) {
 
-                    // Use 'user' type for server-side transcripts 
-                    this.onMessage(transcript, null, 'user');
+                        // Use 'user' type for server-side transcripts 
+                        this.onMessage(transcript, null, 'user');
 
-                    this.onLog({
-                        type: 'user',
-                        text: transcript,
-                        timestamp: new Date(),
-                        data: { isTranscript: true }
-                    });
-                }
-            }
-
-            // Log model transcript if provided by server
-            const outputTrans = msg.serverContent.outputAudioTranscription || msg.serverContent.outputTranscription;
-            if (outputTrans) {
-                const transcript = outputTrans.transcript || outputTrans.text;
-                if (transcript) {
-
-                    this.onMessage(transcript, null, 'model');
-                    this.onLog({ type: 'model', text: transcript, timestamp: new Date() });
-                }
-            }
-
-            if (msg.serverContent.modelTurn) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const parts = msg.serverContent.modelTurn.parts;
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                for (const part of parts) {
-                    if (part.text) {
-
-                        this.onMessage(part.text, null, 'model');
-                        this.onLog({ type: 'model', text: part.text, timestamp: new Date() });
-                    }
-                    if (part.inlineData && part.inlineData.mimeType.startsWith('audio')) {
-                        this.onMessage(null, part.inlineData.data, 'model');
+                        this.onLog({
+                            type: 'user',
+                            text: transcript,
+                            timestamp: new Date(),
+                            data: { isTranscript: true }
+                        });
                     }
                 }
-            }
-        }
 
-        if (msg.toolCall) {
-            console.log("Received Tool Call:", msg.toolCall);
-            const toolCall = msg.toolCall;
-            const functionResponses = [];
+                // Log model transcript if provided by server
+                const outputTrans = msg.serverContent.outputAudioTranscription || msg.serverContent.outputTranscription;
+                if (outputTrans) {
+                    const transcript = outputTrans.transcript || outputTrans.text;
+                    if (transcript) {
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            for (const fc of toolCall.functionCalls) {
-                const { name, args, id } = fc;
-                const callSignature = `${name}:${JSON.stringify(args)}`;
-
-                if (this.processingToolCalls.has(callSignature)) {
-                    console.warn(`[GeminiLive] Duplicate tool call ignored: ${callSignature}`);
-                    functionResponses.push({
-                        id, name,
-                        response: { result: "Duplicate call ignored. Operation already in progress." }
-                    });
-                    continue;
+                        this.onMessage(transcript, null, 'model');
+                        this.onLog({ type: 'model', text: transcript, timestamp: new Date() });
+                    }
                 }
-                this.processingToolCalls.add(callSignature);
 
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                let result: any = {};
-                try {
+                if (msg.serverContent.modelTurn) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const parts = msg.serverContent.modelTurn.parts;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    for (const part of parts) {
+                        if (part.text) {
 
-                    if (name === "report_response") {
-                        const text = args.text;
-                        console.log("FORCE TRANSCRIPT:", text);
-                        if (args.user_transcript) {
-                            const userText = args.user_transcript;
-                            this.onLog({
-                                type: 'user',
-                                text: userText,
-                                timestamp: new Date(),
-                                data: { isTranscript: true }
-                            });
+                            this.onMessage(part.text, null, 'model');
+                            this.onLog({ type: 'model', text: part.text, timestamp: new Date() });
                         }
-                        this.onLog({ type: 'model', text: text, timestamp: new Date() });
-                        result = { result: "Transcript displayed to user." };
-                    } else if (name === "add_person") {
-                        this.onLog({ type: 'tool-call', text: `Adding person: ${args.name}`, timestamp: new Date() });
+                        if (part.inlineData && part.inlineData.mimeType.startsWith('audio')) {
+                            this.onMessage(null, part.inlineData.data, 'model');
+                        }
+                    }
+                }
+            }
 
-                        // Validate
-                        const validation = validatePersonData(args);
-                        if (!validation.valid) {
-                            result = { error: `Validation Failed: ${validation.errors.join(", ")}` };
-                        } else {
-                            // Execute
-                            const response = await this.onAddPerson({
-                                name: args.name,
-                                gender: args.gender || null,
-                                dob: args.dob || null,
-                                dod: args.dod || null,
-                                parentId: args.parent_id || null,
-                                spouseIds: args.spouse_id ? [args.spouse_id] : [],
-                            });
-                            if (response.success) {
-                                // If parent_id was provided, we can try to link? 
-                                // Wait, onAddPerson receives "Partial<PersonNode>". 
-                                // It should handle the linkage args (parentId, spouseId) if they were in the object?
-                                // But PersonNode has parentId.
+            if (msg.toolCall) {
+                console.log("Received Tool Call:", msg.toolCall);
+                const toolCall = msg.toolCall;
+                const functionResponses = [];
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                for (const fc of toolCall.functionCalls) {
+                    const { name, args, id } = fc;
+                    const callSignature = `${name}:${JSON.stringify(args)}`;
+
+                    if (this.processingToolCalls.has(callSignature)) {
+                        console.warn(`[GeminiLive] Duplicate tool call ignored: ${callSignature}`);
+                        functionResponses.push({
+                            id, name,
+                            response: { result: "Duplicate call ignored. Operation already in progress." }
+                        });
+                        continue;
+                    }
+                    this.processingToolCalls.add(callSignature);
+
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    let result: any = {};
+                    try {
+
+                        if (name === "report_response") {
+                            const text = args.text;
+                            console.log("FORCE TRANSCRIPT:", text);
+                            if (args.user_transcript) {
+                                const userText = args.user_transcript;
+                                this.onLog({
+                                    type: 'user',
+                                    text: userText,
+                                    timestamp: new Date(),
+                                    data: { isTranscript: true }
+                                });
                             }
-                            result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
-                            this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
-                        }
-                    } else if (name === "update_person") {
-                        this.onLog({ type: 'tool-call', text: `Updating person: ${args.node_id}`, timestamp: new Date() });
-                        const validation = validatePersonData(args); // Simple field check
-                        if (!validation.valid) {
-                            result = { error: `Validation Failed: ${validation.errors.join(", ")}` };
+                            this.onLog({ type: 'model', text: text, timestamp: new Date() });
+                            result = { result: "Transcript displayed to user." };
+                        } else if (name === "add_person") {
+                            this.onLog({ type: 'tool-call', text: `Adding person: ${args.name}`, timestamp: new Date() });
+
+                            // Validate
+                            const validation = validatePersonData(args);
+                            if (!validation.valid) {
+                                result = { error: `Validation Failed: ${validation.errors.join(", ")}` };
+                            } else {
+                                // Execute
+                                const response = await this.onAddPerson({
+                                    name: args.name,
+                                    gender: args.gender || null,
+                                    dob: args.dob || null,
+                                    dod: args.dod || null,
+                                    parentId: args.parent_id || null,
+                                    spouseIds: args.spouse_id ? [args.spouse_id] : [],
+                                });
+                                if (response.success) {
+                                    // If parent_id was provided, we can try to link? 
+                                    // Wait, onAddPerson receives "Partial<PersonNode>". 
+                                    // It should handle the linkage args (parentId, spouseId) if they were in the object?
+                                    // But PersonNode has parentId.
+                                }
+                                result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
+                                this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
+                            }
+                        } else if (name === "update_person") {
+                            this.onLog({ type: 'tool-call', text: `Updating person: ${args.node_id}`, timestamp: new Date() });
+                            const validation = validatePersonData(args); // Simple field check
+                            if (!validation.valid) {
+                                result = { error: `Validation Failed: ${validation.errors.join(", ")}` };
+                            } else {
+                                const response = await this.onUpdatePerson({
+                                    nodeId: args.node_id,
+                                    name: args.name,
+                                    dob: args.dob,
+                                    dod: args.dod,
+                                    gender: args.gender,
+                                    email: args.email,
+                                    spouseIds: args.spouse_id ? [args.spouse_id] : []
+                                });
+                                result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
+                                this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
+                            }
                         } else {
-                            const response = await this.onUpdatePerson({
-                                nodeId: args.node_id,
-                                name: args.name,
-                                dob: args.dob,
-                                dod: args.dod,
-                                gender: args.gender,
-                                email: args.email,
-                                spouseIds: args.spouse_id ? [args.spouse_id] : []
-                            });
-                            result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
-                            this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
+                            result = { result: "system_error: Unknown tool." };
                         }
-                    } else {
-                        result = { result: "system_error: Unknown tool." };
+
+                        functionResponses.push({
+                            id: id,
+                            name: name,
+                            response: result
+                        });
+                    } finally {
+                        this.processingToolCalls.delete(callSignature);
                     }
-
-                    functionResponses.push({
-                        id: id,
-                        name: name,
-                        response: result
-                    });
-                } finally {
-                    this.processingToolCalls.delete(callSignature);
                 }
-            }
 
-            this.ws?.send(JSON.stringify({ toolResponse: { functionResponses } }));
+                this.ws?.send(JSON.stringify({ toolResponse: { functionResponses } }));
+            }
+        } catch (error) {
+            console.error("Error handling Gemini message:", error);
+            this.onLog({ type: 'info', text: 'System Error: Failed to process message', timestamp: new Date() });
         }
     }
 

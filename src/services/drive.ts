@@ -692,3 +692,28 @@ export const saveGeminiLog = async (email: string, logEntries: { type: string, t
         return fileId;
     }
 };
+
+export const loadGeminiLog = async (email: string): Promise<{ id: string | null, content: any[] }> => {
+    if (!email) return { id: null, content: [] };
+    const fileName = `gemini_history_${email}.json`;
+    const folderId = CONFIG.DRIVE_LOGS_FOLDER_ID;
+
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = await (gapi.client as any).drive.files.list({
+            q: `'${folderId}' in parents and trashed = false and name = '${fileName}'`,
+            fields: 'files(id, name, createdTime)',
+            orderBy: 'createdTime desc',
+        });
+        const files = response.result.files;
+        if (files && files.length > 0) {
+            const fileId = files[0].id;
+            const content = await getFileContent(fileId);
+            return { id: fileId, content: Array.isArray(content) ? content : [] };
+        }
+        return { id: null, content: [] };
+    } catch (err) {
+        console.error("Error loading Gemini log", err);
+        return { id: null, content: [] };
+    }
+};
