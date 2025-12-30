@@ -35,7 +35,7 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentU
         { label: t('personDetail.died'), value: node.dod },
         { label: t('personDetail.phone'), value: node.phone },
         { label: t('personDetail.email'), value: node.email },
-        { label: t('personDetail.address'), value: node.address.freeform },
+        { label: t('personDetail.address'), value: node.address?.freeform },
     ].filter(f => f.value && f.value !== '—' && f.value.trim() !== '');
 
     const handleExportPdf = async () => {

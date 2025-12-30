@@ -1132,12 +1132,17 @@ export const loadTreeFromSheets = async (): Promise<{ nodes: PersonNode[], metad
         // 2. Parse Nodes
         const nodes: PersonNode[] = nodeData.map((row: any[]) => ({
             nodeId: row[0],
-            name: row[1],
+            name: row[1] || null,
             gender: row[2] as 'male' | 'female' | 'other' || null,
             dob: row[3] || null,
             dod: row[4] || null,
             email: row[5] || null,
             phone: row[6] || null,
+            phoneE164: null,
+            dobApprox: { known: false, year: null, month: null, day: null },
+            dodApprox: { known: false, year: null, month: null, day: null },
+            dobInferred: false,
+            ageProvided: null,
             location: (row[7] || row[8] || row[9]) ? {
                 district: row[7] || null,
                 state: row[8] || null,
@@ -1151,12 +1156,18 @@ export const loadTreeFromSheets = async (): Promise<{ nodes: PersonNode[], metad
             education: row[12] ? JSON.parse(row[12]) : [],
             hobbies: row[13] ? JSON.parse(row[13]) : [],
             imageUrl: row[14] || null,
-            address: row[15] || null,
+            address: {
+                freeform: row[15] || null
+            },
             notes: row[16] || null,
             nameTranslations: row[17] ? JSON.parse(row[17]) : {},
-            spouseIds: [], // To be filled from Relationships
-            childrenIds: [], // To be filled from Relationships
-            parentId: null // To be filled from Relationships
+            spouseIds: [],
+            childrenIds: [],
+            parentId: null,
+            isEditor: false,
+            editorSince: null,
+            editedBy: null,
+            editedTime: row[18] || null
         }));
 
         const nodeMap = new Map<string, PersonNode>();
