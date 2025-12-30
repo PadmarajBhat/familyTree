@@ -547,7 +547,7 @@ function App() {
         // Crucial: Load the SPECIFIC file we just locked.
         const latestTree = await loadTree(true, targetFileId!);
 
-        setLoadingMessage("Saving changes...");
+        setLoadingMessage("Saving Nodes & Relations...");
         await action(latestTree, lockId);
 
         // Force UI update with mutated tree
