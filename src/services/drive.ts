@@ -64,6 +64,7 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                     scope: CONFIG.SCOPES,
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     callback: (tokenResponse: any) => {
+                        console.log("GIS Token Callback received:", tokenResponse);
                         if (tokenResponse && tokenResponse.access_token) {
                             accessToken = tokenResponse.access_token;
                             // Store token info for silent login
@@ -76,6 +77,15 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                             }
                             gapi.client.setToken(tokenResponse);
                             updateSigninStatus(true);
+                        } else {
+                            console.error("GIS Token Callback error: No access token in response.", tokenResponse);
+                            if (tokenResponse && tokenResponse.error) {
+                                console.error("Error Code:", tokenResponse.error);
+                                if (tokenResponse.error === 'popup_closed_by_user') {
+                                    // Silent refresh might fail with this if user interaction is needed
+                                    // or if they just closed the sign-in popup.
+                                }
+                            }
                         }
                     },
                 });
@@ -837,7 +847,15 @@ export const appendGeminiLogToSheets = async (email: string, logEntries: { type:
         });
 
         console.log(`Appended ${logEntries.length} log entries to Sheets.`);
-    } catch (err) {
+    } catch (err: any) {
         console.error("Error appending Gemini log to Sheets", err);
+        if (err?.status === 403 || err?.result?.error?.code === 403) {
+            console.error("PERMISSION ERROR (403): This likely means the 'Sheets' scope is missing or the API is disabled.");
+            console.log("Forcing sign-out to refresh scopes on next login.");
+            // We can't easily trigger a re-auth from here without circular dependencies or complex state, 
+            // but we can at least clear the token so the next reload forces sign-in.
+            // signOut() handles everything including reload.
+            signOut();
+        }
     }
 };
