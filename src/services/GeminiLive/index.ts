@@ -14,6 +14,7 @@ const WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativel
 export interface ToolResult {
     success: boolean;
     message: string;
+    nodeId?: string;
 }
 
 export class GeminiLiveService {
@@ -463,6 +464,21 @@ export class GeminiLiveService {
                                     // But PersonNode has parentId.
                                 }
                                 result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
+
+                                // Inject Context Refresh
+                                if (response.success) {
+                                    // We need to wait a moment for the state to propagate if it's external, 
+                                    // but here we trust GlobalTreeService or the logic to be fast enough? 
+                                    // sendSetupMessage relies on GlobalTreeService.getAllNodesFlat().
+                                    // Since App.tsx calls saveWithMerge, let's hope GlobalTreeService sees it.
+                                    // Actually App.tsx modifies `tree`, which is state. GlobalTreeService might read from the same underlying object if mapped. 
+                                    // Ideally we resend context.
+                                    setTimeout(() => {
+                                        console.log("Refreshing Gemini Context with new Tree data...");
+                                        this.sendSetupMessage(); // Resend system prompt
+                                    }, 500); // Small delay to ensure memory update
+                                }
+
                                 this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
                             }
                         } else if (name === "update_person") {
@@ -481,6 +497,15 @@ export class GeminiLiveService {
                                     spouseIds: args.spouse_id ? [args.spouse_id] : []
                                 });
                                 result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
+
+                                // Inject Context Refresh
+                                if (response.success) {
+                                    setTimeout(() => {
+                                        console.log("Refreshing Gemini Context with updated Tree data...");
+                                        this.sendSetupMessage();
+                                    }, 500);
+                                }
+
                                 this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
                             }
                         } else {

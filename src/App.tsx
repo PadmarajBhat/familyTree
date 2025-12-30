@@ -1611,6 +1611,9 @@ function App() {
 
               try {
                 let resultMessage = "";
+                // Define resultNodeId in the outer scope
+                let resultNodeId: string | undefined;
+
                 await executeWithLock(async (latestTree, _lockId) => {
                   if (!latestTree) throw new Error("Failed to load tree for locking.");
 
@@ -1688,8 +1691,10 @@ function App() {
                   const summary = changes.join(", ");
                   await saveWithMerge(latestTree, summary);
                   resultMessage = `Added ${newNode.name} (ID: ${newNode.nodeId}) successfully.`;
+                  // Capture result
+                  resultNodeId = newNodeId;
                 });
-                return { success: true, message: resultMessage };
+                return { success: true, message: resultMessage, nodeId: resultNodeId };
               } catch (e) {
                 console.error("Gemini Add Error", e);
                 return { success: false, message: "Failed to add person: " + (e as Error).message };
@@ -1704,6 +1709,7 @@ function App() {
 
               try {
                 let resultMessage = "";
+                let resultNodeId: string | undefined;
                 await executeWithLock(async (latestTree, _lockId) => {
                   if (!latestTree) throw new Error("Failed to load tree.");
                   const node = latestTree.nodes[data.nodeId!];
@@ -1743,15 +1749,16 @@ function App() {
                     node.editedBy = currentUser.email;
                     node.editedTime = now;
                     await saveWithMerge(latestTree, `Updated ${node.name}`);
-                    resultMessage = `Updated ${node.name} (ID: ${node.nodeId}).`;
+                    resultMessage = `Updated ${node.name} (ID: ${node.nodeId}) successfully.`;
+                    resultNodeId = node.nodeId;
                   } else {
                     resultMessage = "No changes detected.";
                   }
                 });
-                return { success: true, message: resultMessage };
+                return { success: true, message: resultMessage, nodeId: resultNodeId };
               } catch (e) {
                 console.error("Gemini Update Error", e);
-                return { success: false, message: "Update failed: " + (e as Error).message };
+                return { success: false, message: "Failed to update person: " + (e as Error).message };
               }
             }}
           />
