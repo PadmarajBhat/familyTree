@@ -1,6 +1,6 @@
 import { CONFIG } from '../../config';
 import { GlobalTreeService } from '../GlobalTreeService';
-import { getUserProfile, saveGeminiLog, loadGeminiLog, updateTreeFile } from '../drive';
+import { getUserProfile, appendGeminiLogToSheets } from '../drive';
 import { GET_GEMINI_SYSTEM_PROMPT } from '../../logic/prompts';
 import { validatePersonData } from '../../logic/validation';
 import type { LogEntry } from './types';
@@ -37,7 +37,6 @@ export class GeminiLiveService {
     private logBuffer: LogEntry[] = [];
     private fullLogHistory: LogEntry[] = [];
     private isHistoryLoaded: boolean = false;
-    private logFileId: string | null = null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private autosaveInterval: any | null = null;
 
@@ -196,12 +195,10 @@ export class GeminiLiveService {
                 this.userEmail = profile.email;
                 console.log("Enabled autosave logs for", this.userEmail);
 
-                // Load existing history once
-                const { id, content } = await loadGeminiLog(profile.email);
-                this.logFileId = id;
-                this.fullLogHistory = content;
+                // For Stage 1, we still rely on memory for current session history.
+                // We'll skip loading thousands of rows from Sheets for now to keep it snappy.
                 this.isHistoryLoaded = true;
-                console.log(`Loaded ${this.fullLogHistory.length} existing logs.`);
+                console.log("Autosave initialized (Sheets mode).");
 
                 this.autosaveInterval = setInterval(() => {
                     this.flushLogs();
@@ -236,25 +233,13 @@ export class GeminiLiveService {
         const reversedNew = [...logsToSave].reverse();
         this.fullLogHistory = [...reversedNew, ...this.fullLogHistory];
 
-        console.log(`Autosaving ${logsToSave.length} new logs (Total: ${this.fullLogHistory.length})...`);
+        console.log(`Autosaving ${logsToSave.length} new logs to Sheets...`);
 
         try {
-            if (this.logFileId) {
-                // Update existing file using cached history - NO READ required
-                await updateTreeFile(this.logFileId, this.fullLogHistory);
-            } else {
-                // First creation - use saveGeminiLog logic (which creates file)
-                const fileId = await saveGeminiLog(this.userEmail, logsToSave, null);
-                // saveGeminiLog reads?, yes. But if null ID, it creates. 
-                // But it assumes prepending to nothing.
-                // Wait, if we use saveGeminiLog, it might be safer for first creation.
-                // But we already have fullLogHistory populated.
-                if (fileId) {
-                    this.logFileId = fileId;
-                    // loadGeminiLog logic ensures this.fullLogHistory is synced if we reload, 
-                    // but for now we trust memory.
-                }
-            }
+            await appendGeminiLogToSheets(this.userEmail, logsToSave);
+            // We still update fullLogHistory in memory for UI/Reconnection consistency if needed
+            const reversedNew = [...logsToSave].reverse();
+            this.fullLogHistory = [...reversedNew, ...this.fullLogHistory];
         } catch (e) {
             console.error("Autosave failed", e);
             // Put logs back in buffer? 

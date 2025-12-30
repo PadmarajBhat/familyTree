@@ -8,8 +8,9 @@ export const CONFIG = {
     DRIVE_TREE_FOLDER_ID: '1vd_aUxnvFFARNE6YFetiCAp7LV8LdT7-',
     DRIVE_ZS_FOLDER_ID: '1P5ZkHNj4U0C1g5WAyZIcO0eOa0m7hW4Y', // Profile Pics
     DRIVE_LOGS_FOLDER_ID: '1zdAVUGMdDfxfYxTtxrqUqsqEruEhztit', // Gemini Logs
+    DRIVE_LOGS_SPREADSHEET_NAME: 'family_tree_gemini_logs',
 
-    SCOPES: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+    SCOPES: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/spreadsheets',
     // 'drive.file' only allows access to files created by this app. 
     // If the user wants to edit existing files not created by this app (e.g. manually uploaded), we need 'drive'.
     // Given the requirement "The tree has to be save in google drive", 'drive.file' is safer but 'drive' is more flexible.

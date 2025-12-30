@@ -44,13 +44,19 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
             console.log("GAPI loaded, initializing client...");
             gapi.client.init({
                 apiKey: CONFIG.API_KEY,
-                // clientId and scope are now handled by GIS
-                discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+                // Load the GAPI client for Drive and Sheets API calls
+                discoveryDocs: [
+                    'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
+                    'https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest'
+                ],
             }).then(() => {
-                console.log("Client initialized (API Key), now loading Drive API...");
-                return gapi.client.load('drive', 'v3');
+                console.log("Client initialized (API Key), now loading Drive and Sheets APIs...");
+                return Promise.all([
+                    gapi.client.load('drive', 'v3'),
+                    gapi.client.load('sheets', 'v4')
+                ]);
             }).then(() => {
-                console.log("Drive API loaded successfully.");
+                console.log("Drive and Sheets APIs loaded successfully.");
 
                 // Initialize GIS Token Client
                 tokenClient = google.accounts.oauth2.initTokenClient({
@@ -740,5 +746,98 @@ export const loadGeminiLog = async (email: string): Promise<{ id: string | null,
     } catch (err) {
         console.error("Error loading Gemini log", err);
         return { id: null, content: [] };
+    }
+};
+
+/**
+ * PHASE 1: Sheets-based Logging
+ * Optimized for performance using O(1) appends.
+ */
+
+let cachedLogSpreadsheetId: string | null = null;
+
+export const getOrCreateSharedLogSheet = async (): Promise<string | null> => {
+    if (cachedLogSpreadsheetId) return cachedLogSpreadsheetId;
+
+    const folderId = CONFIG.DRIVE_LOGS_FOLDER_ID;
+    const fileName = CONFIG.DRIVE_LOGS_SPREADSHEET_NAME;
+
+    try {
+        // 1. Search for existing spreadsheet
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = await (gapi.client as any).drive.files.list({
+            q: `'${folderId}' in parents and trashed = false and name = '${fileName}' and mimeType = 'application/vnd.google-apps.spreadsheet'`,
+            fields: 'files(id, name)',
+        });
+
+        const files = response.result.files;
+        if (files && files.length > 0) {
+            cachedLogSpreadsheetId = files[0].id;
+            console.log("Found existing shared log spreadsheet:", cachedLogSpreadsheetId);
+            return cachedLogSpreadsheetId;
+        }
+
+        // 2. Create if not found
+        console.log("Creating new shared log spreadsheet...");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const createRes = await (gapi.client as any).drive.files.create({
+            resource: {
+                name: fileName,
+                parents: [folderId],
+                mimeType: 'application/vnd.google-apps.spreadsheet',
+            },
+            fields: 'id',
+        });
+
+        const spreadsheetId = createRes.result.id;
+
+        // 3. Initialize headers
+        // Headers: Timestamp, Email, Type, Text, Data (as JSON string)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (gapi.client as any).sheets.spreadsheets.values.update({
+            spreadsheetId: spreadsheetId,
+            range: 'Sheet1!A1:E1',
+            valueInputOption: 'RAW',
+            resource: {
+                values: [['Timestamp', 'Email', 'Type', 'Text', 'Data']]
+            }
+        });
+
+        cachedLogSpreadsheetId = spreadsheetId;
+        console.log("Shared log spreadsheet created and initialized:", spreadsheetId);
+        return spreadsheetId;
+
+    } catch (err) {
+        console.error("Error in getOrCreateSharedLogSheet", err);
+        return null;
+    }
+};
+
+export const appendGeminiLogToSheets = async (email: string, logEntries: { type: string, text: string, data?: any, timestamp: Date }[]): Promise<void> => {
+    try {
+        const spreadsheetId = await getOrCreateSharedLogSheet();
+        if (!spreadsheetId) return;
+
+        const rows = logEntries.map(entry => [
+            entry.timestamp.toISOString(),
+            email,
+            entry.type,
+            entry.text,
+            entry.data ? JSON.stringify(entry.data) : ''
+        ]);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (gapi.client as any).sheets.spreadsheets.values.append({
+            spreadsheetId: spreadsheetId,
+            range: 'Sheet1!A:E',
+            valueInputOption: 'RAW',
+            resource: {
+                values: rows
+            }
+        });
+
+        console.log(`Appended ${logEntries.length} log entries to Sheets.`);
+    } catch (err) {
+        console.error("Error appending Gemini log to Sheets", err);
     }
 };
