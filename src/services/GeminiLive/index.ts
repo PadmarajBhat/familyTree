@@ -383,9 +383,13 @@ export class GeminiLiveService {
             return;
         }
 
-        // Log the message only if it's not a streaming audio chunk
-        const hasAudio = msg.serverContent?.modelTurn?.parts?.some((p: any) => p.inlineData);
-        if (!hasAudio) {
+        // Log the message only if it's not a streaming audio chunk or intermediate transcription
+        const isStreaming =
+            msg.serverContent?.modelTurn?.parts?.some((p: any) => p.inlineData) ||
+            msg.serverContent?.outputTranscription ||
+            msg.serverContent?.inputTranscription;
+
+        if (!isStreaming) {
             console.log("Full Gemini Message:", JSON.stringify(msg, null, 2));
         }
 
