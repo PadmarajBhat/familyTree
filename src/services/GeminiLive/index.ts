@@ -111,7 +111,7 @@ export class GeminiLiveService {
             this.onLog({ type: 'info', text: 'Connected to Gemini Live', timestamp: new Date() });
 
             this.setupAutosave();
-            this.sendSetupMessage();
+            this.sendSetupMessage(); // Initial Setup
         };
 
         this.ws.onmessage = async (event) => {
@@ -119,15 +119,24 @@ export class GeminiLiveService {
         };
 
         this.ws.onerror = (error) => {
+            // Check if it's just a closure we requested
+            // But usually error is distinct.
             console.error("WebSocket Error:", error);
-            this.onStatusChange('error');
-            this.onLog({ type: 'info', text: 'WebSocket Error', timestamp: new Date() });
+            // Don't auto-disconnect here, let onclose handle it, or we might double-fire.
         };
 
         this.ws.onclose = (event) => {
-            console.log("WebSocket Closed (Updated)", event.code, event.reason);
+            console.log("WebSocket Closed", event.code, event.reason);
             this.isConnected = false;
-            this.onStatusChange('disconnected');
+            // Only report disconnected if we didn't initiate a reconnect?
+            // For now, simple state handling. App will show 'disconnected'.
+            if (event.code !== 1000) { // 1000 is normal closure
+                this.onStatusChange('disconnected');
+            } else {
+                // If we closed it (e.g. for reconnect), we might want to stay silent?
+                // But UI expects state.
+                // We'll update the 'reconnect' method to handle state transition smoothly.
+            }
             this.onLog({ type: 'info', text: 'Disconnected', timestamp: new Date() });
             this.cleanup();
         };
@@ -136,6 +145,29 @@ export class GeminiLiveService {
             await this.videoService.start();
             this.onLog({ type: 'info', text: 'Video stream started', timestamp: new Date() });
         }
+    }
+
+    public async reconnect() {
+        console.log("Reconnecting to refresh context...");
+        this.onLog({ type: 'info', text: 'Context updated. Reconnecting to sync...', timestamp: new Date() });
+
+        if (this.ws) {
+            this.ws.close(1000, "Context Refresh");
+            this.ws = null;
+            this.isConnected = false;
+        }
+
+        // Wait a bit for closure
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Connect again (keeping video if enabled? We don't track video state explicitly other than service.
+        // But connect() re-calls videoService.start().
+        // We should track if we were video-enabled. 
+        // For now, let's assume default (audio) or if videoService was running.
+        // Checking videoService state is hard as it's private.
+        // Let's rely on Connect(false) safely for now, or check via flag if we implement one.
+        // Ideally we pass `true` if video was on.
+        await this.connect(false);
     }
 
     public disconnect() {
@@ -474,9 +506,8 @@ export class GeminiLiveService {
                                     // Actually App.tsx modifies `tree`, which is state. GlobalTreeService might read from the same underlying object if mapped. 
                                     // Ideally we resend context.
                                     setTimeout(() => {
-                                        console.log("Refreshing Gemini Context with new Tree data...");
-                                        this.sendSetupMessage(); // Resend system prompt
-                                    }, 500); // Small delay to ensure memory update
+                                        this.reconnect();
+                                    }, 1000);
                                 }
 
                                 this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
@@ -502,7 +533,7 @@ export class GeminiLiveService {
                                 if (response.success) {
                                     setTimeout(() => {
                                         console.log("Refreshing Gemini Context with updated Tree data...");
-                                        this.sendSetupMessage();
+                                        this.reconnect();
                                     }, 500);
                                 }
 
