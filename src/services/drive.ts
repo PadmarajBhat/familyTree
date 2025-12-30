@@ -39,6 +39,27 @@ const setupTokenRefreshMonitor = () => {
     }, 60000); // Check every 1 minute
 };
 
+// Helper to wait for the Google Identity Services global object
+const waitForGoogle = (timeout = 10000): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        if (typeof google !== 'undefined') {
+            resolve();
+            return;
+        }
+
+        const start = Date.now();
+        const interval = setInterval(() => {
+            if (typeof google !== 'undefined') {
+                clearInterval(interval);
+                resolve();
+            } else if (Date.now() - start > timeout) {
+                clearInterval(interval);
+                reject(new Error("Timeout waiting for Google library to load"));
+            }
+        }, 100);
+    });
+};
+
 export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => void): Promise<void> => {
     if (gapiInitedPromise) {
         return gapiInitedPromise;
@@ -50,7 +71,6 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
             console.log("GAPI loaded, initializing client...");
             gapi.client.init({
                 apiKey: CONFIG.API_KEY,
-                // Load the GAPI client for Drive and Sheets API calls
                 discoveryDocs: [
                     'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
                     'https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest'
@@ -63,7 +83,8 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                 ]);
             }).then(() => {
                 console.log("Drive and Sheets APIs loaded successfully.");
-
+                return waitForGoogle();
+            }).then(() => {
                 // Initialize GIS Token Client
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: CONFIG.CLIENT_ID,
@@ -73,18 +94,15 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                         console.log("GIS Token Callback received:", tokenResponse);
                         if (tokenResponse && tokenResponse.access_token) {
                             accessToken = tokenResponse.access_token;
-                            // Store token info for silent login
                             localStorage.setItem('gapi_token', tokenResponse.access_token);
                             if (tokenResponse.expires_in) {
                                 const expiresInSec = Number(tokenResponse.expires_in);
                                 const expiresAt = Date.now() + (expiresInSec * 1000);
                                 localStorage.setItem('gapi_token_expires', expiresAt.toString());
-                                console.log(`Token received. Expires in ${expiresInSec}s (at ${new Date(expiresAt).toLocaleTimeString()})`);
                             }
                             gapi.client.setToken(tokenResponse);
                             updateSigninStatus(true);
                         } else {
-                            console.error("GIS Token Callback error: No access token in response.", tokenResponse);
                             if (tokenResponse && (tokenResponse.error === 'interaction_required' || tokenResponse.error === 'access_denied')) {
                                 if (onAuthErrorCallback) onAuthErrorCallback(tokenResponse.error);
                             }
@@ -99,41 +117,30 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                 if (storedToken && tokenExpires) {
                     const expiresAt = parseInt(tokenExpires, 10);
                     const now = Date.now();
-                    const timeLeft = (expiresAt - now) / 1000;
 
-                    // Check if token is still valid (with 2-minute buffer)
                     if (expiresAt > now + (2 * 60 * 1000)) {
-                        console.log(`Found stored token. Valid for ${timeLeft.toFixed(0)}s. Attempting silent sign-in...`);
                         accessToken = storedToken;
                         gapi.client.setToken({ access_token: storedToken });
 
-                        // Verify token is actually valid by making a test API call
                         getUserProfile().then(profile => {
                             if (profile) {
-                                console.log("Silent sign-in verified and successful!");
                                 updateSigninStatus(true);
                             } else {
-                                console.warn("Silent sign-in failed: User profile check returned null (likely 401). clearing...");
                                 localStorage.removeItem('gapi_token');
                                 localStorage.removeItem('gapi_token_expires');
                                 updateSigninStatus(false);
                             }
-                        }).catch((err) => {
-                            console.error("Silent sign-in validation received error:", err);
-                            // Only clear if it looks like an Auth error, otherwise keep it?
-                            // Actually, if we can't verify, we can't trust it. Safest to clear.
+                        }).catch(() => {
                             localStorage.removeItem('gapi_token');
                             localStorage.removeItem('gapi_token_expires');
                             updateSigninStatus(false);
                         });
                     } else {
-                        console.log(`Stored token has expired (or is about to). Expired at ${new Date(expiresAt).toLocaleTimeString()}. Clearing...`);
                         localStorage.removeItem('gapi_token');
                         localStorage.removeItem('gapi_token_expires');
                         updateSigninStatus(false);
                     }
                 } else {
-                    console.log("No stored token found, user needs to sign in.");
                     updateSigninStatus(false);
                 }
 
@@ -141,10 +148,6 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                 resolve();
             }).catch((error: unknown) => {
                 console.error("CRITICAL ERROR: Google Client Init or Drive API Load failed", error);
-                if (error && typeof error === 'object' && 'result' in error) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    console.error("Error result:", (error as any).result);
-                }
                 reject(error);
             });
         });
