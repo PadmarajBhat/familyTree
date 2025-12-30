@@ -9,9 +9,16 @@ import './GeminiLive.css';
 interface GeminiLiveProps {
     onAddPerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
     onUpdatePerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
+    onSearchNodes: (query: string) => Promise<PersonNode[]>;
+    onGetRecentNodes: (limit: number) => Promise<PersonNode[]>;
 }
 
-export const GeminiLive: React.FC<GeminiLiveProps> = ({ onAddPerson, onUpdatePerson }) => {
+export const GeminiLive: React.FC<GeminiLiveProps> = ({
+    onAddPerson,
+    onUpdatePerson,
+    onSearchNodes,
+    onGetRecentNodes
+}) => {
     const [isOpen, setIsOpen] = useState(false);
     const [status, setStatus] = useState('disconnected');
     const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -25,6 +32,8 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({ onAddPerson, onUpdatePer
     // Keep latest callbacks in refs to avoid stale closures in the service
     const onAddPersonRef = useRef(onAddPerson);
     const onUpdatePersonRef = useRef(onUpdatePerson);
+    const onSearchNodesRef = useRef(onSearchNodes);
+    const onGetRecentNodesRef = useRef(onGetRecentNodes);
 
     useEffect(() => {
         onAddPersonRef.current = onAddPerson;
@@ -33,6 +42,14 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({ onAddPerson, onUpdatePer
     useEffect(() => {
         onUpdatePersonRef.current = onUpdatePerson;
     }, [onUpdatePerson]);
+
+    useEffect(() => {
+        onSearchNodesRef.current = onSearchNodes;
+    }, [onSearchNodes]);
+
+    useEffect(() => {
+        onGetRecentNodesRef.current = onGetRecentNodes;
+    }, [onGetRecentNodes]);
 
     useEffect(() => {
         // Cleanup on unmount
@@ -98,7 +115,9 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({ onAddPerson, onUpdatePer
                     setLogs(prev => [...prev, logEntry]);
                 },
                 (data) => onAddPersonRef.current(data),
-                (data) => onUpdatePersonRef.current(data)
+                (data) => onUpdatePersonRef.current(data),
+                (query) => onSearchNodesRef.current(query),
+                (limit) => onGetRecentNodesRef.current(limit)
             );
         }
 

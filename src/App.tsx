@@ -1,6 +1,6 @@
 
 import { useEffect, useState, Suspense, lazy } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, grantWritePermission, grantLockFilePermission, renameFile, updateUserStarredTrees, saveNodeToSheets, migrateTreeToSheets } from './services/drive';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, grantWritePermission, grantLockFilePermission, renameFile, updateUserStarredTrees, saveNodeToSheets, migrateTreeToSheets, setAuthErrorCallback, searchNodesInSheets, getRecentNodesFromSheets } from './services/drive';
 import { useTranslation } from 'react-i18next';
 import { GlobalTreeService } from './services/GlobalTreeService';
 import type { TreeDocument, PersonNode } from './logic/types';
@@ -43,6 +43,7 @@ function App() {
   const [isSheetsMode, setIsSheetsMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const [isGapiReady, setIsGapiReady] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -142,7 +143,17 @@ function App() {
 
 
   useEffect(() => {
+    // Set up auth error callback before initializing client if possible, 
+    // or just after it's imported.
+    setAuthErrorCallback((err) => {
+      console.warn("Auth Error caught in App:", err);
+      if (err === 'interaction_required' || err === 'access_denied') {
+        setAuthError(err);
+      }
+    });
+
     initGoogleClient((signedIn) => {
+      if (signedIn) setAuthError(null); // Reset if success
       setIsSignedIn(signedIn);
     }).then(() => {
       setIsGapiReady(true);
@@ -1868,6 +1879,8 @@ function App() {
                 return { success: false, message: "Failed to update person: " + (e as Error).message };
               }
             }}
+            onSearchNodes={searchNodesInSheets}
+            onGetRecentNodes={getRecentNodesFromSheets}
           />
         )}
       </Suspense>
@@ -1887,7 +1900,21 @@ function App() {
           />
         </Suspense>
       )}
-    </div >
+      {authError && (
+        <div className="auth-error-overlay">
+          <div className="auth-error-card">
+            <h3>{t('Session Expired')}</h3>
+            <p>{t('Your Google session has expired or requires re-authentication. Please sign in again to continue.')}</p>
+            <button onClick={() => {
+              setAuthError(null);
+              signIn();
+            }} className="btn btn-secondary" style={{ marginTop: '1rem' }}>
+              {t('Sign In with Google')}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 
 

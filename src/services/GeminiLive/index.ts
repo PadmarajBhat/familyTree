@@ -32,6 +32,8 @@ export class GeminiLiveService {
     // Tool Callbacks
     private onAddPerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
     private onUpdatePerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
+    private onSearchNodes: (query: string) => Promise<PersonNode[]>;
+    private onGetRecentNodes: (limit: number) => Promise<PersonNode[]>;
 
     private userEmail: string | null = null;
     private logBuffer: LogEntry[] = [];
@@ -45,13 +47,17 @@ export class GeminiLiveService {
         onStatusChange: (status: string) => void,
         onLog: (entry: LogEntry) => void = () => { },
         onAddPerson: (data: Partial<PersonNode>) => Promise<ToolResult> = async () => ({ success: false, message: "Tool not implemented" }),
-        onUpdatePerson: (data: Partial<PersonNode>) => Promise<ToolResult> = async () => ({ success: false, message: "Tool not implemented" })
+        onUpdatePerson: (data: Partial<PersonNode>) => Promise<ToolResult> = async () => ({ success: false, message: "Tool not implemented" }),
+        onSearchNodes: (query: string) => Promise<PersonNode[]> = async () => [],
+        onGetRecentNodes: (limit: number) => Promise<PersonNode[]> = async () => []
     ) {
         this.onMessage = onMessage;
         this.onStatusChange = onStatusChange;
         this.onLogCallback = onLog;
         this.onAddPerson = onAddPerson;
         this.onUpdatePerson = onUpdatePerson;
+        this.onSearchNodes = onSearchNodes;
+        this.onGetRecentNodes = onGetRecentNodes;
 
         this.audioService = new AudioService(
             (base64Data) => this.sendAudioChunk(base64Data),
@@ -226,13 +232,6 @@ export class GeminiLiveService {
         const logsToSave = [...this.logBuffer];
         this.logBuffer = [];
 
-        // Prepend new logs to full history (logsToSave is Oldest->Newest, we want Newest->Oldest in file)
-        // Actually, logBuffer is chronological [0: old, 1: new].
-        // The file expects [Newest, ..., Oldest].
-        // So we reverse logsToSave and prepend.
-        const reversedNew = [...logsToSave].reverse();
-        this.fullLogHistory = [...reversedNew, ...this.fullLogHistory];
-
         console.log(`Autosaving ${logsToSave.length} new logs to Sheets...`);
 
         try {
@@ -242,13 +241,6 @@ export class GeminiLiveService {
             this.fullLogHistory = [...reversedNew, ...this.fullLogHistory];
         } catch (e) {
             console.error("Autosave failed", e);
-            // Put logs back in buffer? 
-            // If we failed to WRITE, our in-memory fullLogHistory is still updated.
-            // Next time we try to write, fullLogHistory has the data.
-            // So we don't need to push back to logBuffer.
-            // UNLESS updateTreeFile failed and we want to retry persisting this state.
-            // But fullLogHistory keeps the state. Next flush will try to save fullLogHistory again (with even more new logs).
-            // So this approach is resilient.
         } finally {
             this.isFlushing = false;
         }
@@ -319,18 +311,30 @@ export class GeminiLiveService {
                                     dod: { type: "STRING", description: "Updated DOD (YYYY-MM-DD)." },
                                     gender: { type: "STRING", enum: ["male", "female", "other"] },
                                     email: { type: "STRING", description: "Email address." },
-                                    spouse_id: { type: "STRING", description: "ID of the spouse to link (nodeId)." },
-                                    phone: { type: "STRING", description: "Updated Mobile/Phone number." },
-                                    location_district: { type: "STRING", description: "Updated District/City." },
-                                    location_state: { type: "STRING", description: "Updated State." },
-                                    location_country: { type: "STRING", description: "Updated Country." },
-                                    occupation_role: { type: "STRING", description: "Updated Job title." },
-                                    occupation_org: { type: "STRING", description: "Updated Company." },
-                                    education_degree: { type: "STRING", description: "Updated Degree." },
-                                    education_major: { type: "STRING", description: "Updated Major." },
-                                    hobbies: { type: "STRING", description: "Updated hobbies (comma separated)." }
+                                    spouse_id: { type: "STRING", description: "ID of the spouse to link (nodeId)." }
                                 },
                                 required: ["node_id"]
+                            }
+                        },
+                        {
+                            name: "search_family_tree",
+                            description: "Search the family tree directly for someone. Use this if you are not sure of a Node ID or if you just added someone and need to find their ID for linking.",
+                            parameters: {
+                                type: "OBJECT",
+                                properties: {
+                                    query: { type: "STRING", description: "Name, email, or other details to search for." }
+                                },
+                                required: ["query"]
+                            }
+                        },
+                        {
+                            name: "get_recent_additions",
+                            description: "Get the last 10 people added to the family tree. Useful to quickly find IDs of people just created.",
+                            parameters: {
+                                type: "OBJECT",
+                                properties: {
+                                    limit: { type: "INTEGER", description: "Number of records to return (default 10)." }
+                                }
                             }
                         }
                     ]
@@ -513,27 +517,7 @@ export class GeminiLiveService {
                                     }] : [],
                                     hobbies: args.hobbies ? args.hobbies.split(',').map((s: string) => s.trim()) : []
                                 });
-                                if (response.success) {
-                                    // If parent_id was provided, we can try to link? 
-                                    // Wait, onAddPerson receives "Partial<PersonNode>". 
-                                    // It should handle the linkage args (parentId, spouseId) if they were in the object?
-                                    // But PersonNode has parentId.
-                                }
                                 result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
-
-                                // Inject Context Refresh
-                                if (response.success) {
-                                    // We need to wait a moment for the state to propagate if it's external, 
-                                    // but here we trust GlobalTreeService or the logic to be fast enough? 
-                                    // sendSetupMessage relies on GlobalTreeService.getAllNodesFlat().
-                                    // Since App.tsx calls saveWithMerge, let's hope GlobalTreeService sees it.
-                                    // Actually App.tsx modifies `tree`, which is state. GlobalTreeService might read from the same underlying object if mapped. 
-                                    // Ideally we resend context.
-                                    setTimeout(() => {
-                                        this.reconnect();
-                                    }, 1000);
-                                }
-
                                 this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
                             }
                         } else if (name === "update_person") {
@@ -568,17 +552,19 @@ export class GeminiLiveService {
                                     hobbies: args.hobbies ? args.hobbies.split(',').map((s: string) => s.trim()) : undefined
                                 });
                                 result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
-
-                                // Inject Context Refresh
-                                if (response.success) {
-                                    setTimeout(() => {
-                                        console.log("Refreshing Gemini Context with updated Tree data...");
-                                        this.reconnect();
-                                    }, 500);
-                                }
-
                                 this.onLog({ type: 'tool-response', text: result['result'] || result['error'], timestamp: new Date() });
                             }
+                        } else if (name === "search_family_tree") {
+                            this.onLog({ type: 'tool-call', text: `Searching for: ${args.query}`, timestamp: new Date() });
+                            const nodes = await this.onSearchNodes(args.query);
+                            result = { results: nodes.map(n => ({ id: n.nodeId, name: n.name, dob: n.dob, email: n.email })) };
+                            this.onLog({ type: 'tool-response', text: `Search found ${nodes.length} matches.`, timestamp: new Date() });
+                        } else if (name === "get_recent_additions") {
+                            const limit = args.limit || 10;
+                            this.onLog({ type: 'tool-call', text: `Fetching last ${limit} additions`, timestamp: new Date() });
+                            const nodes = await this.onGetRecentNodes(limit);
+                            result = { results: nodes.map(n => ({ id: n.nodeId, name: n.name, dob: n.dob, email: n.email, added: (n as any).lastUpdated })) };
+                            this.onLog({ type: 'tool-response', text: `Found ${nodes.length} recent additions.`, timestamp: new Date() });
                         } else {
                             result = { result: "system_error: Unknown tool." };
                         }

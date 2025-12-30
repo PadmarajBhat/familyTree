@@ -10,6 +10,11 @@ let gapiInitedPromise: Promise<void> | null = null;
 let tokenClient: any = null;
 let accessToken: string | null = null;
 let refreshInterval: any = null;
+let onAuthErrorCallback: ((error: string) => void) | null = null;
+
+export const setAuthErrorCallback = (cb: (error: string) => void) => {
+    onAuthErrorCallback = cb;
+};
 
 const setupTokenRefreshMonitor = () => {
     if (refreshInterval) clearInterval(refreshInterval);
@@ -80,12 +85,8 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                             updateSigninStatus(true);
                         } else {
                             console.error("GIS Token Callback error: No access token in response.", tokenResponse);
-                            if (tokenResponse && tokenResponse.error) {
-                                console.error("Error Code:", tokenResponse.error);
-                                if (tokenResponse.error === 'popup_closed_by_user') {
-                                    // Silent refresh might fail with this if user interaction is needed
-                                    // or if they just closed the sign-in popup.
-                                }
+                            if (tokenResponse && (tokenResponse.error === 'interaction_required' || tokenResponse.error === 'access_denied')) {
+                                if (onAuthErrorCallback) onAuthErrorCallback(tokenResponse.error);
                             }
                         }
                     },
@@ -797,7 +798,7 @@ export const getOrCreateTreeSpreadsheet = async (): Promise<string | null> => {
             spreadsheetId: spreadsheetId,
             resource: {
                 data: [
-                    { range: 'Nodes!A1:R1', values: [TREE_NODE_HEADERS] },
+                    { range: 'Nodes!A1:S1', values: [TREE_NODE_HEADERS] },
                     { range: 'Relationships!A1:D1', values: [TREE_RELATION_HEADERS] }
                 ],
                 valueInputOption: 'RAW'
@@ -871,8 +872,8 @@ export const migrateTreeToSheets = async (nodes: PersonNode[]): Promise<boolean>
             spreadsheetId: spreadsheetId,
             resource: {
                 data: [
-                    { range: 'Nodes!A2', values: nodeRows },
-                    { range: 'Relationships!A2', values: relRows }
+                    { range: 'Nodes!A2:S', values: nodeRows },
+                    { range: 'Relationships!A2:D', values: relRows }
                 ],
                 valueInputOption: 'RAW'
             }
@@ -939,7 +940,7 @@ export const saveNodeToSheets = async (node: Partial<PersonNode> & { nodeId: str
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await (gapi.client as any).sheets.spreadsheets.values.append({
                 spreadsheetId: spreadsheetId,
-                range: 'Nodes!A:R',
+                range: 'Nodes!A:S',
                 valueInputOption: 'RAW',
                 resource: { values: [rowData] }
             });
@@ -947,6 +948,94 @@ export const saveNodeToSheets = async (node: Partial<PersonNode> & { nodeId: str
         }
     } catch (err) {
         console.error("Error saving node to Sheets", err);
+    }
+};
+
+/**
+ * Batch save multiple nodes to Sheets efficiently
+ */
+export const saveNodesBatchToSheets = async (nodes: PersonNode[]): Promise<void> => {
+    try {
+        const spreadsheetId = await getOrCreateTreeSpreadsheet();
+        if (!spreadsheetId) return;
+
+        // 1. Get current IDs to find positions
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = await (gapi.client as any).sheets.spreadsheets.values.get({
+            spreadsheetId: spreadsheetId,
+            range: 'Nodes!A:A',
+        });
+
+        const currentRows = response.result.values || [];
+        const idToRowIndex = new Map<string, number>();
+        currentRows.forEach((row: string[], index: number) => {
+            if (row[0]) idToRowIndex.set(row[0], index);
+        });
+
+        const updates: { range: string; values: any[][] }[] = [];
+        const appends: any[][] = [];
+
+        nodes.forEach(node => {
+            const rowData = [
+                node.nodeId,
+                node.name || '',
+                node.gender || '',
+                node.dob || '',
+                node.dod || '',
+                node.email || '',
+                node.phone || '',
+                node.location?.district || '',
+                node.location?.state || '',
+                node.location?.country || '',
+                node.occupation?.role || '',
+                node.occupation?.organization || '',
+                JSON.stringify(node.education || []),
+                JSON.stringify(node.hobbies || []),
+                node.imageUrl || '',
+                node.address || '',
+                node.notes || '',
+                JSON.stringify(node.nameTranslations || {}),
+                new Date().toISOString()
+            ];
+
+            const rowIndex = idToRowIndex.get(node.nodeId);
+            if (rowIndex !== undefined && rowIndex !== -1) {
+                // Sheets is 1-indexed
+                updates.push({
+                    range: `Nodes!A${rowIndex + 1}:S${rowIndex + 1}`,
+                    values: [rowData]
+                });
+            } else {
+                appends.push(rowData);
+            }
+        });
+
+        // 2. Perform updates
+        if (updates.length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (gapi.client as any).sheets.spreadsheets.values.batchUpdate({
+                spreadsheetId: spreadsheetId,
+                resource: {
+                    data: updates,
+                    valueInputOption: 'RAW'
+                }
+            });
+            console.log(`Batch updated ${updates.length} nodes in Sheets.`);
+        }
+
+        // 3. Perform appends
+        if (appends.length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (gapi.client as any).sheets.spreadsheets.values.append({
+                spreadsheetId: spreadsheetId,
+                range: 'Nodes!A:S',
+                valueInputOption: 'RAW',
+                resource: { values: appends }
+            });
+            console.log(`Batch appended ${appends.length} nodes to Sheets.`);
+        }
+    } catch (err) {
+        console.error("Error in saveNodesBatchToSheets", err);
     }
 };
 
@@ -981,7 +1070,7 @@ export const loadTreeFromSheets = async (): Promise<PersonNode[]> => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await (gapi.client as any).sheets.spreadsheets.values.batchGet({
             spreadsheetId: spreadsheetId,
-            ranges: ['Nodes!A2:R', 'Relationships!A2:D'],
+            ranges: ['Nodes!A2:S', 'Relationships!A2:D'],
         });
 
         const nodeData = response.result.valueRanges[0].values || [];
@@ -1049,6 +1138,99 @@ export const loadTreeFromSheets = async (): Promise<PersonNode[]> => {
 
     } catch (err) {
         console.error("Error loading tree from Sheets", err);
+        return [];
+    }
+};
+
+/**
+ * Search nodes directly in Sheets (bypassing GlobalTreeService cache)
+ */
+export const searchNodesInSheets = async (query: string): Promise<PersonNode[]> => {
+    try {
+        const spreadsheetId = await getOrCreateTreeSpreadsheet();
+        if (!spreadsheetId) return [];
+
+        const lowerQuery = query.toLowerCase();
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = await (gapi.client as any).sheets.spreadsheets.values.get({
+            spreadsheetId: spreadsheetId,
+            range: 'Nodes!A2:S',
+        });
+
+        const rows = response.result.values || [];
+        const matches: PersonNode[] = [];
+
+        for (const row of rows) {
+            const name = row[1] || '';
+            const email = row[5] || '';
+            const translations = row[17] ? JSON.parse(row[17]) : {};
+            const transValues = Object.values(translations).join(' ').toLowerCase();
+
+            if (name.toLowerCase().includes(lowerQuery) ||
+                email.toLowerCase().includes(lowerQuery) ||
+                transValues.includes(lowerQuery)) {
+
+                // Construct basic node info enough for linking
+                matches.push({
+                    nodeId: row[0],
+                    name: row[1],
+                    gender: row[2] as 'male' | 'female' | 'other' || null,
+                    dob: row[3] || null,
+                    email: row[4] || null,
+                    phone: row[5] || null,
+                    imageUrl: null, phoneE164: null, dobApprox: { known: false, year: null, month: null, day: null },
+                    dod: null, dodApprox: { known: false, year: null, month: null, day: null },
+                    address: { freeform: null },
+                    spouseIds: [], childrenIds: [], parentId: null,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as unknown as PersonNode);
+            }
+        }
+        return matches;
+    } catch (err) {
+        console.error("Error searching nodes in Sheets", err);
+        return [];
+    }
+};
+
+/**
+ * Get the N most recently updated nodes from Sheets
+ */
+export const getRecentNodesFromSheets = async (limit: number = 10): Promise<PersonNode[]> => {
+    try {
+        const spreadsheetId = await getOrCreateTreeSpreadsheet();
+        if (!spreadsheetId) return [];
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = await (gapi.client as any).sheets.spreadsheets.values.get({
+            spreadsheetId: spreadsheetId,
+            range: 'Nodes!A2:S',
+        });
+
+        const rows = response.result.values || [];
+        // Sort by LastUpdated (Column S / Index 18) descending
+        const sorted = rows.sort((a: any, b: any) => {
+            const dateA = new Date(a[18] || 0).getTime();
+            const dateB = new Date(b[18] || 0).getTime();
+            return dateB - dateA;
+        });
+
+        return sorted.slice(0, limit).map((row: any) => ({
+            nodeId: row[0],
+            name: row[1],
+            gender: row[2] as 'male' | 'female' | 'other' || null,
+            dob: row[3] || null,
+            email: row[4] || null,
+            phone: row[5] || null,
+            imageUrl: null, phoneE164: null, dobApprox: { known: false, year: null, month: null, day: null },
+            dod: null, dodApprox: { known: false, year: null, month: null, day: null },
+            address: { freeform: null },
+            spouseIds: [], childrenIds: [], parentId: null,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as unknown as PersonNode));
+    } catch (err) {
+        console.error("Error getting recent nodes from Sheets", err);
         return [];
     }
 };
