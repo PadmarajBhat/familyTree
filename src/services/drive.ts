@@ -842,7 +842,7 @@ export const migrateTreeToSheets = async (nodes: PersonNode[]): Promise<boolean>
             JSON.stringify(n.education || []),
             JSON.stringify(n.hobbies || []),
             n.imageUrl || '',
-            n.address || '',
+            n.address?.freeform || '',
             n.notes || '',
             JSON.stringify(n.nameTranslations || {}),
             new Date().toISOString()
@@ -918,7 +918,7 @@ export const saveNodeToSheets = async (node: Partial<PersonNode> & { nodeId: str
             JSON.stringify(node.education || []),
             JSON.stringify(node.hobbies || []),
             node.imageUrl || '',
-            node.address || '',
+            node.address?.freeform || '',
             node.notes || '',
             JSON.stringify(node.nameTranslations || {}),
             new Date().toISOString()
@@ -926,7 +926,7 @@ export const saveNodeToSheets = async (node: Partial<PersonNode> & { nodeId: str
 
         if (rowIndex !== -1) {
             // Update existing row (index + 1 because Sheets is 1-indexed)
-            const range = `Nodes!A${rowIndex + 1}:R${rowIndex + 1}`;
+            const range = `Nodes!A${rowIndex + 1}:S${rowIndex + 1}`;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await (gapi.client as any).sheets.spreadsheets.values.update({
                 spreadsheetId: spreadsheetId,
@@ -992,7 +992,7 @@ export const saveNodesBatchToSheets = async (nodes: PersonNode[]): Promise<void>
                 JSON.stringify(node.education || []),
                 JSON.stringify(node.hobbies || []),
                 node.imageUrl || '',
-                node.address || '',
+                node.address?.freeform || '',
                 node.notes || '',
                 JSON.stringify(node.nameTranslations || {}),
                 new Date().toISOString()
