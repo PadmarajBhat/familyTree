@@ -8,6 +8,30 @@ let gapiInitedPromise: Promise<void> | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let tokenClient: any = null;
 let accessToken: string | null = null;
+let refreshInterval: any = null;
+
+const setupTokenRefreshMonitor = () => {
+    if (refreshInterval) clearInterval(refreshInterval);
+
+    refreshInterval = setInterval(() => {
+        const tokenExpires = localStorage.getItem('gapi_token_expires');
+        if (!tokenExpires || !tokenClient) return;
+
+        const expiresAt = parseInt(tokenExpires, 10);
+        const now = Date.now();
+        const timeLeftMs = expiresAt - now;
+
+        // Refresh 10 minutes before expiry (600,000 ms)
+        if (timeLeftMs > 0 && timeLeftMs < 10 * 60 * 1000) {
+            console.log(`Token expiring in ${(timeLeftMs / 1000 / 60).toFixed(1)}m. Triggering proactive silent refresh...`);
+            tokenClient.requestAccessToken({ prompt: 'none' });
+        } else if (timeLeftMs <= 0) {
+            console.warn("Token already expired. Monitor will stop and rely on App error handling or manual sign-in.");
+            clearInterval(refreshInterval);
+            refreshInterval = null;
+        }
+    }, 60000); // Check every 1 minute
+};
 
 export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => void): Promise<void> => {
     if (gapiInitedPromise) {
@@ -95,6 +119,7 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                     updateSigninStatus(false);
                 }
 
+                setupTokenRefreshMonitor();
                 resolve();
             }).catch((error: unknown) => {
                 console.error("CRITICAL ERROR: Google Client Init or Drive API Load failed", error);
