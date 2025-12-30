@@ -342,7 +342,7 @@ export class GeminiLiveService {
                         }
                     ]
                 }],
-                toolConfig: { functionCallingConfig: { mode: "ANY" } },
+                toolConfig: { functionCallingConfig: { mode: "AUTO" } },
                 // @ts-ignore
                 generation_config: {
                     response_modalities: ["AUDIO"],
