@@ -1723,6 +1723,12 @@ function App() {
       <Suspense fallback={<LoadingOverlay message="Loading Assistant..." />}>
         {tree && (
           <GeminiLive
+            preferredVoice={(() => {
+              if (!currentUser || !tree.nodes) return "Puck";
+              const userNode = Object.values(tree.nodes).find(n => n.email && n.email.toLowerCase() === currentUser.email.toLowerCase());
+              if (!userNode) return "Puck";
+              return userNode.gender === 'male' ? "Aoede" : "Puck";
+            })()}
             onAddPerson={async (data) => {
               console.log("Gemini requested Add:", data);
               if (!tree) return { success: false, message: "No family tree loaded." };

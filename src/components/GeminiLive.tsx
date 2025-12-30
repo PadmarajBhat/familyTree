@@ -11,13 +11,15 @@ interface GeminiLiveProps {
     onUpdatePerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
     onSearchNodes: (query: string) => Promise<PersonNode[]>;
     onGetRecentNodes: (limit: number) => Promise<PersonNode[]>;
+    preferredVoice?: string;
 }
 
 export const GeminiLive: React.FC<GeminiLiveProps> = ({
     onAddPerson,
     onUpdatePerson,
     onSearchNodes,
-    onGetRecentNodes
+    onGetRecentNodes,
+    preferredVoice = "Puck"
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [status, setStatus] = useState('disconnected');
@@ -117,7 +119,8 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({
                 (data) => onAddPersonRef.current(data),
                 (data) => onUpdatePersonRef.current(data),
                 (query) => onSearchNodesRef.current(query),
-                (limit) => onGetRecentNodesRef.current(limit)
+                (limit) => onGetRecentNodesRef.current(limit),
+                preferredVoice
             );
         }
 

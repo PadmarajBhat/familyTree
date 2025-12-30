@@ -751,11 +751,11 @@ const TREE_NODE_HEADERS = ['ID', 'Name', 'Gender', 'DOB', 'DOD', 'Email', 'Phone
 const TREE_RELATION_HEADERS = ['FromID', 'ToID', 'Type', 'Timestamp', 'FromName', 'ToName'];
 const TREE_METADATA_HEADERS = ['Key', 'Value'];
 
-export const getOrCreateTreeSpreadsheet = async (): Promise<string | null> => {
+export const getOrCreateTreeSpreadsheet = async (treeName?: string): Promise<string | null> => {
     if (cachedTreeSpreadsheetId) return cachedTreeSpreadsheetId;
 
     const folderId = CONFIG.DRIVE_TREE_FOLDER_ID;
-    const fileName = CONFIG.DRIVE_TREE_SPREADSHEET_NAME;
+    const fileName = treeName || CONFIG.DRIVE_TREE_SPREADSHEET_NAME;
 
     try {
         // 1. Search for existing spreadsheet
@@ -826,7 +826,7 @@ export const getOrCreateTreeSpreadsheet = async (): Promise<string | null> => {
  */
 export const migrateTreeToSheets = async (tree: TreeDocument): Promise<boolean> => {
     try {
-        const spreadsheetId = await getOrCreateTreeSpreadsheet();
+        const spreadsheetId = await getOrCreateTreeSpreadsheet(tree.treeName);
         if (!spreadsheetId) return false;
 
         const nodes = Object.values(tree.nodes);

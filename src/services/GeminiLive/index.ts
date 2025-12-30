@@ -34,6 +34,7 @@ export class GeminiLiveService {
     private onUpdatePerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
     private onSearchNodes: (query: string) => Promise<PersonNode[]>;
     private onGetRecentNodes: (limit: number) => Promise<PersonNode[]>;
+    private preferredVoice: string;
 
     private userEmail: string | null = null;
     private logBuffer: LogEntry[] = [];
@@ -49,7 +50,8 @@ export class GeminiLiveService {
         onAddPerson: (data: Partial<PersonNode>) => Promise<ToolResult> = async () => ({ success: false, message: "Tool not implemented" }),
         onUpdatePerson: (data: Partial<PersonNode>) => Promise<ToolResult> = async () => ({ success: false, message: "Tool not implemented" }),
         onSearchNodes: (query: string) => Promise<PersonNode[]> = async () => [],
-        onGetRecentNodes: (limit: number) => Promise<PersonNode[]> = async () => []
+        onGetRecentNodes: (limit: number) => Promise<PersonNode[]> = async () => [],
+        preferredVoice: string = "Puck"
     ) {
         this.onMessage = onMessage;
         this.onStatusChange = onStatusChange;
@@ -58,6 +60,7 @@ export class GeminiLiveService {
         this.onUpdatePerson = onUpdatePerson;
         this.onSearchNodes = onSearchNodes;
         this.onGetRecentNodes = onGetRecentNodes;
+        this.preferredVoice = preferredVoice;
 
         this.audioService = new AudioService(
             (base64Data) => this.sendAudioChunk(base64Data),
@@ -346,7 +349,7 @@ export class GeminiLiveService {
                     speech_config: {
                         voice_config: {
                             prebuilt_voice_config: {
-                                voice_name: "Puck"
+                                voice_name: this.preferredVoice
                             }
                         }
                     }
