@@ -1,5 +1,5 @@
 import type { TreeDocument, PersonNode } from '../logic/types';
-import { listTreeFiles, getFileContent, acquireLock, releaseLock, updateTreeFile } from './drive';
+import { listTreeFiles, getFileContent, acquireLock, releaseLock, updateTreeFile, loadTreeFromSheets } from './drive';
 import { getISTTimestamp } from '../logic/dateUtils';
 import { getTreeNameFromFilename } from '../logic/fileUtils';
 
@@ -52,6 +52,41 @@ export const GlobalTreeService = {
         });
 
         await Promise.all(promises);
+    },
+
+    async loadMainTreeFromSheets(): Promise<TreeDocument | null> {
+        try {
+            const nodes = await loadTreeFromSheets();
+            if (nodes.length === 0) return null;
+
+            // Convert flat array to record
+            const nodesRecord: Record<string, PersonNode> = {};
+            nodes.forEach(n => nodesRecord[n.nodeId] = n);
+
+            const treeDoc: TreeDocument = {
+                schemaVersion: 1,
+                treeId: 'sheets_main',
+                treeName: 'Main Family Tree',
+                versionIndex: 0,
+                timestamp: new Date().toISOString(),
+                rootNodeId: nodes.length > 0 ? nodes[0].nodeId : '',
+                nodes: nodesRecord,
+                marriages: [],
+                summary: [],
+                meta: {
+                    createdBy: 'Multiple (Sheets)',
+                    createdTime: new Date().toISOString(),
+                    nodeCount: nodes.length,
+                }
+            };
+
+            // Cache it
+            loadedTreesCache['sheets_main'] = treeDoc;
+            return treeDoc;
+        } catch (err) {
+            console.error("GlobalTreeService: Failed to load tree from Sheets", err);
+            return null;
+        }
     },
 
     // Unified Search

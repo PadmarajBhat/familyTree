@@ -1,6 +1,6 @@
 
 import { useEffect, useState, Suspense, lazy } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, grantWritePermission, grantLockFilePermission, renameFile, updateUserStarredTrees } from './services/drive';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, grantWritePermission, grantLockFilePermission, renameFile, updateUserStarredTrees, saveNodeToSheets, migrateTreeToSheets } from './services/drive';
 import { useTranslation } from 'react-i18next';
 import { GlobalTreeService } from './services/GlobalTreeService';
 import type { TreeDocument, PersonNode } from './logic/types';
@@ -40,6 +40,7 @@ function App() {
   const [tree, setTree] = useState<TreeDocument | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Loading...");
+  const [isSheetsMode, setIsSheetsMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
 
@@ -298,13 +299,52 @@ function App() {
     checkAccessAndLoad();
   }, [isSignedIn, isGapiReady, currentUser]);
 
+  const handleMigrateToStage2 = async () => {
+    if (!tree) return;
+    setLoading(true);
+    setLoadingMessage("Migrating to Stage 2 (Sheets)...");
+    try {
+      const success = await migrateTreeToSheets(Object.values(tree.nodes));
+      if (success) {
+        alert("Migration successful! Reloading tree from Sheets...");
+        window.location.reload();
+      } else {
+        alert("Migration failed. Please check console.");
+      }
+    } catch (err) {
+      alert("Migration error.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
 
   const loadTree = async (returnOnly = false, specificFileId?: string): Promise<TreeDocument | null> => {
     if (!returnOnly) setLoading(true);
     setError(null);
     setAccessDenied(false);
+
     try {
+      // PHASE 2: Check for Sheets tree first
+      const mainSheetsTree = await GlobalTreeService.loadMainTreeFromSheets();
+      if (mainSheetsTree) {
+        console.log("App: Successfully loaded tree from Sheets.");
+        if (!returnOnly) {
+          setTree(mainSheetsTree);
+          setIsSheetsMode(true);
+          setCurrentTreeId('sheets_main');
+          setCurrentTreeName('Main Family Tree');
+          setHomeAutoloadEnabled(false);
+          setLoading(false);
+        }
+        return mainSheetsTree;
+      }
+
+      console.log("App: Sheets tree not found, falling back to JSON files...");
+      setIsSheetsMode(false);
+
       const files = await listTreeFiles();
       if (files && files.length > 0) {
         // Check for user preference
@@ -564,6 +604,26 @@ function App() {
   };
 
   const saveWithMerge = async (localTree: TreeDocument, summaryText: string, explicitDeletions: string[] = []) => {
+    // PHASE 2: Sheets Mode logic
+    if (isSheetsMode) {
+      console.log("App: Saving in Sheets Mode (Atomic Sync)...");
+      setLoading(true);
+      setLoadingMessage("Saving to Sheets...");
+      try {
+        const nodes = Object.values(localTree.nodes);
+        for (const node of nodes) {
+          if (!node.externalLink) {
+            await saveNodeToSheets(node as PersonNode);
+          }
+        }
+        setTree(localTree);
+        GlobalTreeService.registerTree('sheets_main', localTree);
+        return localTree;
+      } finally {
+        setLoading(false);
+      }
+    }
+
     const todayFileName = generateFilename(currentTreeName);
     const files = await listTreeFiles();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1416,6 +1476,23 @@ function App() {
               >
                 Hourglass
               </button>
+              {!isSheetsMode && (
+                <button
+                  onClick={handleMigrateToStage2}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '15px',
+                    border: '1px solid #ff9800',
+                    background: '#fff3e0',
+                    color: '#e65100',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                  title="Upgrade this tree to Stage 2 (Google Sheets)"
+                >
+                  🚀 Migrate to Stage 2
+                </button>
+              )}
             </div>
           </div>
         )}

@@ -5,6 +5,7 @@ on:
     branches: 
       - main
       - gemini-live
+      - jsonToSheets
   workflow_dispatch:
 
 permissions:

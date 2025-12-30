@@ -1,5 +1,6 @@
 import { gapi } from 'gapi-script';
 import { CONFIG } from '../config';
+import type { PersonNode } from '../logic/types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const google: any;
@@ -734,3 +735,321 @@ export const appendGeminiLogToSheets = async (email: string, logEntries: { type:
         }
     }
 };
+
+/**
+ * PHASE 2: Tree Data in Sheets
+ * Two-Sheet Architecture: Nodes and Relationships
+ */
+
+let cachedTreeSpreadsheetId: string | null = null;
+
+const TREE_NODE_HEADERS = ['ID', 'Name', 'Gender', 'DOB', 'DOD', 'Email', 'Phone', 'District', 'State', 'Country', 'OccupationRole', 'OccupationOrg', 'Education', 'Hobbies', 'ImageUrl', 'Address', 'Notes', 'NameTranslations', 'LastUpdated'];
+const TREE_RELATION_HEADERS = ['FromID', 'ToID', 'Type', 'Timestamp'];
+
+export const getOrCreateTreeSpreadsheet = async (): Promise<string | null> => {
+    if (cachedTreeSpreadsheetId) return cachedTreeSpreadsheetId;
+
+    const folderId = CONFIG.DRIVE_TREE_FOLDER_ID;
+    const fileName = CONFIG.DRIVE_TREE_SPREADSHEET_NAME;
+
+    try {
+        // 1. Search for existing spreadsheet
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = await (gapi.client as any).drive.files.list({
+            q: `'${folderId}' in parents and trashed = false and name = '${fileName}' and mimeType = 'application/vnd.google-apps.spreadsheet'`,
+            fields: 'files(id, name)',
+        });
+
+        const files = response.result.files;
+        if (files && files.length > 0) {
+            cachedTreeSpreadsheetId = files[0].id;
+            console.log("Found existing tree spreadsheet:", cachedTreeSpreadsheetId);
+            return cachedTreeSpreadsheetId;
+        }
+
+        // 2. Create spreadsheet
+        console.log("Creating new tree spreadsheet...");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const createRes = await (gapi.client as any).sheets.spreadsheets.create({
+            resource: {
+                properties: { title: fileName },
+                sheets: [
+                    { properties: { title: 'Nodes' } },
+                    { properties: { title: 'Relationships' } }
+                ]
+            }
+        });
+
+        const spreadsheetId = createRes.result.spreadsheetId;
+
+        // Move to the correct folder
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (gapi.client as any).drive.files.update({
+            fileId: spreadsheetId,
+            addParents: folderId,
+            removeParents: 'root', // Google Sheets are created in root by default via Sheets API
+            fields: 'id, parents',
+        });
+
+        // 3. Initialize Headers
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (gapi.client as any).sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: spreadsheetId,
+            resource: {
+                data: [
+                    { range: 'Nodes!A1:R1', values: [TREE_NODE_HEADERS] },
+                    { range: 'Relationships!A1:D1', values: [TREE_RELATION_HEADERS] }
+                ],
+                valueInputOption: 'RAW'
+            }
+        });
+
+        cachedTreeSpreadsheetId = spreadsheetId;
+        console.log("Tree spreadsheet created and initialized:", spreadsheetId);
+        return spreadsheetId;
+
+    } catch (err) {
+        console.error("Error in getOrCreateTreeSpreadsheet", err);
+        return null;
+    }
+};
+
+/**
+ * Migration helper to push existing JSON tree to Sheets
+ */
+export const migrateTreeToSheets = async (nodes: PersonNode[]): Promise<boolean> => {
+    try {
+        const spreadsheetId = await getOrCreateTreeSpreadsheet();
+        if (!spreadsheetId) return false;
+
+        console.log(`Migrating ${nodes.length} nodes to Sheets...`);
+
+        // Prepare Node Rows
+        const nodeRows = nodes.map(n => [
+            n.nodeId,
+            n.name,
+            n.gender || '',
+            n.dob || '',
+            n.dod || '',
+            n.email || '',
+            n.phone || '',
+            n.location?.district || '',
+            n.location?.state || '',
+            n.location?.country || '',
+            n.occupation?.role || '',
+            n.occupation?.organization || '',
+            JSON.stringify(n.education || []),
+            JSON.stringify(n.hobbies || []),
+            n.imageUrl || '',
+            n.address || '',
+            n.notes || '',
+            JSON.stringify(n.nameTranslations || {}),
+            new Date().toISOString()
+        ]);
+
+        // Prepare Relationship Rows
+        const relRows: any[][] = [];
+        nodes.forEach(n => {
+            // Parent links
+            if (n.parentId) {
+                relRows.push([n.parentId, n.nodeId, 'parent', new Date().toISOString()]);
+            }
+            // Spouse links
+            if (n.spouseIds) {
+                n.spouseIds.forEach((sid: string) => {
+                    // To avoid duplicates in Sheet, we could sort IDs, but for appending, 
+                    // a simple "A is spouse of B" is fine. 
+                    // However, bidirectional links should probably be managed carefully.
+                    relRows.push([n.nodeId, sid, 'spouse', new Date().toISOString()]);
+                });
+            }
+        });
+
+        // Batch update
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (gapi.client as any).sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: spreadsheetId,
+            resource: {
+                data: [
+                    { range: 'Nodes!A2', values: nodeRows },
+                    { range: 'Relationships!A2', values: relRows }
+                ],
+                valueInputOption: 'RAW'
+            }
+        });
+
+        console.log("Migration to Sheets complete.");
+        return true;
+    } catch (err) {
+        console.error("Migration to Sheets failed", err);
+        return false;
+    }
+};
+
+export const saveNodeToSheets = async (node: Partial<PersonNode> & { nodeId: string }): Promise<void> => {
+    try {
+        const spreadsheetId = await getOrCreateTreeSpreadsheet();
+        if (!spreadsheetId) return;
+
+        // 1. Find if row exists
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = await (gapi.client as any).sheets.spreadsheets.values.get({
+            spreadsheetId: spreadsheetId,
+            range: 'Nodes!A:A', // Just ID column
+        });
+
+        const rows = response.result.values || [];
+        const rowIndex = rows.findIndex((r: string[]) => r[0] === node.nodeId);
+
+        const rowData = [
+            node.nodeId,
+            node.name || '',
+            node.gender || '',
+            node.dob || '',
+            node.dod || '',
+            node.email || '',
+            node.phone || '',
+            node.location?.district || '',
+            node.location?.state || '',
+            node.location?.country || '',
+            node.occupation?.role || '',
+            node.occupation?.organization || '',
+            JSON.stringify(node.education || []),
+            JSON.stringify(node.hobbies || []),
+            node.imageUrl || '',
+            node.address || '',
+            node.notes || '',
+            JSON.stringify(node.nameTranslations || {}),
+            new Date().toISOString()
+        ];
+
+        if (rowIndex !== -1) {
+            // Update existing row (index + 1 because Sheets is 1-indexed)
+            const range = `Nodes!A${rowIndex + 1}:R${rowIndex + 1}`;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (gapi.client as any).sheets.spreadsheets.values.update({
+                spreadsheetId: spreadsheetId,
+                range: range,
+                valueInputOption: 'RAW',
+                resource: { values: [rowData] }
+            });
+            console.log(`Updated node ${node.nodeId} in Sheets.`);
+        } else {
+            // Append new row
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (gapi.client as any).sheets.spreadsheets.values.append({
+                spreadsheetId: spreadsheetId,
+                range: 'Nodes!A:R',
+                valueInputOption: 'RAW',
+                resource: { values: [rowData] }
+            });
+            console.log(`Appended node ${node.nodeId} to Sheets.`);
+        }
+    } catch (err) {
+        console.error("Error saving node to Sheets", err);
+    }
+};
+
+export const saveRelationToSheets = async (fromId: string, toId: string, type: 'parent' | 'spouse'): Promise<void> => {
+    try {
+        const spreadsheetId = await getOrCreateTreeSpreadsheet();
+        if (!spreadsheetId) return;
+
+        const rowData = [fromId, toId, type, new Date().toISOString()];
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (gapi.client as any).sheets.spreadsheets.values.append({
+            spreadsheetId: spreadsheetId,
+            range: 'Relationships!A:D',
+            valueInputOption: 'RAW',
+            resource: { values: [rowData] }
+        });
+
+        console.log(`Saved ${type} relation: ${fromId} -> ${toId} to Sheets.`);
+    } catch (err) {
+        console.error("Error saving relation to Sheets", err);
+    }
+};
+
+export const loadTreeFromSheets = async (): Promise<PersonNode[]> => {
+    try {
+        const spreadsheetId = await getOrCreateTreeSpreadsheet();
+        if (!spreadsheetId) return [];
+
+        console.log("Loading tree from Sheets...");
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = await (gapi.client as any).sheets.spreadsheets.values.batchGet({
+            spreadsheetId: spreadsheetId,
+            ranges: ['Nodes!A2:R', 'Relationships!A2:D'],
+        });
+
+        const nodeData = response.result.valueRanges[0].values || [];
+        const relData = response.result.valueRanges[1].values || [];
+
+        // 2. Parse Nodes
+        const nodes: PersonNode[] = nodeData.map((row: any[]) => ({
+            nodeId: row[0],
+            name: row[1],
+            gender: row[2] as 'male' | 'female' | 'other' || null,
+            dob: row[3] || null,
+            dod: row[4] || null,
+            email: row[5] || null,
+            phone: row[6] || null,
+            location: (row[7] || row[8] || row[9]) ? {
+                district: row[7] || null,
+                state: row[8] || null,
+                country: row[9] || null,
+                zipcode: null
+            } : null,
+            occupation: (row[10] || row[11]) ? {
+                role: row[10] || '',
+                organization: row[11] || ''
+            } : null,
+            education: row[12] ? JSON.parse(row[12]) : [],
+            hobbies: row[13] ? JSON.parse(row[13]) : [],
+            imageUrl: row[14] || null,
+            address: row[15] || null,
+            notes: row[16] || null,
+            nameTranslations: row[17] ? JSON.parse(row[17]) : {},
+            spouseIds: [], // To be filled from Relationships
+            childrenIds: [], // To be filled from Relationships
+            parentId: null // To be filled from Relationships
+        }));
+
+        const nodeMap = new Map<string, PersonNode>();
+        nodes.forEach(n => nodeMap.set(n.nodeId, n));
+
+        // 3. Apply Relationships
+        relData.forEach((row: any[]) => {
+            const fromId = row[0];
+            const toId = row[1];
+            const type = row[2];
+
+            const fromNode = nodeMap.get(fromId);
+            const toNode = nodeMap.get(toId);
+
+            if (type === 'parent' && toNode) {
+                toNode.parentId = fromId;
+                if (fromNode && !fromNode.childrenIds.includes(toId)) {
+                    fromNode.childrenIds.push(toId);
+                }
+            } else if (type === 'spouse') {
+                if (fromNode && !fromNode.spouseIds.includes(toId)) {
+                    fromNode.spouseIds.push(toId);
+                }
+                if (toNode && !toNode.spouseIds.includes(fromId)) {
+                    toNode.spouseIds.push(fromId);
+                }
+            }
+        });
+
+        console.log(`Loaded ${nodes.length} nodes and ${relData.length} relationships from Sheets.`);
+        return nodes;
+
+    } catch (err) {
+        console.error("Error loading tree from Sheets", err);
+        return [];
+    }
+};
+
