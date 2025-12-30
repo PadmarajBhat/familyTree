@@ -12,6 +12,9 @@ let accessToken: string | null = null;
 let refreshInterval: any = null;
 let onAuthErrorCallback: ((error: string) => void) | null = null;
 
+let isSilentRefresh = false;
+let silentRefreshFailures = 0; // Track consecutive silent refresh failures
+
 export const setAuthErrorCallback = (cb: (error: string) => void) => {
     onAuthErrorCallback = cb;
 };
@@ -27,14 +30,13 @@ const setupTokenRefreshMonitor = () => {
         const now = Date.now();
         const timeLeftMs = expiresAt - now;
 
-        // Refresh 10 minutes before expiry (600,000 ms)
-        if (timeLeftMs > 0 && timeLeftMs < 10 * 60 * 1000) {
-            console.log(`Token expiring in ${(timeLeftMs / 1000 / 60).toFixed(1)}m. Triggering proactive silent refresh...`);
+        // Refresh 10 minutes before expiry (600,000 ms) OR if already expired (timeLeftMs <= 0).
+        // This ensures correct behavior even if the computer slept for hours.
+        if (timeLeftMs < 10 * 60 * 1000) {
+            const minutesLeft = (timeLeftMs / 1000 / 60).toFixed(1);
+            console.log(`Token check: Expires in ${minutesLeft}m (or expired). Triggering proactive silent refresh to extend session...`);
+            isSilentRefresh = true; // Flag this as a silent refresh
             tokenClient.requestAccessToken({ prompt: 'none' });
-        } else if (timeLeftMs <= 0) {
-            console.warn("Token already expired. Monitor will stop and rely on App error handling or manual sign-in.");
-            clearInterval(refreshInterval);
-            refreshInterval = null;
         }
     }, 60000); // Check every 1 minute
 };
@@ -93,6 +95,9 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                     callback: (tokenResponse: any) => {
                         console.log("GIS Token Callback received:", tokenResponse);
                         if (tokenResponse && tokenResponse.access_token) {
+                            // Success
+                            isSilentRefresh = false; // Reset flag
+                            silentRefreshFailures = 0; // Reset failure count on success
                             accessToken = tokenResponse.access_token;
                             localStorage.setItem('gapi_token', tokenResponse.access_token);
                             if (tokenResponse.expires_in) {
@@ -103,9 +108,23 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                             gapi.client.setToken(tokenResponse);
                             updateSigninStatus(true);
                         } else {
+                            // Error handling
                             if (tokenResponse && (tokenResponse.error === 'interaction_required' || tokenResponse.error === 'access_denied')) {
-                                if (onAuthErrorCallback) onAuthErrorCallback(tokenResponse.error);
+                                if (isSilentRefresh && tokenResponse.error === 'interaction_required') {
+                                    silentRefreshFailures++;
+                                    if (silentRefreshFailures >= 3) {
+                                        console.error(`Silent refresh failed ${silentRefreshFailures} times. Triggering Auth Error UI.`);
+                                        if (onAuthErrorCallback) onAuthErrorCallback(tokenResponse.error);
+                                    } else {
+                                        // Suppress error trigger for silent refresh failure
+                                        console.warn(`Silent refresh failed (${silentRefreshFailures}/3). Suppressing UI popup.`);
+                                    }
+                                } else {
+                                    // Normal flow or explicit login failure -> Show Popup/Error
+                                    if (onAuthErrorCallback) onAuthErrorCallback(tokenResponse.error);
+                                }
                             }
+                            isSilentRefresh = false; // Reset flag
                         }
                     },
                 });
