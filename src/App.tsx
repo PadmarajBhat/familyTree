@@ -1330,7 +1330,7 @@ function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>{currentTreeName && tree ? `${currentTreeName} 's ${t('appTitle')}` : (viewState === 'home' && currentUser ? t('dashboardTitle') : t('appTitle'))}</h1>
+        <h1>{currentTreeName && tree ? currentTreeName : (viewState === 'home' && currentUser ? t('dashboardTitle') : t('appTitle'))}</h1>
         < div className="auth-controls" >
           <div className="menu-container">
             <button
@@ -1757,6 +1757,52 @@ function App() {
 
                 await executeWithLock(async (latestTree, _lockId) => {
                   if (!latestTree) throw new Error("Failed to load tree for locking.");
+
+                  // Check for existing duplicates in the tree (deeper deduplication)
+                  // 1. Check if child with same name exists under this parent
+                  if (data.parentId && latestTree.nodes[data.parentId]) {
+                    const parent = latestTree.nodes[data.parentId];
+                    const existingChildId = parent.childrenIds.find(cid => {
+                      const child = latestTree.nodes[cid];
+                      return child && (
+                        (child.name && child.name.toLowerCase() === data.name?.toLowerCase()) ||
+                        (child.nameTranslations && Object.values(child.nameTranslations).some(t => t && t.toLowerCase() === data.name?.toLowerCase()))
+                      );
+                    });
+
+                    if (existingChildId) {
+                      console.log(`Duplicate detected: ${data.name} is already a child of ${parent.name}`);
+                      resultMessage = `Deduplicated: ${data.name} already exists as a child of ${parent.name}.`;
+                      resultNodeId = existingChildId;
+                      return;
+                    }
+                  }
+
+                  // 2. Check if spouse with same name exists
+                  if (data.spouseIds && data.spouseIds.length > 0) {
+                    // If adding a spouse, check if the current spouse already has a spouse with this name
+                    const distinctSpouses = new Set(data.spouseIds);
+                    let existingSpouseId: string | undefined;
+                    distinctSpouses.forEach(id => {
+                      const s = latestTree.nodes[id];
+                      if (s && s.spouseIds) {
+                        const found = s.spouseIds.find(sid => {
+                          const sp = latestTree.nodes[sid];
+                          return sp && (
+                            (sp.name && sp.name.toLowerCase() === data.name?.toLowerCase())
+                          );
+                        });
+                        if (found) existingSpouseId = found;
+                      }
+                    });
+
+                    if (existingSpouseId) {
+                      console.log(`Duplicate detected: ${data.name} is already a spouse.`);
+                      resultMessage = `Deduplicated: ${data.name} already exists as a spouse.`;
+                      resultNodeId = existingSpouseId;
+                      return;
+                    }
+                  }
 
                   // Create new node
                   const newNodeId = uuidv4();
