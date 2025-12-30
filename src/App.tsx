@@ -1,6 +1,6 @@
 
 import { useEffect, useState, Suspense, lazy } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, grantWritePermission, grantLockFilePermission, renameFile, updateUserStarredTrees, saveNodeToSheets, migrateTreeToSheets, setAuthErrorCallback, searchNodesInSheets, getRecentNodesFromSheets, saveMetadataToSheets } from './services/drive';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, grantWritePermission, grantLockFilePermission, renameFile, updateUserStarredTrees, saveNodesBatchToSheets, deleteNodesFromSheets, syncAllRelationshipsToSheets, migrateTreeToSheets, setAuthErrorCallback, searchNodesInSheets, getRecentNodesFromSheets, saveMetadataToSheets } from './services/drive';
 import { useTranslation } from 'react-i18next';
 import { GlobalTreeService } from './services/GlobalTreeService';
 import type { TreeDocument, PersonNode } from './logic/types';
@@ -614,21 +614,31 @@ function App() {
     setEditorMode('add');
   };
 
-  const saveWithMerge = async (localTree: TreeDocument, summaryText: string, explicitDeletions: string[] = []) => {
+  const saveWithMerge = async (localTree: TreeDocument, summaryText: string, explicitDeletions: string[] = [], affectedNodeIds?: string[]) => {
     // PHASE 2: Sheets Mode logic
     if (isSheetsMode) {
-      console.log("App: Saving in Sheets Mode (Atomic Sync)...");
+      console.log("App: Saving in Sheets Mode (Selective Sync)...");
       setLoading(true);
       setLoadingMessage("Saving to Sheets...");
       try {
-        const nodes = Object.values(localTree.nodes);
-        for (const node of nodes) {
-          if (!node.externalLink) {
-            await saveNodeToSheets(node as PersonNode);
-          }
+        // 1. Sync Nodes (Selective if IDs provided, else all)
+        const nodesToSync = affectedNodeIds
+          ? affectedNodeIds.map(id => localTree.nodes[id]).filter(n => n && !n.externalLink) as PersonNode[]
+          : Object.values(localTree.nodes).filter(n => !n.externalLink) as PersonNode[];
+
+        if (nodesToSync.length > 0) {
+          await saveNodesBatchToSheets(nodesToSync);
         }
 
-        // Sync Metadata for logical root preservation and info
+        // 2. Handle Deletions
+        if (explicitDeletions.length > 0) {
+          await deleteNodesFromSheets(explicitDeletions);
+        }
+
+        // 3. Sync All Relationships (Keeps sheet clean and is very fast for < 500 nodes)
+        await syncAllRelationshipsToSheets(Object.values(localTree.nodes));
+
+        // 4. Sync Metadata for logical root preservation
         await saveMetadataToSheets({
           treeId: localTree.treeId,
           treeName: localTree.treeName,
@@ -758,13 +768,16 @@ function App() {
       const oldNode = editorMode === 'edit' ? updatedTree.nodes[personData.nodeId] : null;
       const oldParentId = oldNode?.parentId || null;
 
+      const affectedIds = new Set<string>();
       const touchNode = (nodeId: string) => {
         if (updatedTree.nodes[nodeId]) {
           updatedTree.nodes[nodeId].editedBy = currentUser?.email || 'unknown';
           updatedTree.nodes[nodeId].editedTime = getISTTimestamp();
+          affectedIds.add(nodeId);
         }
       };
 
+      affectedIds.add(personData.nodeId);
       personData.editedBy = currentUser?.email || 'unknown';
       personData.editedTime = getISTTimestamp();
 
@@ -1039,7 +1052,7 @@ function App() {
 
       try {
         setLoading(true);
-        const savedTree = await saveWithMerge(updatedTree, summaryText);
+        const savedTree = await saveWithMerge(updatedTree, summaryText, [], Array.from(affectedIds));
 
         if (personData.email) {
           // Grant permission if new/edited person has an email
@@ -1122,7 +1135,7 @@ function App() {
 
       try {
         setLoading(true);
-        const savedTree = await saveWithMerge(updatedTree, updatedTree.summary[0]?.changes || "Deleted member", [nodeId]);
+        const savedTree = await saveWithMerge(updatedTree, updatedTree.summary[0]?.changes || "Deleted member", [nodeId], []);
 
         setTree(savedTree);
         setSelectedNodeId(null); // Close detail view
@@ -1800,7 +1813,11 @@ function App() {
                   latestTree.meta.nodeCount = Object.keys(latestTree.nodes).length;
 
                   const summary = changes.join(", ");
-                  await saveWithMerge(latestTree, summary);
+                  const affectedIds = [newNodeId];
+                  if (data.parentId) affectedIds.push(data.parentId);
+                  if (data.spouseIds) affectedIds.push(...data.spouseIds);
+
+                  await saveWithMerge(latestTree, summary, [], affectedIds);
                   resultMessage = `Added ${newNode.name} (ID: ${newNode.nodeId}) successfully.`;
                   // Capture result
                   resultNodeId = newNodeId;
@@ -1879,7 +1896,11 @@ function App() {
                   if (changed) {
                     node.editedBy = currentUser.email;
                     node.editedTime = now;
-                    await saveWithMerge(latestTree, `Updated ${node.name}`);
+
+                    const affectedIds = [node.nodeId];
+                    if (data.spouseIds) affectedIds.push(...data.spouseIds);
+
+                    await saveWithMerge(latestTree, `Updated ${node.name}`, [], affectedIds);
                     resultMessage = `Updated ${node.name} (ID: ${node.nodeId}) successfully.`;
                     resultNodeId = node.nodeId;
                   } else {

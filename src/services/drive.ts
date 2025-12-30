@@ -1002,6 +1002,8 @@ export const saveNodesBatchToSheets = async (nodes: PersonNode[]): Promise<void>
         const appends: any[][] = [];
 
         nodes.forEach(node => {
+            if (node.externalLink) return; // Skip shadow nodes from other trees
+
             const rowData = [
                 node.nodeId,
                 node.name || '',
@@ -1065,6 +1067,79 @@ export const saveNodesBatchToSheets = async (nodes: PersonNode[]): Promise<void>
     }
 };
 
+/**
+ * Delete nodes from Sheets by clearing their rows and updating relationships
+ */
+export const deleteNodesFromSheets = async (nodeIds: string[]): Promise<void> => {
+    try {
+        const spreadsheetId = await getOrCreateTreeSpreadsheet();
+        if (!spreadsheetId) return;
+
+        // 1. Clear rows in Nodes sheet
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const nodeResp = await (gapi.client as any).sheets.spreadsheets.values.get({
+            spreadsheetId: spreadsheetId,
+            range: 'Nodes!A:A',
+        });
+        const currentRows = nodeResp.result.values || [];
+        const updates: { range: string; values: any[][] }[] = [];
+
+        nodeIds.forEach(id => {
+            const rowIndex = currentRows.findIndex((row: string[]) => row[0] === id);
+            if (rowIndex !== -1) {
+                // Clear the row (A to S)
+                updates.push({
+                    range: `Nodes!A${rowIndex + 1}:S${rowIndex + 1}`,
+                    values: [new Array(19).fill('')]
+                });
+            }
+        });
+
+        if (updates.length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (gapi.client as any).sheets.spreadsheets.values.batchUpdate({
+                spreadsheetId: spreadsheetId,
+                resource: {
+                    data: updates,
+                    valueInputOption: 'RAW'
+                }
+            });
+        }
+
+        // 2. Remove from Relationships sheet
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const relResp = await (gapi.client as any).sheets.spreadsheets.values.get({
+            spreadsheetId: spreadsheetId,
+            range: 'Relationships!A2:F',
+        });
+        const allRels = relResp.result.values || [];
+        const filteredRels = allRels.filter((row: any[]) => !nodeIds.includes(row[0]) && !nodeIds.includes(row[1]));
+
+        if (allRels.length !== filteredRels.length) {
+            // Clear entire range first
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (gapi.client as any).sheets.spreadsheets.values.clear({
+                spreadsheetId: spreadsheetId,
+                range: 'Relationships!A2:F',
+            });
+
+            if (filteredRels.length > 0) {
+                // Write back filtered rels
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (gapi.client as any).sheets.spreadsheets.values.update({
+                    spreadsheetId: spreadsheetId,
+                    range: 'Relationships!A2',
+                    valueInputOption: 'RAW',
+                    resource: { values: filteredRels }
+                });
+            }
+        }
+        console.log(`Deleted ${nodeIds.length} nodes from Sheets.`);
+    } catch (err) {
+        console.error("Error deleting nodes from Sheets", err);
+    }
+};
+
 export const saveMetadataToSheets = async (metadata: Record<string, string>): Promise<void> => {
     try {
         const spreadsheetId = await getOrCreateTreeSpreadsheet();
@@ -1082,6 +1157,65 @@ export const saveMetadataToSheets = async (metadata: Record<string, string>): Pr
         console.log("Updated tree metadata in Sheets.");
     } catch (err) {
         console.error("Error saving metadata to Sheets", err);
+    }
+};
+
+
+/**
+ * Optimized: Save all relationships for the entire tree to Sheets in one go.
+ * This ensures no stale links remain after edits/deletions.
+ */
+export const syncAllRelationshipsToSheets = async (allNodes: PersonNode[]): Promise<void> => {
+    try {
+        const spreadsheetId = await getOrCreateTreeSpreadsheet();
+        if (!spreadsheetId) return;
+
+        const nodeMap = new Map<string, PersonNode>();
+        allNodes.forEach(n => nodeMap.set(n.nodeId, n));
+
+        const relRows: any[][] = [];
+        const now = new Date().toISOString();
+
+        allNodes.forEach(node => {
+            const childName = node.name || 'Unknown';
+            // Parent Link
+            if (node.parentId) {
+                const parentNode = nodeMap.get(node.parentId);
+                const parentName = parentNode?.name || 'Unknown';
+                relRows.push([node.parentId, node.nodeId, 'parent', now, parentName, childName]);
+            }
+            // Spouse Links
+            if (node.spouseIds) {
+                node.spouseIds.forEach(spouseId => {
+                    // Only add each pair once (ID1 < ID2) to keep sheet clean
+                    if (node.nodeId < spouseId) {
+                        const spouseNode = nodeMap.get(spouseId);
+                        const spouseName = spouseNode?.name || 'Unknown';
+                        relRows.push([node.nodeId, spouseId, 'spouse', now, childName, spouseName]);
+                    }
+                });
+            }
+        });
+
+        // Clear and Update
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (gapi.client as any).sheets.spreadsheets.values.clear({
+            spreadsheetId: spreadsheetId,
+            range: 'Relationships!A2:F',
+        });
+
+        if (relRows.length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (gapi.client as any).sheets.spreadsheets.values.update({
+                spreadsheetId: spreadsheetId,
+                range: 'Relationships!A2',
+                valueInputOption: 'RAW',
+                resource: { values: relRows }
+            });
+        }
+        console.log(`Synced ${relRows.length} relationships to Sheets.`);
+    } catch (err) {
+        console.error("Error syncing all relationships to Sheets", err);
     }
 };
 
