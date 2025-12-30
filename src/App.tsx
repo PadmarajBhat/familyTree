@@ -1,5 +1,5 @@
 
-import { useEffect, useState, Suspense, lazy } from 'react';
+import { useEffect, useState, Suspense, lazy, useRef } from 'react';
 import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, grantWritePermission, grantLockFilePermission, renameFile, updateUserStarredTrees, saveNodesBatchToSheets, deleteNodesFromSheets, syncAllRelationshipsToSheets, migrateTreeToSheets, setAuthErrorCallback, searchNodesInSheets, getRecentNodesFromSheets, saveMetadataToSheets } from './services/drive';
 import { useTranslation } from 'react-i18next';
 import { GlobalTreeService } from './services/GlobalTreeService';
@@ -44,6 +44,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const recentToolCalls = useRef<Map<string, number>>(new Map());
 
   const [isGapiReady, setIsGapiReady] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -621,25 +622,28 @@ function App() {
       setLoading(true);
       setLoadingMessage("Saving to Sheets...");
       try {
+        // Parallelized Sync for Sheets Mode
+        const syncTasks: Promise<any>[] = [];
+
         // 1. Sync Nodes (Selective if IDs provided, else all)
         const nodesToSync = affectedNodeIds
           ? affectedNodeIds.map(id => localTree.nodes[id]).filter(n => n && !n.externalLink) as PersonNode[]
           : Object.values(localTree.nodes).filter(n => !n.externalLink) as PersonNode[];
 
         if (nodesToSync.length > 0) {
-          await saveNodesBatchToSheets(nodesToSync);
+          syncTasks.push(saveNodesBatchToSheets(nodesToSync));
         }
 
         // 2. Handle Deletions
         if (explicitDeletions.length > 0) {
-          await deleteNodesFromSheets(explicitDeletions);
+          syncTasks.push(deleteNodesFromSheets(explicitDeletions));
         }
 
         // 3. Sync All Relationships (Keeps sheet clean and is very fast for < 500 nodes)
-        await syncAllRelationshipsToSheets(Object.values(localTree.nodes));
+        syncTasks.push(syncAllRelationshipsToSheets(Object.values(localTree.nodes)));
 
         // 4. Sync Metadata for logical root preservation
-        await saveMetadataToSheets({
+        syncTasks.push(saveMetadataToSheets({
           treeId: localTree.treeId,
           treeName: localTree.treeName,
           rootNodeId: localTree.rootNodeId,
@@ -648,7 +652,9 @@ function App() {
           timestamp: localTree.timestamp,
           createdBy: localTree.meta.createdBy,
           createdTime: localTree.meta.createdTime
-        });
+        }));
+
+        await Promise.all(syncTasks);
 
         setTree(localTree);
         GlobalTreeService.registerTree('sheets_main', localTree);
@@ -1482,7 +1488,7 @@ function App() {
           </div>
         )}
 
-        {tree && !loading && !error && !accessDenied && !showDashboard && (
+        {tree && !error && !accessDenied && !showDashboard && (
           <div className="view-toggle-bar" style={{ display: 'flex', justifyContent: 'center', padding: '10px', background: '#fff', borderBottom: '1px solid #eee' }}>
             <div style={{ display: 'flex', gap: '10px', background: '#f0f0f0', padding: '5px', borderRadius: '20px' }}>
               <button
@@ -1534,7 +1540,7 @@ function App() {
           </div>
         )}
 
-        {!loading && !error && (
+        {!error && (
           <Suspense fallback={<LoadingOverlay message="Loading UI..." />}>
             {tree && !accessDenied && !showDashboard && viewState === 'tree' && (
               <>
@@ -1736,6 +1742,14 @@ function App() {
               // Simple permission check
               if (!canEdit(currentUser.email)) return { success: false, message: "You do not have permission to edit this tree." };
 
+              // Deduplication check
+              const callKey = `add_${JSON.stringify(data)}`;
+              const lastCall = recentToolCalls.current.get(callKey);
+              if (lastCall && Date.now() - lastCall < 60000) {
+                console.log("Deduplicating Gemini Add Person call:", data);
+                return { success: true, message: "Deduplicated: This person was already added recently.", nodeId: "existing" };
+              }
+              recentToolCalls.current.set(callKey, Date.now());
               try {
                 let resultMessage = "";
                 // Define resultNodeId in the outer scope
@@ -1841,6 +1855,14 @@ function App() {
               if (!data.nodeId) return { success: false, message: "Node ID missing." };
               if (!canEdit(currentUser.email)) return { success: false, message: "Permission denied." };
 
+              // Deduplication check
+              const callKey = `update_${JSON.stringify(data)}`;
+              const lastCall = recentToolCalls.current.get(callKey);
+              if (lastCall && Date.now() - lastCall < 30000) {
+                console.log("Deduplicating Gemini Update Person call:", data);
+                return { success: true, message: "Deduplicated: This update was already applied recently." };
+              }
+              recentToolCalls.current.set(callKey, Date.now());
               try {
                 let resultMessage = "";
                 let resultNodeId: string | undefined;

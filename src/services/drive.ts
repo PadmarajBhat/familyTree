@@ -1106,35 +1106,8 @@ export const deleteNodesFromSheets = async (nodeIds: string[]): Promise<void> =>
             });
         }
 
-        // 2. Remove from Relationships sheet
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const relResp = await (gapi.client as any).sheets.spreadsheets.values.get({
-            spreadsheetId: spreadsheetId,
-            range: 'Relationships!A2:F',
-        });
-        const allRels = relResp.result.values || [];
-        const filteredRels = allRels.filter((row: any[]) => !nodeIds.includes(row[0]) && !nodeIds.includes(row[1]));
-
-        if (allRels.length !== filteredRels.length) {
-            // Clear entire range first
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (gapi.client as any).sheets.spreadsheets.values.clear({
-                spreadsheetId: spreadsheetId,
-                range: 'Relationships!A2:F',
-            });
-
-            if (filteredRels.length > 0) {
-                // Write back filtered rels
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                await (gapi.client as any).sheets.spreadsheets.values.update({
-                    spreadsheetId: spreadsheetId,
-                    range: 'Relationships!A2',
-                    valueInputOption: 'RAW',
-                    resource: { values: filteredRels }
-                });
-            }
-        }
-        console.log(`Deleted ${nodeIds.length} nodes from Sheets.`);
+        // Relationship cleanup handled by syncAllRelationshipsToSheets
+        console.log(`Cleared ${nodeIds.length} node rows in Sheets.`);
     } catch (err) {
         console.error("Error deleting nodes from Sheets", err);
     }
