@@ -383,9 +383,11 @@ export class GeminiLiveService {
             return;
         }
 
-        // FORCE DEBUGGING LOG to trap the "Missing Tool Call" issue
-        // This will print every message from Gemini to the console.
-        console.log("Full Gemini Message:", JSON.stringify(msg, null, 2));
+        // Log the message only if it's not a streaming audio chunk
+        const hasAudio = msg.serverContent?.modelTurn?.parts?.some((p: any) => p.inlineData);
+        if (!hasAudio) {
+            console.log("Full Gemini Message:", JSON.stringify(msg, null, 2));
+        }
 
         try {
             if (msg.serverContent) {
