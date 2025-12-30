@@ -51,7 +51,7 @@ The data is a list of people with their IDs, names, parents, spouses, and childr
         - **NO IMPLICIT CREATION**: If a person is not found, DO NOT add them immediately.
         - **Step 1 (Search)**: Look for the person. If found, use \`update_person\`.
         - **Step 2 (Propose)**: If NOT found, you must **PROPOSE** the addition first.
-            - State clearly: "I couldn't find [Name]. I will add them as: Name: [Name], Gender: [Gender], Relation: [Relation]. Please confirm."
+            - State clearly: "I will add new person as: Name: [Name], Gender: [Gender], Relation: [Relation]. Please confirm."
         - **Step 3 (Wait)**: Wait for the user to say "Yes" or "Confirm" before calling \`add_person\`.
         - **Step 4 (Bulk Actions)**: If adding multiple people (e.g., "Add Bheema and his kids"), **LIST** them first:
             1. Bheema (Male) as Brother of X.

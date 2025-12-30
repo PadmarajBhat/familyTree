@@ -308,6 +308,15 @@ export class GeminiLiveService {
                                     dod: { type: "STRING", description: "Date of Death in YYYY-MM-DD format. If deceased." },
                                     parent_id: { type: "STRING", description: "ID of the parent (nodeId) if known. Use existing IDs from the JSON." },
                                     spouse_id: { type: "STRING", description: "ID of the spouse (nodeId) if known." },
+                                    phone: { type: "STRING", description: "Mobile/Phone number." },
+                                    location_district: { type: "STRING", description: "District/City of residence." },
+                                    location_state: { type: "STRING", description: "State/Region of residence." },
+                                    location_country: { type: "STRING", description: "Country of residence." },
+                                    occupation_role: { type: "STRING", description: "Job title or role." },
+                                    occupation_org: { type: "STRING", description: "Company or organization." },
+                                    education_degree: { type: "STRING", description: "Highest degree (e.g. B.Tech, PhD)." },
+                                    education_major: { type: "STRING", description: "Field of study (e.g. CS, Physics)." },
+                                    hobbies: { type: "STRING", description: "Comma separated list of hobbies." },
                                     relation_type: { type: "STRING", description: "Contextual relation note (e.g. 'son of X')." }
                                 },
                                 required: ["name"]
@@ -325,7 +334,16 @@ export class GeminiLiveService {
                                     dod: { type: "STRING", description: "Updated DOD (YYYY-MM-DD)." },
                                     gender: { type: "STRING", enum: ["male", "female", "other"] },
                                     email: { type: "STRING", description: "Email address." },
-                                    spouse_id: { type: "STRING", description: "ID of the spouse to link (nodeId)." }
+                                    spouse_id: { type: "STRING", description: "ID of the spouse to link (nodeId)." },
+                                    phone: { type: "STRING", description: "Updated Mobile/Phone number." },
+                                    location_district: { type: "STRING", description: "Updated District/City." },
+                                    location_state: { type: "STRING", description: "Updated State." },
+                                    location_country: { type: "STRING", description: "Updated Country." },
+                                    occupation_role: { type: "STRING", description: "Updated Job title." },
+                                    occupation_org: { type: "STRING", description: "Updated Company." },
+                                    education_degree: { type: "STRING", description: "Updated Degree." },
+                                    education_major: { type: "STRING", description: "Updated Major." },
+                                    hobbies: { type: "STRING", description: "Updated hobbies (comma separated)." }
                                 },
                                 required: ["node_id"]
                             }
@@ -485,9 +503,24 @@ export class GeminiLiveService {
                                     name: args.name,
                                     gender: args.gender || null,
                                     dob: args.dob || null,
-                                    dod: args.dod || null,
                                     parentId: args.parent_id || null,
                                     spouseIds: args.spouse_id ? [args.spouse_id] : [],
+                                    phone: args.phone || null,
+                                    location: (args.location_district || args.location_state || args.location_country) ? {
+                                        district: args.location_district || null,
+                                        state: args.location_state || null,
+                                        country: args.location_country || null,
+                                        zipcode: null
+                                    } : null,
+                                    occupation: (args.occupation_role || args.occupation_org) ? {
+                                        role: args.occupation_role || '',
+                                        organization: args.occupation_org || ''
+                                    } : null,
+                                    education: (args.education_degree || args.education_major) ? [{
+                                        degree: args.education_degree || '',
+                                        major: args.education_major || ''
+                                    }] : [],
+                                    hobbies: args.hobbies ? args.hobbies.split(',').map((s: string) => s.trim()) : []
                                 });
                                 if (response.success) {
                                     // If parent_id was provided, we can try to link? 
@@ -525,7 +558,23 @@ export class GeminiLiveService {
                                     dod: args.dod,
                                     gender: args.gender,
                                     email: args.email,
-                                    spouseIds: args.spouse_id ? [args.spouse_id] : []
+                                    spouseIds: args.spouse_id ? [args.spouse_id] : [],
+                                    phone: args.phone,
+                                    location: (args.location_district || args.location_state || args.location_country) ? {
+                                        district: args.location_district || null,
+                                        state: args.location_state || null,
+                                        country: args.location_country || null,
+                                        zipcode: null
+                                    } : undefined,
+                                    occupation: (args.occupation_role || args.occupation_org) ? {
+                                        role: args.occupation_role || '',
+                                        organization: args.occupation_org || ''
+                                    } : undefined,
+                                    education: (args.education_degree || args.education_major) ? [{
+                                        degree: args.education_degree || '',
+                                        major: args.education_major || ''
+                                    }] : undefined,
+                                    hobbies: args.hobbies ? args.hobbies.split(',').map((s: string) => s.trim()) : undefined
                                 });
                                 result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
 

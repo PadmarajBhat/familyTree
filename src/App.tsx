@@ -1641,15 +1641,18 @@ function App() {
                   const newNode: PersonNode = {
                     nodeId: newNodeId,
                     name: data.name || "Unknown",
-                    gender: data.gender || undefined,
-                    dob: data.dob || null,
+                    gender: data.gender || null,
+                    imageUrl: null,
+                    phone: data.phone || null, phoneE164: null, email: data.email || null,
+                    dob: data.dob || null, dobApprox: { known: false, year: null, month: null, day: null },
                     dod: data.dod || null,
-                    email: data.email || null,
-                    // Defaults
-                    imageUrl: null, phone: null, phoneE164: null, dobApprox: { known: false, year: null, month: null, day: null },
                     dodApprox: { known: false, year: null, month: null, day: null }, dobInferred: false,
                     ageProvided: null,
-                    address: { freeform: null }, location: null,
+                    address: { freeform: null },
+                    location: data.location ? { ...data.location, zipcode: null } : null,
+                    occupation: data.occupation || null,
+                    education: data.education || [],
+                    hobbies: data.hobbies || [],
                     spouseIds: [], childrenIds: [], parentId: null,
                     isEditor: false, editorSince: null,
                     editedBy: currentUser.email, editedTime: now,
@@ -1731,6 +1734,26 @@ function App() {
                   if (data.dod !== undefined) { node.dod = data.dod; changed = true; }
                   if (data.gender) { node.gender = data.gender; changed = true; }
                   if (data.email) { node.email = data.email; changed = true; }
+                  if (data.phone !== undefined) { node.phone = data.phone; changed = true; }
+                  if (data.location) {
+                    // Merge or overwrite location
+                    node.location = { ...node.location, ...data.location };
+                    console.log("Updated location:", node.location);
+                    changed = true;
+                  }
+                  if (data.occupation) { node.occupation = data.occupation; changed = true; }
+                  if (data.education && data.education.length > 0) {
+                    // Append new education entries
+                    node.education = [...(node.education || []), ...data.education];
+                    changed = true;
+                  }
+                  if (data.hobbies && data.hobbies.length > 0) {
+                    // Merge hobbies (unique)
+                    const existing = new Set(node.hobbies || []);
+                    data.hobbies.forEach(h => existing.add(h));
+                    node.hobbies = Array.from(existing);
+                    changed = true;
+                  }
 
                   // Handle Spouse Linking
                   if (data.spouseIds && data.spouseIds.length > 0) {
