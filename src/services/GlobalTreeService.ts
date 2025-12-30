@@ -56,7 +56,7 @@ export const GlobalTreeService = {
 
     async loadMainTreeFromSheets(): Promise<TreeDocument | null> {
         try {
-            const nodes = await loadTreeFromSheets();
+            const { nodes, metadata } = await loadTreeFromSheets();
             if (nodes.length === 0) return null;
 
             // Convert flat array to record
@@ -64,24 +64,34 @@ export const GlobalTreeService = {
             nodes.forEach(n => nodesRecord[n.nodeId] = n);
 
             const treeDoc: TreeDocument = {
-                schemaVersion: 1,
-                treeId: 'sheets_main',
-                treeName: 'Main Family Tree',
-                versionIndex: 0,
-                timestamp: new Date().toISOString(),
-                rootNodeId: nodes.length > 0 ? nodes[0].nodeId : '',
+                schemaVersion: metadata.schemaVersion ? parseInt(metadata.schemaVersion) : 1,
+                treeId: metadata.treeId || 'sheets_main',
+                treeName: metadata.treeName || 'Main Family Tree',
+                versionIndex: metadata.versionIndex ? parseInt(metadata.versionIndex) : 0,
+                timestamp: metadata.timestamp || new Date().toISOString(),
+                rootNodeId: metadata.rootNodeId || (nodes.length > 0 ? nodes[0].nodeId : ''),
                 nodes: nodesRecord,
                 marriages: [],
                 summary: [],
                 meta: {
-                    createdBy: 'Multiple (Sheets)',
-                    createdTime: new Date().toISOString(),
+                    createdBy: metadata.createdBy || 'Multiple (Sheets)',
+                    createdTime: metadata.createdTime || new Date().toISOString(),
                     nodeCount: nodes.length,
                 }
             };
 
+            // Logic Check: Ensure rootNodeId exists in nodes. Fix if missing.
+            if (treeDoc.rootNodeId && !treeDoc.nodes[treeDoc.rootNodeId]) {
+                const orphan = nodes.find(n => !n.parentId);
+                if (orphan) {
+                    treeDoc.rootNodeId = orphan.nodeId;
+                } else if (nodes.length > 0) {
+                    treeDoc.rootNodeId = nodes[0].nodeId;
+                }
+            }
+
             // Cache it
-            loadedTreesCache['sheets_main'] = treeDoc;
+            loadedTreesCache[treeDoc.treeId] = treeDoc;
             return treeDoc;
         } catch (err) {
             console.error("GlobalTreeService: Failed to load tree from Sheets", err);

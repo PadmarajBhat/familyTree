@@ -1,6 +1,6 @@
 
 import { useEffect, useState, Suspense, lazy } from 'react';
-import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, grantWritePermission, grantLockFilePermission, renameFile, updateUserStarredTrees, saveNodeToSheets, migrateTreeToSheets, setAuthErrorCallback, searchNodesInSheets, getRecentNodesFromSheets } from './services/drive';
+import { initGoogleClient, signIn, signOut, listTreeFiles, getFileContent, getUserProfile, saveTreeFile, updateTreeFile, acquireLock, releaseLock, checkLock, getPreferences, grantWritePermission, grantLockFilePermission, renameFile, updateUserStarredTrees, saveNodeToSheets, migrateTreeToSheets, setAuthErrorCallback, searchNodesInSheets, getRecentNodesFromSheets, saveMetadataToSheets } from './services/drive';
 import { useTranslation } from 'react-i18next';
 import { GlobalTreeService } from './services/GlobalTreeService';
 import type { TreeDocument, PersonNode } from './logic/types';
@@ -315,7 +315,7 @@ function App() {
     setLoading(true);
     setLoadingMessage("Migrating to Stage 2 (Sheets)...");
     try {
-      const success = await migrateTreeToSheets(Object.values(tree.nodes));
+      const success = await migrateTreeToSheets(tree);
       if (success) {
         alert("Migration successful! Reloading tree from Sheets...");
         window.location.reload();
@@ -627,6 +627,19 @@ function App() {
             await saveNodeToSheets(node as PersonNode);
           }
         }
+
+        // Sync Metadata for logical root preservation and info
+        await saveMetadataToSheets({
+          treeId: localTree.treeId,
+          treeName: localTree.treeName,
+          rootNodeId: localTree.rootNodeId,
+          schemaVersion: String(localTree.schemaVersion),
+          versionIndex: String(localTree.versionIndex),
+          timestamp: localTree.timestamp,
+          createdBy: localTree.meta.createdBy,
+          createdTime: localTree.meta.createdTime
+        });
+
         setTree(localTree);
         GlobalTreeService.registerTree('sheets_main', localTree);
         return localTree;

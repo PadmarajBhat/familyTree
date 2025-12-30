@@ -1,6 +1,6 @@
 import { gapi } from 'gapi-script';
 import { CONFIG } from '../config';
-import type { PersonNode } from '../logic/types';
+import type { PersonNode, TreeDocument } from '../logic/types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const google: any;
@@ -745,7 +745,8 @@ export const appendGeminiLogToSheets = async (email: string, logEntries: { type:
 let cachedTreeSpreadsheetId: string | null = null;
 
 const TREE_NODE_HEADERS = ['ID', 'Name', 'Gender', 'DOB', 'DOD', 'Email', 'Phone', 'District', 'State', 'Country', 'OccupationRole', 'OccupationOrg', 'Education', 'Hobbies', 'ImageUrl', 'Address', 'Notes', 'NameTranslations', 'LastUpdated'];
-const TREE_RELATION_HEADERS = ['FromID', 'ToID', 'Type', 'Timestamp'];
+const TREE_RELATION_HEADERS = ['FromID', 'ToID', 'Type', 'Timestamp', 'FromName', 'ToName'];
+const TREE_METADATA_HEADERS = ['Key', 'Value'];
 
 export const getOrCreateTreeSpreadsheet = async (): Promise<string | null> => {
     if (cachedTreeSpreadsheetId) return cachedTreeSpreadsheetId;
@@ -776,7 +777,8 @@ export const getOrCreateTreeSpreadsheet = async (): Promise<string | null> => {
                 properties: { title: fileName },
                 sheets: [
                     { properties: { title: 'Nodes' } },
-                    { properties: { title: 'Relationships' } }
+                    { properties: { title: 'Relationships' } },
+                    { properties: { title: 'Metadata' } }
                 ]
             }
         });
@@ -799,7 +801,8 @@ export const getOrCreateTreeSpreadsheet = async (): Promise<string | null> => {
             resource: {
                 data: [
                     { range: 'Nodes!A1:S1', values: [TREE_NODE_HEADERS] },
-                    { range: 'Relationships!A1:D1', values: [TREE_RELATION_HEADERS] }
+                    { range: 'Relationships!A1:F1', values: [TREE_RELATION_HEADERS] },
+                    { range: 'Metadata!A1:B1', values: [TREE_METADATA_HEADERS] }
                 ],
                 valueInputOption: 'RAW'
             }
@@ -818,11 +821,12 @@ export const getOrCreateTreeSpreadsheet = async (): Promise<string | null> => {
 /**
  * Migration helper to push existing JSON tree to Sheets
  */
-export const migrateTreeToSheets = async (nodes: PersonNode[]): Promise<boolean> => {
+export const migrateTreeToSheets = async (tree: TreeDocument): Promise<boolean> => {
     try {
         const spreadsheetId = await getOrCreateTreeSpreadsheet();
         if (!spreadsheetId) return false;
 
+        const nodes = Object.values(tree.nodes);
         console.log(`Migrating ${nodes.length} nodes to Sheets...`);
 
         // Prepare Node Rows
@@ -851,20 +855,36 @@ export const migrateTreeToSheets = async (nodes: PersonNode[]): Promise<boolean>
         // Prepare Relationship Rows
         const relRows: any[][] = [];
         nodes.forEach(n => {
+            const fromName = n.name || 'Unknown';
             // Parent links
             if (n.parentId) {
-                relRows.push([n.parentId, n.nodeId, 'parent', new Date().toISOString()]);
+                const toNode = tree.nodes[n.parentId];
+                const toName = toNode?.name || 'Unknown';
+                relRows.push([n.parentId, n.nodeId, 'parent', new Date().toISOString(), toName, fromName]);
             }
             // Spouse links
             if (n.spouseIds) {
                 n.spouseIds.forEach((sid: string) => {
-                    // To avoid duplicates in Sheet, we could sort IDs, but for appending, 
-                    // a simple "A is spouse of B" is fine. 
-                    // However, bidirectional links should probably be managed carefully.
-                    relRows.push([n.nodeId, sid, 'spouse', new Date().toISOString()]);
+                    const toNode = tree.nodes[sid];
+                    const toName = toNode?.name || 'Unknown';
+                    // We only add one direction to keep sheet clean, or both for manual read?
+                    // Let's add the direction from this node to spouse.
+                    relRows.push([n.nodeId, sid, 'spouse', new Date().toISOString(), fromName, toName]);
                 });
             }
         });
+
+        // Prepare Metadata
+        const metadataMap: Record<string, string> = {
+            'treeId': tree.treeId,
+            'treeName': tree.treeName,
+            'rootNodeId': tree.rootNodeId,
+            'schemaVersion': String(tree.schemaVersion),
+            'versionIndex': String(tree.versionIndex),
+            'timestamp': tree.timestamp,
+            'createdBy': tree.meta.createdBy,
+            'createdTime': tree.meta.createdTime
+        };
 
         // Batch update
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -873,11 +893,14 @@ export const migrateTreeToSheets = async (nodes: PersonNode[]): Promise<boolean>
             resource: {
                 data: [
                     { range: 'Nodes!A2:S', values: nodeRows },
-                    { range: 'Relationships!A2:D', values: relRows }
+                    { range: 'Relationships!A2:F', values: relRows }
                 ],
                 valueInputOption: 'RAW'
             }
         });
+
+        // Save Metadata separately (reusing the new helper)
+        await saveMetadataToSheets(metadataMap);
 
         console.log("Migration to Sheets complete.");
         return true;
@@ -1039,17 +1062,37 @@ export const saveNodesBatchToSheets = async (nodes: PersonNode[]): Promise<void>
     }
 };
 
-export const saveRelationToSheets = async (fromId: string, toId: string, type: 'parent' | 'spouse'): Promise<void> => {
+export const saveMetadataToSheets = async (metadata: Record<string, string>): Promise<void> => {
     try {
         const spreadsheetId = await getOrCreateTreeSpreadsheet();
         if (!spreadsheetId) return;
 
-        const rowData = [fromId, toId, type, new Date().toISOString()];
+        const rows = Object.entries(metadata).map(([key, value]) => [key, value]);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (gapi.client as any).sheets.spreadsheets.values.update({
+            spreadsheetId: spreadsheetId,
+            range: 'Metadata!A2:B',
+            valueInputOption: 'RAW',
+            resource: { values: rows }
+        });
+        console.log("Updated tree metadata in Sheets.");
+    } catch (err) {
+        console.error("Error saving metadata to Sheets", err);
+    }
+};
+
+export const saveRelationToSheets = async (fromId: string, toId: string, type: 'parent' | 'spouse', fromName: string = '', toName: string = ''): Promise<void> => {
+    try {
+        const spreadsheetId = await getOrCreateTreeSpreadsheet();
+        if (!spreadsheetId) return;
+
+        const rowData = [fromId, toId, type, new Date().toISOString(), fromName, toName];
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (gapi.client as any).sheets.spreadsheets.values.append({
             spreadsheetId: spreadsheetId,
-            range: 'Relationships!A:D',
+            range: 'Relationships!A:F',
             valueInputOption: 'RAW',
             resource: { values: [rowData] }
         });
@@ -1060,21 +1103,28 @@ export const saveRelationToSheets = async (fromId: string, toId: string, type: '
     }
 };
 
-export const loadTreeFromSheets = async (): Promise<PersonNode[]> => {
+export const loadTreeFromSheets = async (): Promise<{ nodes: PersonNode[], metadata: Record<string, string> }> => {
     try {
         const spreadsheetId = await getOrCreateTreeSpreadsheet();
-        if (!spreadsheetId) return [];
+        if (!spreadsheetId) return { nodes: [], metadata: {} };
 
         console.log("Loading tree from Sheets...");
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await (gapi.client as any).sheets.spreadsheets.values.batchGet({
             spreadsheetId: spreadsheetId,
-            ranges: ['Nodes!A2:S', 'Relationships!A2:D'],
+            ranges: ['Nodes!A2:S', 'Relationships!A2:F', 'Metadata!A2:B'],
         });
 
         const nodeData = response.result.valueRanges[0].values || [];
         const relData = response.result.valueRanges[1].values || [];
+        const metaData = response.result.valueRanges[2].values || [];
+
+        // Parsing Metadata
+        const metadata: Record<string, string> = {};
+        metaData.forEach((row: any[]) => {
+            if (row[0]) metadata[row[0]] = row[1] || '';
+        });
 
         // 2. Parse Nodes
         const nodes: PersonNode[] = nodeData.map((row: any[]) => ({
@@ -1133,12 +1183,12 @@ export const loadTreeFromSheets = async (): Promise<PersonNode[]> => {
             }
         });
 
-        console.log(`Loaded ${nodes.length} nodes and ${relData.length} relationships from Sheets.`);
-        return nodes;
+        console.log(`Loaded ${nodes.length} nodes, ${relData.length} relationships, and ${Object.keys(metadata).length} meta entries from Sheets.`);
+        return { nodes, metadata };
 
     } catch (err) {
         console.error("Error loading tree from Sheets", err);
-        return [];
+        return { nodes: [], metadata: {} };
     }
 };
 
