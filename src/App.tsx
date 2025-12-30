@@ -503,7 +503,14 @@ function App() {
       } catch (e) {
         console.error("Error during locked operation", e);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        alert("An error occurred: " + (e as any).message);
+        const err = e as any;
+        if (err?.status === 401 || err?.result?.error?.code === 401) {
+          alert("Session expired. Please sign in again.");
+          signOut();
+          setIsSignedIn(false);
+          return;
+        }
+        alert("An error occurred: " + err.message);
       } finally {
         if (lockId) {
           setLoadingMessage("Releasing lock...");
