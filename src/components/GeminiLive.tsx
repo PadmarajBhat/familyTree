@@ -308,13 +308,11 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({
             // Connect with Config
             connect({
                 systemInstruction: { parts: [{ text: systemInstructionText }] },
-                generationConfig: {
-                    responseModalities: ["AUDIO" as any],
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: {
-                                voiceName: preferredVoice
-                            }
+                responseModalities: ["AUDIO" as any],
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: {
+                            voiceName: preferredVoice
                         }
                     }
                 },
