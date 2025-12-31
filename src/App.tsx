@@ -551,7 +551,10 @@ function App() {
         await action(latestTree, lockId);
 
         // Force UI update with mutated tree
-        setTree({ ...latestTree } as TreeDocument);
+        // Force UI update with mutated tree
+        if (latestTree) {
+          setTree({ ...latestTree, nodes: { ...latestTree.nodes } } as TreeDocument);
+        }
       } catch (e) {
         console.error("Error during locked operation", e);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

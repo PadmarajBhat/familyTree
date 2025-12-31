@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { PersonNode } from '../logic/types';
 import { searchMembers, sortMembers, type SortOption, type SortOrder } from '../logic/searchUtils';
 import { getPhotoUrl } from '../services/drive';
@@ -17,6 +17,11 @@ export const MemberSearch: React.FC<MemberSearchProps> = ({ nodes, onMemberClick
     const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
 
     const nodeList = useMemo(() => Object.values(nodes), [nodes]);
+
+    // Debug: Trace updates
+    useEffect(() => {
+        console.log("MemberSearch: Nodes updated, count:", nodeList.length);
+    }, [nodeList]);
 
     const filteredAndSortedMembers = useMemo(() => {
         let result = searchMembers(nodeList, searchTerm);
