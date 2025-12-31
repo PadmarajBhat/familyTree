@@ -21,6 +21,7 @@ const TermsOfService = lazy(() => import('../components/TermsOfService'));
 
 import { canEditNode } from '../logic/permissions';
 import { canEdit } from '../logic/accessControl';
+import { grantWritePermission, grantLockFilePermission, updateUserPreference } from '../services/drive';
 import './App.css';
 
 function App() {
@@ -42,7 +43,9 @@ function App() {
 
   const {
     selectedNodeId, setSelectedNodeId, editorMode, setEditorMode, editingNodeId, setEditingNodeId,
-    setFindRelationIds, setHistoryFilterNodeId, setShowFindRelation, setShowVersionHistory
+    setFindRelationIds, setHistoryFilterNodeId, setShowFindRelation, setShowVersionHistory,
+    showSearch, setShowSearch, showFindRelation, showCollaborators, setShowCollaborators,
+    showVersionHistory, showDashboard, setShowDashboard, findRelationIds, historyFilterNodeId
   } = useAppNavigation();
 
   useAppInitialization({ setIsSignedIn, setCurrentUser, setIsGapiReady, setStaticPage, isSignedIn, isGapiReady, setTree });
@@ -80,12 +83,63 @@ function App() {
     setSelectedNodeId(null);
   };
 
+  const handleSetDefault = async () => {
+    if (currentUser?.email && currentTreeName) {
+      try {
+        await updateUserPreference(currentUser.email, currentTreeName);
+        alert(`${currentTreeName} set as default tree.`);
+      } catch (e) {
+        console.error("Failed to set default tree", e);
+        alert("Failed to set default tree.");
+      }
+    }
+  };
+
+  const onToggleEditor = async (nodeId: string, newStatus: boolean, updates?: { email?: string; phone?: string }) => {
+    if (!tree) return;
+    await executeWithLock(async (latestTree) => {
+      if (!latestTree) return;
+      const node = latestTree.nodes[nodeId];
+      if (!node) return;
+
+      const updatedNode = {
+        ...node,
+        isEditor: newStatus,
+        editorSince: newStatus ? new Date().toISOString() : null,
+        ...updates
+      };
+
+      if (newStatus && updatedNode.email && currentTreeId) {
+        await grantWritePermission(currentTreeId, updatedNode.email);
+        await grantLockFilePermission(currentTreeId, updatedNode.email);
+      }
+
+      const newNodes = { ...latestTree.nodes, [nodeId]: updatedNode };
+      const updatedTree = { ...latestTree, nodes: newNodes };
+      await saveWithMerge(updatedTree, `Toggle editor status for ${updatedNode.name}`);
+    });
+  };
+
   if (staticPage === 'privacy') return <Suspense fallback={<div>Loading...</div>}><PrivacyPolicy onClose={() => { setStaticPage(null); window.history.back(); }} /></Suspense>;
   if (staticPage === 'terms') return <Suspense fallback={<div>Loading...</div>}><TermsOfService onClose={() => { setStaticPage(null); window.history.back(); }} /></Suspense>;
 
   return (
     <div className="app-container">
-      <AppHeader treeName={tree?.treeName} isSignedIn={isSignedIn} currentUser={currentUser} setIsSignedIn={setIsSignedIn} />
+      {isSignedIn && (
+        <AppHeader
+          treeName={tree?.treeName}
+          isSignedIn={isSignedIn}
+          currentUser={currentUser}
+          setIsSignedIn={setIsSignedIn}
+          onShowSearch={() => setShowSearch(true)}
+          onShowFindRelation={() => setShowFindRelation(true)}
+          onShowCollaborators={() => setShowCollaborators(true)}
+          onShowHistory={() => { setHistoryFilterNodeId(null); setShowVersionHistory(true); }}
+          onShowDashboard={() => setShowDashboard(true)}
+          onSetDefault={handleSetDefault}
+          onSetViewState={setViewState}
+        />
+      )}
       <AppContent
         loading={loading} loadingMessage={loadingMessage} error={error} accessDenied={accessDenied}
         isSignedIn={isSignedIn} viewState={viewState} currentUser={currentUser} tree={tree}
@@ -107,6 +161,13 @@ function App() {
         handleDeleteMember={handleDeleteMember} handleFindRelation={handleFindRelation}
         handleViewHistory={handleViewHistory} handleSaveMember={handleSaveMember}
         setEditorMode={setEditorMode} setEditingNodeId={setEditingNodeId} geminiAdapters={geminiAdapters}
+        showSearch={showSearch} setShowSearch={setShowSearch}
+        showFindRelation={showFindRelation} setShowFindRelation={setShowFindRelation}
+        showCollaborators={showCollaborators} setShowCollaborators={setShowCollaborators}
+        showVersionHistory={showVersionHistory} setShowVersionHistory={setShowVersionHistory}
+        showDashboard={showDashboard} setShowDashboard={setShowDashboard}
+        findRelationIds={findRelationIds} historyFilterNodeId={historyFilterNodeId}
+        onToggleEditor={onToggleEditor}
       />
     </div>
   );

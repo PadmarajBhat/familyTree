@@ -54,9 +54,9 @@ export function useGeminiAdapters({ tree, handleSaveMember }: UseGeminiAdaptersP
     };
 
     return {
-        handleGeminiAddPerson,
-        handleGeminiUpdatePerson,
-        handleSearchNodes,
-        handleGetRecentNodes
+        onAddPerson: handleGeminiAddPerson,
+        onUpdatePerson: handleGeminiUpdatePerson,
+        onSearchNodes: handleSearchNodes,
+        onGetRecentNodes: handleGetRecentNodes
     };
 }
