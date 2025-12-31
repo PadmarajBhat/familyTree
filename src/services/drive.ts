@@ -12,8 +12,7 @@ let accessToken: string | null = null;
 let refreshInterval: any = null;
 let onAuthErrorCallback: ((error: string) => void) | null = null;
 
-let isSilentRefresh = false;
-let silentRefreshFailures = 0; // Track consecutive silent refresh failures
+
 
 export const setAuthErrorCallback = (cb: (error: string) => void) => {
     onAuthErrorCallback = cb;
@@ -35,7 +34,6 @@ const setupTokenRefreshMonitor = () => {
         if (timeLeftMs < 10 * 60 * 1000) {
             const minutesLeft = (timeLeftMs / 1000 / 60).toFixed(1);
             console.log(`Token check: Expires in ${minutesLeft}m (or expired). Triggering proactive silent refresh to extend session...`);
-            isSilentRefresh = true; // Flag this as a silent refresh
             tokenClient.requestAccessToken({ prompt: 'none' });
         }
     }, 60000); // Check every 1 minute
@@ -96,8 +94,6 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                         console.log("GIS Token Callback received:", tokenResponse);
                         if (tokenResponse && tokenResponse.access_token) {
                             // Success
-                            isSilentRefresh = false; // Reset flag
-                            silentRefreshFailures = 0; // Reset failure count on success
                             accessToken = tokenResponse.access_token;
                             localStorage.setItem('gapi_token', tokenResponse.access_token);
                             if (tokenResponse.expires_in) {
@@ -110,21 +106,9 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                         } else {
                             // Error handling
                             if (tokenResponse && (tokenResponse.error === 'interaction_required' || tokenResponse.error === 'access_denied')) {
-                                if (isSilentRefresh && tokenResponse.error === 'interaction_required') {
-                                    silentRefreshFailures++;
-                                    if (silentRefreshFailures >= 3) {
-                                        console.error(`Silent refresh failed ${silentRefreshFailures} times. Triggering Auth Error UI.`);
-                                        if (onAuthErrorCallback) onAuthErrorCallback(tokenResponse.error);
-                                    } else {
-                                        // Suppress error trigger for silent refresh failure
-                                        console.warn(`Silent refresh failed (${silentRefreshFailures}/3). Suppressing UI popup.`);
-                                    }
-                                } else {
-                                    // Normal flow or explicit login failure -> Show Popup/Error
-                                    if (onAuthErrorCallback) onAuthErrorCallback(tokenResponse.error);
-                                }
+                                console.error(`Token Error: ${tokenResponse.error}. Triggering Auth Error UI.`);
+                                if (onAuthErrorCallback) onAuthErrorCallback(tokenResponse.error);
                             }
-                            isSilentRefresh = false; // Reset flag
                         }
                     },
                 });
