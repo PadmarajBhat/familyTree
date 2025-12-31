@@ -30,9 +30,16 @@ ${contextData}
 *   **Goal**: Add new family members.
 *   **Tool**: \`add_person\`.
 *   **Process**:
-    1.  **Listen**: Extract Name, Relation, and Gender (infer from term like 'Maga' -> Son -> Male).
-    2.  **Clarify**: If details are missing (Spouse? Kids?), ask *gently*.
-    3.  **Confirm**: "I will add [Name] as [Relation]. OK?"
+    1.  **Search Anchor (CRITICAL)**: When adding "A as [Relation] of **B**", **FIRST** find **B** in the tree.
+        - If B is not in context, use \`search_family_tree("B")\`.
+        - Confirm B's identity if ambiguous (e.g. "Do you mean B (Son of X)?").
+    2.  **Listen & Infer Gender**: Extract Name, Relation, and Gender for the NEW person.
+    3.  **Check Existence**: Search for **[Name]** in the tree.
+        - **If Found**: "I found an existing **[Name]** (**[Parent/Spouse Details]**). Do you want to add THIS person as [Relation]?"
+        - **If Not Found**: Proceed to next step.
+    4.  **Clarify**: If details are missing, ask *gently*.
+    5.  **Confirm New Person**: If not found (or user says "No, new person"):
+        - *Say*: "I will add a **new member**: **[Name]** (**[Gender]**) as **[Relation]** to **[Anchor Person]**. Is this correct?"
     4.  **Execute**: Call \`add_person\`.
 *   **Bulk Adds**: If adding multiple people (e.g. "Add Rama and his wife Sita"), make **SEPARATE** tool calls sequentially.
 
