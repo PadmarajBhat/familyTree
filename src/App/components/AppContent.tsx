@@ -1,0 +1,134 @@
+
+import React, { Suspense, lazy } from 'react';
+import { LoadingOverlay } from '../../components/LoadingOverlay';
+import type { TreeDocument } from '../../logic/types';
+
+const TreeView = lazy(() => import('../../components/TreeView').then(module => ({ default: module.TreeView })));
+const PersonDetail = lazy(() => import('../../components/PersonDetail').then(module => ({ default: module.PersonDetail })));
+const MemberEditor = lazy(() => import('../../components/MemberEditor').then(module => ({ default: module.MemberEditor })));
+const FanChartView = lazy(() => import('../../components/FanChartView').then(module => ({ default: module.FanChartView })));
+const Home = lazy(() => import('../../components/Home').then(module => ({ default: module.Home })));
+const GeminiLive = lazy(() => import('../../components/GeminiLive').then(module => ({ default: module.GeminiLive })));
+
+interface AppContentProps {
+    loading: boolean;
+    loadingMessage: string;
+    error: string | null;
+    accessDenied: boolean;
+    isSignedIn: boolean;
+    viewState: 'home' | 'tree';
+    currentUser: { email: string; name: string } | null;
+    tree: TreeDocument | null;
+    treeViewType: 'standard' | 'hourglass';
+    fanRootId: string | null;
+    selectedNodeId: string | null;
+    editorMode: 'add' | 'edit' | null;
+    editingNodeId: string | null;
+    homeAutoloadEnabled: boolean;
+    currentTreeId: string | null;
+    isAuthorized: boolean;
+    loadTree: (returnOnly: boolean, fileId?: string) => Promise<any>;
+    setViewState: (val: 'home' | 'tree') => void;
+    handleNodeClick: (nodeId: string) => void;
+    handleResetRoot: () => void;
+    setSelectedNodeId: (id: string | null) => void;
+    handleEditClick: () => void;
+    handleDeleteMember: (nodeId: string) => void;
+    handleFindRelation: (nodeId: string) => void;
+    handleViewHistory: (nodeId: string) => void;
+    handleSaveMember: any;
+    setEditorMode: (mode: 'add' | 'edit' | null) => void;
+    setEditingNodeId: (id: string | null) => void;
+    geminiAdapters: any;
+}
+
+export const AppContent: React.FC<AppContentProps> = ({
+    loading, loadingMessage, error, accessDenied, isSignedIn, viewState, currentUser, tree,
+    treeViewType, fanRootId, selectedNodeId, editorMode, editingNodeId, homeAutoloadEnabled,
+    currentTreeId, isAuthorized, loadTree, setViewState, handleNodeClick, handleResetRoot,
+    setSelectedNodeId, handleEditClick, handleDeleteMember, handleFindRelation, handleViewHistory,
+    handleSaveMember, setEditorMode, setEditingNodeId, geminiAdapters
+}) => {
+    if (error) return <div className="error-screen">{error}</div>;
+    if (accessDenied) return <div className="access-denied">Access Denied</div>;
+
+    return (
+        <>
+            <main className="app-main">
+                {loading && <LoadingOverlay message={loadingMessage} />}
+
+                {!isSignedIn || viewState === 'home' ? (
+                    <Suspense fallback={<div>Loading Home...</div>}>
+                        <Home
+                            userEmail={currentUser?.email || ''}
+                            onSelectTree={async (fileId) => {
+                                await loadTree(false, fileId);
+                                setViewState('tree');
+                            }}
+                            currentTreeId={currentTreeId}
+                            isEditor={!!isAuthorized}
+                            enableAutoload={homeAutoloadEnabled}
+                        />
+                    </Suspense>
+                ) : (
+                    <>
+                        <Suspense fallback={<div>Loading Tree...</div>}>
+                            {tree && (treeViewType === 'hourglass' ? (
+                                <FanChartView
+                                    data={tree}
+                                    rootNodeId={fanRootId || tree.rootNodeId || ''}
+                                    onNodeClick={handleNodeClick}
+                                    onResetRoot={handleResetRoot}
+                                />
+                            ) : (
+                                <TreeView
+                                    data={tree}
+                                    onNodeClick={handleNodeClick}
+                                    onNodeLongPress={handleNodeClick}
+                                />
+                            ))}
+                        </Suspense>
+
+                        {selectedNodeId && tree && tree.nodes[selectedNodeId] && (
+                            <Suspense fallback={null}>
+                                <PersonDetail
+                                    node={tree.nodes[selectedNodeId]}
+                                    tree={tree}
+                                    currentUser={currentUser}
+                                    onClose={() => setSelectedNodeId(null)}
+                                    onEdit={handleEditClick}
+                                    onDelete={handleDeleteMember}
+                                    onNodeClick={handleNodeClick}
+                                    onFindRelation={handleFindRelation}
+                                    onViewHistory={handleViewHistory}
+                                />
+                            </Suspense>
+                        )}
+
+                        {editorMode && (
+                            <Suspense fallback={null}>
+                                <MemberEditor
+                                    currentUserEmail={currentUser?.email || ''}
+                                    mode={editorMode}
+                                    initialData={editingNodeId && tree ? tree.nodes[editingNodeId] : undefined}
+                                    existingNodes={tree?.nodes || {}}
+                                    onSave={handleSaveMember}
+                                    onCancel={() => { setEditorMode(null); setEditingNodeId(null); }}
+                                    onDelete={handleDeleteMember}
+                                />
+                            </Suspense>
+                        )}
+                    </>
+                )}
+            </main>
+
+            {isSignedIn && tree && (
+                <Suspense fallback={null}>
+                    <GeminiLive
+                        {...geminiAdapters}
+                    />
+                </Suspense>
+            )}
+        </>
+    );
+};
