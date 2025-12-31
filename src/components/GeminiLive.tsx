@@ -287,9 +287,12 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({
 
 
     const handleToggle = () => {
+        console.log("handleToggle called, connected:", connected);
         if (connected) {
+            console.log("Disconnecting...");
             disconnect();
         } else {
+            console.log("Starting connection process...");
             // Build Context
             const allNodes = GlobalTreeService.getAllNodesFlat();
             // Create simplified CSV Context

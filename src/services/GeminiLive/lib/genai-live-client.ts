@@ -114,7 +114,9 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     }
 
     async connect(model: string, config: LiveConnectConfig): Promise<boolean> {
+        console.log("GenAILiveClient: connect called", { model, status: this._status });
         if (this._status === "connected" || this._status === "connecting") {
+            console.warn("GenAILiveClient: Already connected or connecting");
             return false;
         }
 

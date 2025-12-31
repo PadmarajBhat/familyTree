@@ -96,6 +96,7 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
     }, [client]);
 
     const connect = useCallback(async (newConfig?: LiveConnectConfig) => {
+        console.log("useLiveAPI: connect called", newConfig ? "with new config" : "using existing config");
         const configToUse = newConfig || config;
         if (!configToUse) {
             throw new Error("config has not been set");
