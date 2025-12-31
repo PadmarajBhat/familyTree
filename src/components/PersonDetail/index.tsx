@@ -6,6 +6,8 @@ import { TreeView } from '../TreeView';
 import { exportPersonDetailToPdf } from '../../utils/exportPdf';
 import { canEditNode, isGlobalEditor } from '../../logic/permissions';
 import { useTranslation } from 'react-i18next';
+import './PersonDetailInfo.css';
+import './PersonDetailProfile.css';
 import './PersonDetail.css';
 
 interface PersonDetailProps {

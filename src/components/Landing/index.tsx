@@ -2,6 +2,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { signIn } from '../../services/drive';
+import './Landing.css';
 
 interface LandingProps {
     onShowPrivacy?: () => void;

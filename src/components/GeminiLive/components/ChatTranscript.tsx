@@ -1,6 +1,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import type { LogEntry } from '../../../services/GeminiLive/types';
+import './ChatTranscript.css';
 
 interface ChatTranscriptProps {
     logs: LogEntry[];

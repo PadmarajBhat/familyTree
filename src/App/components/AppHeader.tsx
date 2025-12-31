@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { signIn, signOut } from '../../services/drive';
+import './AppHeader.css';
 
 interface AppHeaderProps {
     treeName: string | undefined;

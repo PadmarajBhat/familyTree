@@ -1,0 +1,156 @@
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.25rem 1rem;
+    /* Reduced padding */
+    background-color: #282c34;
+    color: white;
+    height: 50px;
+    /* Explicit smaller height */
+}
+
+.app-header h1 {
+    font-size: 1.2rem;
+    margin: 0;
+    font-weight: 600;
+}
+
+.auth-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.9rem;
+}
+
+.auth-controls button {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+}
+
+.profile-pic {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 1rem;
+}
+
+/* Burger Menu Styles */
+.menu-container {
+    position: relative;
+}
+
+.menu-button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.menu-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: white;
+    color: #333;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    width: max-content;
+    max-width: calc(100vw - 2rem);
+    box-sizing: border-box;
+    z-index: 1000;
+    padding: 0.5rem 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.menu-item {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    font-size: 0.9rem;
+    color: #333;
+    flex-wrap: wrap;
+    box-sizing: border-box;
+}
+
+.menu-item:hover {
+    background-color: #f5f5f5;
+}
+
+.menu-item.user-label {
+    font-weight: bold;
+    cursor: default;
+    background-color: transparent;
+    color: #666;
+}
+
+.menu-divider {
+    height: 1px;
+    background-color: #eee;
+    margin: 0.25rem 0;
+}
+
+.menu-item select {
+    padding: 0.25rem;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    margin-left: 0.5rem;
+    max-width: 100px;
+    flex-shrink: 1;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+@media (prefers-color-scheme: dark) {
+    .dropdown-menu {
+        background-color: #333;
+        color: white;
+    }
+
+    .menu-item {
+        color: white;
+    }
+
+    .menu-item:hover {
+        background-color: #444;
+    }
+
+    .menu-item.user-label {
+        color: #aaa;
+    }
+
+    .menu-divider {
+        background-color: #555;
+    }
+
+    .menu-item select {
+        background-color: #444;
+        color: white;
+        border-color: #666;
+    }
+}

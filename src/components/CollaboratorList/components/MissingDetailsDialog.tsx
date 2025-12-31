@@ -1,6 +1,7 @@
 
 import React from 'react';
 import type { PersonNode } from '../../../logic/types';
+import './MissingDetailsDialog.css';
 
 interface MissingDetailsDialogProps {
     node: PersonNode;

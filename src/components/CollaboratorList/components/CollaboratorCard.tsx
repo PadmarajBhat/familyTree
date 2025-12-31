@@ -3,6 +3,7 @@ import React from 'react';
 import type { PersonNode } from '../../../logic/types';
 import { calculateAge } from '../../../logic/dateUtils';
 import { getPhotoUrl } from '../../../services/drive';
+import './CollaboratorCard.css';
 
 interface CollaboratorCardProps {
     node: PersonNode;

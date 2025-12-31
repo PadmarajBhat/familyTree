@@ -22,3 +22,19 @@ export interface ExtendedHierarchyNode extends d3.HierarchyNode<HierarchyPersonN
     x0?: number;
     y0?: number;
 }
+
+export type SVGSelection = d3.Selection<SVGGElement, unknown, null, undefined>;
+
+export interface RenderOptions {
+    svg: d3.Selection<SVGSVGElement, unknown, null, undefined>;
+    g: SVGSelection;
+    root: ExtendedHierarchyNode;
+    data: TreeDocument;
+    width: number;
+    height: number;
+    compact?: boolean;
+    path?: string[] | null;
+    currentLang: string;
+    onNodeClick: (nodeId: string) => void;
+    updateTree: (source: ExtendedHierarchyNode) => void;
+}

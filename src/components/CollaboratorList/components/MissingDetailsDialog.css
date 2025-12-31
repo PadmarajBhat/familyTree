@@ -1,0 +1,112 @@
+/* Missing Details Dialog */
+.details-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+}
+
+.details-dialog {
+    background: white;
+    padding: 24px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.details-dialog h3 {
+    margin: 0 0 16px 0;
+    font-size: 18px;
+    color: #333;
+}
+
+.details-dialog p {
+    margin: 0 0 20px 0;
+    color: #666;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.input-group {
+    margin-bottom: 16px;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #555;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.dialog-button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    border: none;
+}
+
+.dialog-button.cancel {
+    background: #f5f5f5;
+    color: #666;
+}
+
+.dialog-button.confirm {
+    background: #1976d2;
+    color: white;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .details-dialog {
+        background: #333;
+        color: #eee;
+    }
+
+    .details-dialog h3 {
+        color: #fff;
+    }
+
+    .details-dialog p {
+        color: #ccc;
+    }
+
+    .input-group label {
+        color: #ccc;
+    }
+
+    .input-group input {
+        background: #444;
+        border-color: #555;
+        color: #fff;
+    }
+
+    .dialog-button.cancel {
+        background: #444;
+        color: #ccc;
+    }
+}

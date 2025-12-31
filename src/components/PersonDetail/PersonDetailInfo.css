@@ -1,0 +1,106 @@
+/* Info Section */
+.info-section {
+    flex: 1;
+    min-width: 200px;
+    width: 100%;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 5px;
+}
+
+.info-item {
+    background: rgba(255, 255, 255, 0.5);
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+    .info-item {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+}
+
+.info-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 1;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.info-value {
+    font-size: 1rem;
+    word-break: break-word;
+    font-weight: 500;
+}
+
+/* Actions */
+.detail-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.detail-actions button {
+    padding: 8px 16px;
+    background: rgba(33, 150, 243, 0.1);
+    color: #2196f3;
+    border: 1px solid rgba(33, 150, 243, 0.2);
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    backdrop-filter: blur(4px);
+}
+
+.detail-actions button:hover:not(:disabled) {
+    background: rgba(33, 150, 243, 0.2);
+    transform: translateY(-1px);
+}
+
+.detail-actions button.delete-button {
+    background: rgba(244, 67, 54, 0.1);
+    color: #f44336;
+    border-color: rgba(244, 67, 54, 0.2);
+}
+
+.detail-actions button.delete-button:hover:not(:disabled) {
+    background: rgba(244, 67, 54, 0.2);
+}
+
+.detail-actions button.export-pdf-button {
+    background: rgba(76, 175, 80, 0.1);
+    color: #4caf50;
+    border-color: rgba(76, 175, 80, 0.2);
+}
+
+.detail-actions button.export-pdf-button:hover:not(:disabled) {
+    background: rgba(76, 175, 80, 0.2);
+}
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+    .info-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .detail-actions {
+        justify-content: center;
+    }
+
+    .detail-actions button {
+        flex: 1;
+        text-align: center;
+        white-space: nowrap;
+    }
+}

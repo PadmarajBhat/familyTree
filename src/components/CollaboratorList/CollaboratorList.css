@@ -91,116 +91,6 @@
     gap: 12px;
 }
 
-.collaborator-card {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 16px;
-    background: white;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    transition: all 0.2s;
-}
-
-.collaborator-card:hover {
-    border-color: #bbb;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.card-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex: 1;
-}
-
-.member-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    object-fit: cover;
-    background: #eee;
-    border: 1px solid #ddd;
-}
-
-.member-avatar-placeholder {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: #e0e0e0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    color: #757575;
-}
-
-.collaborator-info {
-    flex: 1;
-}
-
-.collaborator-name {
-    font-size: 15px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 2px;
-}
-
-.collaborator-details {
-    font-size: 14px;
-    /* Increased from 13px */
-    color: #666;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.editor-since {
-    color: #2e7d32;
-    font-size: 14px;
-    /* Increased from 13px */
-    font-weight: 500;
-}
-
-.toggle-button {
-    padding: 6px 16px;
-    border: none;
-    border-radius: 6px;
-    font-size: 14px;
-    /* Increased from 13px */
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    min-width: 80px;
-}
-
-.toggle-button.add {
-    background: #e8f5e9;
-    color: #2e7d32;
-    border: 1px solid #a5d6a7;
-}
-
-.toggle-button.add:hover:not(:disabled) {
-    background: #c8e6c9;
-}
-
-.toggle-button.remove {
-    background: #ffebee;
-    color: #c62828;
-    border: 1px solid #ef9a9a;
-}
-
-.toggle-button.remove:hover:not(:disabled) {
-    background: #ffcdd2;
-}
-
-.toggle-button:disabled {
-    background: #f5f5f5;
-    color: #bdbdbd;
-    border: 1px solid #e0e0e0;
-    cursor: not-allowed;
-}
-
 .empty-state {
     padding: 24px;
     text-align: center;
@@ -208,88 +98,6 @@
     font-style: italic;
     background: #fafafa;
     border-radius: 8px;
-}
-
-/* Missing Details Dialog */
-.details-dialog-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 300;
-}
-
-.details-dialog {
-    background: white;
-    padding: 24px;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 400px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-
-.details-dialog h3 {
-    margin: 0 0 16px 0;
-    font-size: 18px;
-    color: #333;
-}
-
-.details-dialog p {
-    margin: 0 0 20px 0;
-    color: #666;
-    font-size: 14px;
-    line-height: 1.5;
-}
-
-.input-group {
-    margin-bottom: 16px;
-}
-
-.input-group label {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    color: #555;
-}
-
-.input-group input {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
-    box-sizing: border-box;
-}
-
-.dialog-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    margin-top: 24px;
-}
-
-.dialog-button {
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 14px;
-    cursor: pointer;
-    border: none;
-}
-
-.dialog-button.cancel {
-    background: #f5f5f5;
-    color: #666;
-}
-
-.dialog-button.confirm {
-    background: #1976d2;
-    color: white;
 }
 
 @media (max-width: 600px) {
@@ -304,21 +112,6 @@
 
     .collaborator-content {
         padding: 16px;
-    }
-
-    .collaborator-card {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-    }
-
-    .card-left {
-        width: 100%;
-    }
-
-    .toggle-button {
-        width: 100%;
-        margin-top: 8px;
     }
 }
 
@@ -408,52 +201,7 @@
         color: #aaa;
     }
 
-    .collaborator-card {
-        background: #333;
-        border-color: #444;
-    }
-
-    .collaborator-card:hover {
-        border-color: #666;
-    }
-
-    .collaborator-name {
-        color: #fff;
-    }
-
-    .collaborator-details {
-        color: #bbb;
-    }
-
     .add-editor-header button.btn-text {
         color: #64b5f6;
-    }
-
-    .details-dialog {
-        background: #333;
-        color: #eee;
-    }
-
-    .details-dialog h3 {
-        color: #fff;
-    }
-
-    .details-dialog p {
-        color: #ccc;
-    }
-
-    .input-group label {
-        color: #ccc;
-    }
-
-    .input-group input {
-        background: #444;
-        border-color: #555;
-        color: #fff;
-    }
-
-    .dialog-button.cancel {
-        background: #444;
-        color: #ccc;
     }
 }
