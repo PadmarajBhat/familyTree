@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useLiveAPI } from '../hooks/useLiveAPI';
 import { AudioRecorder } from '../services/GeminiLive/lib/audio-recorder';
 import { CONFIG } from '../config';
@@ -39,7 +39,8 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({
     const [audioRecorder] = useState(() => new AudioRecorder());
     const [isMuted] = useState(false);
 
-    const { client, connected, connect, disconnect, volume, setConfig } = useLiveAPI({ apiKey: CONFIG.API_KEY || "" });
+    const liveOptions = useMemo(() => ({ apiKey: CONFIG.API_KEY || "" }), []);
+    const { client, connected, connect, disconnect, volume, setConfig } = useLiveAPI(liveOptions);
 
     useEffect(() => {
         console.log("GeminiLive mounted. API Key present:", !!CONFIG.API_KEY);
