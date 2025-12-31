@@ -8,6 +8,19 @@ export const TREE_RELATION_HEADERS = ['FromID', 'ToID', 'Type', 'Timestamp', 'Fr
 export const TREE_CHANGELOG_HEADERS = ['EditedTime', 'EditedBy', 'Changes', 'RootNodeName', 'StructuredData'];
 export const TREE_METADATA_HEADERS = ['Key', 'Value'];
 
+const safeParseJSON = (val: any, fallback: any = null) => {
+    if (!val) return fallback;
+    if (typeof val !== 'string') return val;
+    try {
+        return JSON.parse(val);
+    } catch (e) {
+        // If it's not JSON, return as is (for strings like "Karnataka" that should have been arrays but weren't)
+        // or return as a single-element array if the destination expect one.
+        if (Array.isArray(fallback)) return [val];
+        return val;
+    }
+};
+
 export const rowToNode = (row: any[]): PersonNode => ({
     nodeId: row[0],
     name: row[1] || null,
@@ -23,9 +36,9 @@ export const rowToNode = (row: any[]): PersonNode => ({
     ageProvided: null,
     dobInferred: false,
     address: { freeform: row[7] || null },
-    occupation: row[8] ? JSON.parse(row[8]) : null,
-    education: row[9] ? JSON.parse(row[9]) : [],
-    hobbies: row[10] ? JSON.parse(row[10]) : [],
+    occupation: safeParseJSON(row[8]),
+    education: safeParseJSON(row[9], []),
+    hobbies: safeParseJSON(row[10], []),
     notes: row[11] || null,
     parentId: row[12] || null,
     spouseIds: row[13] ? row[13].split('|').filter(Boolean) : [],
@@ -144,53 +157,68 @@ export const getOrCreateTreeSpreadsheet = async (treeName?: string): Promise<str
     }
 };
 
+const ensureInProgressCache: Record<string, Promise<void>> = {};
+
 /**
  * Ensures all required sheets exist in the spreadsheet.
  * If any are missing, they are created and initialized with headers.
  */
 export const ensureTreeSheetsExist = async (spreadsheetId: string): Promise<void> => {
-    try {
-        const response = await (gapi.client as any).sheets.spreadsheets.get({ spreadsheetId });
-        const sheets = response.result.sheets || [];
-        const existingTitles = sheets.map((s: any) => s.properties.title);
+    // If a request is already in progress for this ID, wait for it.
+    if (Object.prototype.hasOwnProperty.call(ensureInProgressCache, spreadsheetId)) {
+        console.log(`Waiting for existing ensureTreeSheetsExist process for ${spreadsheetId}...`);
+        return ensureInProgressCache[spreadsheetId];
+    }
 
-        const requiredSheets = [
-            { title: 'Nodes', headers: TREE_NODE_HEADERS },
-            { title: 'Relationships', headers: TREE_RELATION_HEADERS },
-            { title: 'Metadata', headers: TREE_METADATA_HEADERS },
-            { title: 'ChangeLog', headers: TREE_CHANGELOG_HEADERS }
-        ];
+    const run = async () => {
+        try {
+            const response = await (gapi.client as any).sheets.spreadsheets.get({ spreadsheetId });
+            const sheets = response.result.sheets || [];
+            const existingTitles = sheets.map((s: any) => s.properties.title);
 
-        const requests: any[] = [];
-        const headerUpdates: any[] = [];
+            const requiredSheets = [
+                { title: 'Nodes', headers: TREE_NODE_HEADERS },
+                { title: 'Relationships', headers: TREE_RELATION_HEADERS },
+                { title: 'Metadata', headers: TREE_METADATA_HEADERS },
+                { title: 'ChangeLog', headers: TREE_CHANGELOG_HEADERS }
+            ];
 
-        for (const req of requiredSheets) {
-            if (!existingTitles.includes(req.title)) {
-                console.log(`Sheet '${req.title}' missing in ${spreadsheetId}. Creating...`);
-                requests.push({ addSheet: { properties: { title: req.title } } });
-                headerUpdates.push({
-                    range: `${req.title}!A1`,
-                    values: [req.headers]
+            const requests: any[] = [];
+            const headerUpdates: any[] = [];
+
+            for (const req of requiredSheets) {
+                if (!existingTitles.includes(req.title)) {
+                    console.log(`Sheet '${req.title}' missing in ${spreadsheetId}. Creating...`);
+                    requests.push({ addSheet: { properties: { title: req.title } } });
+                    headerUpdates.push({
+                        range: `${req.title}!A1`,
+                        values: [req.headers]
+                    });
+                }
+            }
+
+            if (requests.length > 0) {
+                await (gapi.client as any).sheets.spreadsheets.batchUpdate({
+                    spreadsheetId,
+                    resource: { requests }
+                });
+
+                // Initialize headers for the new sheets
+                await (gapi.client as any).sheets.spreadsheets.values.batchUpdate({
+                    spreadsheetId,
+                    resource: {
+                        data: headerUpdates,
+                        valueInputOption: 'RAW'
+                    }
                 });
             }
+        } catch (err) {
+            console.error("Error ensuring tree sheets exist", err);
+        } finally {
+            delete ensureInProgressCache[spreadsheetId];
         }
+    };
 
-        if (requests.length > 0) {
-            await (gapi.client as any).sheets.spreadsheets.batchUpdate({
-                spreadsheetId,
-                resource: { requests }
-            });
-
-            // Initialize headers for the new sheets
-            await (gapi.client as any).sheets.spreadsheets.values.batchUpdate({
-                spreadsheetId,
-                resource: {
-                    data: headerUpdates,
-                    valueInputOption: 'RAW'
-                }
-            });
-        }
-    } catch (err) {
-        console.error("Error ensuring tree sheets exist", err);
-    }
+    ensureInProgressCache[spreadsheetId] = run();
+    return ensureInProgressCache[spreadsheetId];
 };
