@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import type { PersonNode } from '../logic/types';
-import { calculateAge } from '../logic/dateUtils';
-import { getPhotoUrl } from '../services/drive';
-import { CloseButton } from './CloseButton';
+import type { PersonNode } from '../../logic/types';
+import { calculateAge } from '../../logic/dateUtils';
+import { getPhotoUrl } from '../../services/drive';
+import { CloseButton } from '../CloseButton';
 import './CollaboratorList.css';
 
 interface CollaboratorListProps {

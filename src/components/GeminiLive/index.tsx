@@ -1,15 +1,15 @@
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { useLiveAPI } from '../hooks/useLiveAPI';
-import { AudioRecorder } from '../services/GeminiLive/lib/audio-recorder';
-import { CONFIG } from '../config';
+import { useLiveAPI } from '../../hooks/useLiveAPI';
+import { AudioRecorder } from '../../services/GeminiLive/lib/audio-recorder';
+import { CONFIG } from '../../config';
 
-import { GlobalTreeService } from '../services/GlobalTreeService';
-import { GET_GEMINI_SYSTEM_PROMPT } from '../logic/prompts';
-import { validatePersonData } from '../logic/validation';
-import { appendGeminiLogToSheets, getUserProfile } from '../services/drive';
-import type { LogEntry, ToolResult } from '../services/GeminiLive/types';
-import type { PersonNode } from '../logic/types';
+import { GlobalTreeService } from '../../services/GlobalTreeService';
+import { GET_GEMINI_SYSTEM_PROMPT } from '../../logic/prompts';
+import { validatePersonData } from '../../logic/validation';
+import { appendGeminiLogToSheets, getUserProfile } from '../../services/drive';
+import type { LogEntry, ToolResult } from '../../services/GeminiLive/types';
+import type { PersonNode } from '../../logic/types';
 import type { LiveServerToolCall } from '@google/genai';
 import './GeminiLive.css';
 

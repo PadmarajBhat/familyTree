@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { PersonNode } from '../logic/types';
-import { findPath, getDisambiguationInfo, buildPathTree } from '../logic/relationshipUtils';
-import { GlobalTreeService } from '../services/GlobalTreeService';
-import { TreeView } from './TreeView';
-import { CloseButton } from './CloseButton';
+import type { PersonNode } from '../../logic/types';
+import { findPath, getDisambiguationInfo, buildPathTree } from '../../logic/relationshipUtils';
+import { GlobalTreeService } from '../../services/GlobalTreeService';
+import { TreeView } from '../TreeView';
+import { CloseButton } from '../CloseButton';
 import './FindRelation.css';
 
 interface FindRelationProps {

@@ -3,9 +3,9 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, LineChart, Line, Treemap
 } from 'recharts';
-import type { TreeDocument, PersonNode } from '../logic/types';
-import { MapChart } from './MapChart';
-import { getPhotoUrl } from '../services/drive';
+import type { TreeDocument, PersonNode } from '../../logic/types';
+import { MapChart } from '../MapChart';
+import { getPhotoUrl } from '../../services/drive';
 import './Dashboard.css';
 
 interface DashboardProps {

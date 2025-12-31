@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import type { TreeDocument, PersonNode } from '../logic/types';
-import { getPhotoUrl } from '../services/drive';
-import { ZoomControls } from './ZoomControls';
+import type { TreeDocument, PersonNode } from '../../logic/types';
+import { getPhotoUrl } from '../../services/drive';
+import { ZoomControls } from '../ZoomControls';
 
 interface FanChartViewProps {
     data: TreeDocument;

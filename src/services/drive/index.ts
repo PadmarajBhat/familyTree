@@ -1,6 +1,6 @@
 import { gapi } from 'gapi-script';
-import { CONFIG } from '../config';
-import type { PersonNode, TreeDocument } from '../logic/types';
+import { CONFIG } from '../../config';
+import type { PersonNode, TreeDocument } from '../../logic/types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const google: any;

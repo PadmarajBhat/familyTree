@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import type { PersonNode, TreeDocument } from '../logic/types';
-import { CloseButton } from './CloseButton';
-import { getPhotoUrl } from '../services/drive';
-import { TreeView } from './TreeView';
-import { exportPersonDetailToPdf } from '../utils/exportPdf';
-import { canEditNode, isGlobalEditor } from '../logic/permissions';
+import type { PersonNode, TreeDocument } from '../../logic/types';
+import { CloseButton } from '../CloseButton';
+import { getPhotoUrl } from '../../services/drive';
+import { TreeView } from '../TreeView';
+import { exportPersonDetailToPdf } from '../../utils/exportPdf';
+import { canEditNode, isGlobalEditor } from '../../logic/permissions';
 import { useTranslation } from 'react-i18next';
 import './PersonDetail.css';
 

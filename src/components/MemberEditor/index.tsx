@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { PersonNode } from '../logic/types';
-import { getISTTimestamp, deriveDobFromAge, calculateAge, formatDateToDDMMYYYY, parseDateFromDDMMYYYY } from '../logic/dateUtils';
-import { isAncestor } from '../logic/relationshipUtils';
-import { uploadImage, uploadVideo, getPhotoUrl, deleteFile } from '../services/drive';
-import { GlobalTreeService, type SearchResult } from '../services/GlobalTreeService';
-import { generateAllTranslations } from '../services/TransliterationService';
-import { CloseButton } from './CloseButton';
-import { validatePersonData } from '../logic/validation';
+import type { PersonNode } from '../../logic/types';
+import { getISTTimestamp, deriveDobFromAge, calculateAge, formatDateToDDMMYYYY, parseDateFromDDMMYYYY } from '../../logic/dateUtils';
+import { isAncestor } from '../../logic/relationshipUtils';
+import { uploadImage, uploadVideo, getPhotoUrl, deleteFile } from '../../services/drive';
+import { GlobalTreeService, type SearchResult } from '../../services/GlobalTreeService';
+import { generateAllTranslations } from '../../services/TransliterationService';
+import { CloseButton } from '../CloseButton';
+import { validatePersonData } from '../../logic/validation';
 import './MemberEditor.css';
 
 interface MemberEditorProps {

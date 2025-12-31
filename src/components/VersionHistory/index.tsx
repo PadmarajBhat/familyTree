@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import type { ChangeLog, PersonNode } from '../logic/types';
-import { CloseButton } from './CloseButton';
+import type { ChangeLog, PersonNode } from '../../logic/types';
+import { CloseButton } from '../CloseButton';
 import './VersionHistory.css';
 
 interface VersionHistoryProps {

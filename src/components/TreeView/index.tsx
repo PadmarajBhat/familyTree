@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as d3 from 'd3';
-import { getPhotoUrl } from '../services/drive';
-import type { TreeDocument, PersonNode } from '../logic/types';
-import { ZoomControls } from './ZoomControls';
+import { getPhotoUrl } from '../../services/drive';
+import type { TreeDocument, PersonNode } from '../../logic/types';
+import { ZoomControls } from '../ZoomControls';
 
 interface TreeViewProps {
     data: TreeDocument;

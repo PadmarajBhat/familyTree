@@ -1,4 +1,4 @@
-import type { PersonNode } from './types';
+import type { PersonNode } from '../types';
 
 /**
  * Build an adjacency graph from the family tree nodes

@@ -1,7 +1,11 @@
 
 import React from 'react';
 
-const TermsOfService: React.FC = () => {
+interface TermsOfServiceProps {
+    onClose?: () => void;
+}
+
+const TermsOfService: React.FC<TermsOfServiceProps> = ({ onClose }) => {
     return (
         <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 20px', fontFamily: 'sans-serif', lineHeight: '1.6' }}>
             <h1 style={{ borderBottom: '1px solid #ddd', paddingBottom: '10px' }}>Terms of Service</h1>
@@ -53,8 +57,12 @@ const TermsOfService: React.FC = () => {
             <div style={{ marginTop: '40px', textAlign: 'center' }}>
                 <button
                     onClick={() => {
-                        window.location.hash = '';
-                        window.location.reload();
+                        if (onClose) {
+                            onClose();
+                        } else {
+                            window.location.hash = '';
+                            window.location.reload();
+                        }
                     }}
                     style={{
                         padding: '10px 20px',

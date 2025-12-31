@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { listTreeFiles, saveTreeFile, renameFile, getPreferences, updateUserStarredTrees } from '../services/drive';
-import { getISTTimestamp } from '../logic/dateUtils';
-import type { TreeDocument } from '../logic/types';
-import { getTreeNameFromFilename, generateFilename } from '../logic/fileUtils';
-import { GlobalTreeService } from '../services/GlobalTreeService';
+import { listTreeFiles, saveTreeFile, renameFile, getPreferences, updateUserStarredTrees } from '../../services/drive';
+import { getISTTimestamp } from '../../logic/dateUtils';
+import type { TreeDocument } from '../../logic/types';
+import { getTreeNameFromFilename, generateFilename } from '../../logic/fileUtils';
+import { GlobalTreeService } from '../../services/GlobalTreeService';
 
 interface HomeProps {
     userEmail: string;

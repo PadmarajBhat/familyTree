@@ -31,8 +31,8 @@ import type {
 } from "@google/genai";
 
 import { EventEmitter } from "eventemitter3";
-import type { LiveClientOptions, StreamingLog } from "../types";
-import { base64ToArrayBuffer } from "./utils";
+import type { LiveClientOptions, StreamingLog } from "../../types";
+import { base64ToArrayBuffer } from "../utils";
 
 /**
  * Event types that can be emitted by the MultimodalLiveClient.
