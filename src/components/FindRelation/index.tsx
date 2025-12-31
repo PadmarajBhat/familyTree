@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { PersonNode } from '../../logic/types';
-import { findPath, getDisambiguationInfo, buildPathTree } from '../../logic/relationshipUtils';
+import { findPath, buildPathTree } from '../../logic/relationshipUtils';
 import { GlobalTreeService } from '../../services/GlobalTreeService';
 import { TreeView } from '../TreeView';
 import { CloseButton } from '../CloseButton';
+import { PersonSearchInput } from './PersonSearchInput';
 import './FindRelation.css';
 
 interface FindRelationProps {
@@ -14,74 +15,11 @@ interface FindRelationProps {
     initialPerson2Id?: string | null;
 }
 
-interface PersonOption {
-    node: PersonNode;
-    label: string;
-    treeName: string;
-    parentName?: string | null;
-    imageUrl?: string;
-    gender?: string;
-    disambiguationInfo: string;
-}
-
 export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick, onClose, initialPerson1Id, initialPerson2Id }) => {
     const [person1Search, setPerson1Search] = useState(initialPerson1Id && nodes[initialPerson1Id] ? (nodes[initialPerson1Id].name || '') : '');
     const [person2Search, setPerson2Search] = useState(initialPerson2Id && nodes[initialPerson2Id] ? (nodes[initialPerson2Id].name || '') : '');
     const [selectedPerson1, setSelectedPerson1] = useState<string | null>(initialPerson1Id || null);
     const [selectedPerson2, setSelectedPerson2] = useState<string | null>(initialPerson2Id || null);
-    const [showPerson1Suggestions, setShowPerson1Suggestions] = useState(false);
-    const [showPerson2Suggestions, setShowPerson2Suggestions] = useState(false);
-
-    // Use Effects for search
-    const [person1Options, setPerson1Options] = useState<PersonOption[]>([]);
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (person1Search && person1Search.length > 2) {
-                const results = GlobalTreeService.searchAllTrees(person1Search);
-                const options: PersonOption[] = results.map(res => ({
-                    node: res.node,
-                    label: res.node.name || 'Unknown', // Just name here, we show tree separately
-                    treeName: res.treeName,
-                    parentName: res.parentName || undefined,
-                    imageUrl: res.node.imageUrl || undefined,
-                    gender: res.node.gender || undefined,
-                    disambiguationInfo: getDisambiguationInfo(res.node, nodes)
-                })).slice(0, 10);
-
-                console.log(`Search for ${person1Search} found ${results.length} results`);
-                setPerson1Options(options);
-            } else {
-                setPerson1Options([]);
-            }
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [person1Search, nodes]);
-
-    const [person2Options, setPerson2Options] = useState<PersonOption[]>([]);
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (person2Search && person2Search.length > 2) {
-                const results = GlobalTreeService.searchAllTrees(person2Search);
-                const options: PersonOption[] = results.map(res => ({
-                    node: res.node,
-                    label: res.node.name || 'Unknown',
-                    treeName: res.treeName,
-                    parentName: res.parentName || undefined,
-                    imageUrl: res.node.imageUrl || undefined,
-                    gender: res.node.gender || undefined,
-                    disambiguationInfo: getDisambiguationInfo(res.node, nodes)
-                })).slice(0, 10);
-
-                console.log(`Search for ${person2Search} found ${results.length} results`);
-                setPerson2Options(options);
-            } else {
-                setPerson2Options([]);
-            }
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [person2Search, nodes]);
-
-
 
     // Calculate path
     const path = useMemo(() => {
@@ -118,13 +56,11 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
     const handleSelectPerson1 = (nodeId: string, label: string) => {
         setSelectedPerson1(nodeId);
         setPerson1Search(label);
-        setShowPerson1Suggestions(false);
     };
 
     const handleSelectPerson2 = (nodeId: string, label: string) => {
         setSelectedPerson2(nodeId);
         setPerson2Search(label);
-        setShowPerson2Suggestions(false);
     };
 
     const handleReset = () => {
@@ -132,8 +68,6 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
         setPerson2Search('');
         setSelectedPerson1(null);
         setSelectedPerson2(null);
-        setShowPerson1Suggestions(false);
-        setShowPerson2Suggestions(false);
     };
 
     return (
@@ -150,95 +84,29 @@ export const FindRelation: React.FC<FindRelationProps> = ({ nodes, onMemberClick
                 </div>
 
                 <div className="search-inputs compact">
-                    <div className="input-group">
-                        <div className="autocomplete-wrapper">
-                            <input
-                                type="text"
-                                placeholder="Person 1..."
-                                value={person1Search}
-                                onChange={(e) => {
-                                    setPerson1Search(e.target.value);
-                                    setSelectedPerson1(null);
-                                    setShowPerson1Suggestions(true);
-                                }}
-                                onFocus={() => setShowPerson1Suggestions(true)}
-                                autoComplete="off"
-                            />
-                            {showPerson1Suggestions && person1Options.length > 0 && (
-                                <div className="suggestions-dropdown">
-                                    {person1Options.map(option => (
-                                        <div
-                                            key={option.node.nodeId}
-                                            className="suggestion-item"
-                                            onClick={() => handleSelectPerson1(option.node.nodeId, option.label)}
-                                        >
-                                            <div className="suggestion-avatar" style={{
-                                                backgroundImage: option.imageUrl ? `url(${option.imageUrl})` : 'none',
-                                                backgroundColor: option.imageUrl ? 'transparent' : (option.gender === 'female' ? '#fce4ec' : '#e3f2fd')
-                                            }}>
-                                                {!option.imageUrl && (
-                                                    <span>{option.label.charAt(0)}</span>
-                                                )}
-                                            </div>
-                                            <div className="suggestion-details">
-                                                <div className="suggestion-main">{option.label}</div>
-                                                <div className="suggestion-sub">
-                                                    {option.treeName}
-                                                    {option.parentName && ` • Father: ${option.parentName}`}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <PersonSearchInput
+                        placeholder="Person 1..."
+                        value={person1Search}
+                        nodes={nodes}
+                        onSelect={handleSelectPerson1}
+                        onChange={(val) => {
+                            setPerson1Search(val);
+                            setSelectedPerson1(null);
+                        }}
+                    />
 
                     <span className="search-arrow">→</span>
 
-                    <div className="input-group">
-                        <div className="autocomplete-wrapper">
-                            <input
-                                type="text"
-                                placeholder="Person 2..."
-                                value={person2Search}
-                                onChange={(e) => {
-                                    setPerson2Search(e.target.value);
-                                    setSelectedPerson2(null);
-                                    setShowPerson2Suggestions(true);
-                                }}
-                                onFocus={() => setShowPerson2Suggestions(true)}
-                                autoComplete="off"
-                            />
-                            {showPerson2Suggestions && person2Options.length > 0 && (
-                                <div className="suggestions-dropdown">
-                                    {person2Options.map(option => (
-                                        <div
-                                            key={option.node.nodeId}
-                                            className="suggestion-item"
-                                            onClick={() => handleSelectPerson2(option.node.nodeId, option.label)}
-                                        >
-                                            <div className="suggestion-avatar" style={{
-                                                backgroundImage: option.imageUrl ? `url(${option.imageUrl})` : 'none',
-                                                backgroundColor: option.imageUrl ? 'transparent' : (option.gender === 'female' ? '#fce4ec' : '#e3f2fd')
-                                            }}>
-                                                {!option.imageUrl && (
-                                                    <span>{option.label.charAt(0)}</span>
-                                                )}
-                                            </div>
-                                            <div className="suggestion-details">
-                                                <div className="suggestion-main">{option.label}</div>
-                                                <div className="suggestion-sub">
-                                                    {option.treeName}
-                                                    {option.parentName && ` • Father: ${option.parentName}`}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <PersonSearchInput
+                        placeholder="Person 2..."
+                        value={person2Search}
+                        nodes={nodes}
+                        onSelect={handleSelectPerson2}
+                        onChange={(val) => {
+                            setPerson2Search(val);
+                            setSelectedPerson2(null);
+                        }}
+                    />
                 </div>
             </div>
 
