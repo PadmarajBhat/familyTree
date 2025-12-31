@@ -15,6 +15,35 @@ const nodeToRow = (n: PersonNode | Partial<PersonNode>) => [
     n.isEditor ? 'TRUE' : 'FALSE', n.editorSince || ''
 ];
 
+const logToRow = (log: any) => [
+    log.editedTime,
+    log.editedBy,
+    log.changes,
+    log.rootNodeName || '',
+    log.structured ? JSON.stringify(log.structured) : '[]'
+];
+
+export const appendChangeLogToSheets = async (log: any): Promise<void> => {
+    const spreadsheetId = await getOrCreateTreeSpreadsheet();
+    if (!spreadsheetId) return;
+    try {
+        await (gapi.client as any).sheets.spreadsheets.values.append({
+            spreadsheetId, range: 'ChangeLog!A2', valueInputOption: 'RAW',
+            resource: { values: [logToRow(log)] }
+        });
+    } catch (err) {
+        console.error("Error appending change log", err);
+    }
+};
+
+export const saveTreeUpdate = async (nodes: PersonNode[], changeLog: any): Promise<void> => {
+    // Parallel execution of Node Batch Update and History Append
+    await Promise.all([
+        saveNodesBatchToSheets(nodes),
+        appendChangeLogToSheets(changeLog)
+    ]);
+};
+
 export const saveNodeToSheets = async (node: Partial<PersonNode> & { nodeId: string }): Promise<void> => {
     const spreadsheetId = await getOrCreateTreeSpreadsheet();
     if (!spreadsheetId) return;

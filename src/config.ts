@@ -11,7 +11,7 @@ export const CONFIG = {
     DRIVE_LOGS_SPREADSHEET_NAME: 'family_tree_gemini_logs',
     DRIVE_TREE_SPREADSHEET_NAME: 'family_tree_data',
 
-    SCOPES: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/spreadsheets',
+    SCOPES: 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/spreadsheets',
     // 'drive.file' only allows access to files created by this app. 
     // If the user wants to edit existing files not created by this app (e.g. manually uploaded), we need 'drive'.
     // Given the requirement "The tree has to be save in google drive", 'drive.file' is safer but 'drive' is more flexible.

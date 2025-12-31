@@ -10,8 +10,8 @@ export interface UserPreferences {
 export const listTreeFiles = async () => {
     try {
         const response = await (gapi.client as any).drive.files.list({
-            q: "mimeType='application/json' and trashed=false",
-            fields: 'files(id, name, modifiedTime)',
+            q: "(mimeType='application/json' or mimeType='application/vnd.google-apps.spreadsheet') and name contains 'FT_' and trashed=false",
+            fields: 'files(id, name, modifiedTime, mimeType)',
             orderBy: 'name'
         });
         return response.result.files || [];
@@ -90,6 +90,13 @@ export const updateUserStarredTrees = async (email: string, starredTreeNames: st
 export const getFileContent = async (fileId: string) => {
     try {
         const response = await (gapi.client as any).drive.files.get({ fileId: fileId, alt: 'media' });
+        if (typeof response.result === 'string') {
+            try {
+                return JSON.parse(response.result);
+            } catch (e) {
+                return response.result;
+            }
+        }
         return response.result;
     } catch (err) {
         console.error("Error getting file content", err);
@@ -129,6 +136,19 @@ export const deleteFile = async (fileId: string): Promise<void> => {
         await (gapi.client as any).drive.files.delete({ fileId: fileId });
     } catch (err) {
         console.error("Error deleting file", err);
+        throw err;
+    }
+};
+
+export const copyFile = async (fileId: string, newName: string): Promise<string> => {
+    try {
+        const response = await (gapi.client as any).drive.files.copy({
+            fileId: fileId,
+            resource: { name: newName }
+        });
+        return response.result.id;
+    } catch (err) {
+        console.error("Error copying file", err);
         throw err;
     }
 };

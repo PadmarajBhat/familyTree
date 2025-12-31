@@ -4,7 +4,7 @@ import { loadedTreesCache, getNode } from './cache';
 
 export const loadMainTreeFromSheets = async (): Promise<TreeDocument | null> => {
     try {
-        const { nodes, metadata } = await loadTreeFromSheets();
+        const { nodes, metadata, summary } = await loadTreeFromSheets();
         if (nodes.length === 0) return null;
 
         // Convert flat array to record
@@ -20,7 +20,7 @@ export const loadMainTreeFromSheets = async (): Promise<TreeDocument | null> => 
             rootNodeId: metadata.rootNodeId || (nodes.length > 0 ? nodes[0].nodeId : ''),
             nodes: nodesRecord,
             marriages: [],
-            summary: [],
+            summary: summary || [],
             meta: {
                 createdBy: metadata.createdBy || 'Multiple (Sheets)',
                 createdTime: metadata.createdTime || new Date().toISOString(),
@@ -169,15 +169,37 @@ export const findUserInTrees = async (email: string): Promise<{ treeId: string; 
         // Helper to clean tree name
         const getTreeName = (filename: string) => filename.replace('_family_tree.json', '');
 
-        const checkFile = async (file: { id: string; name: string }) => {
+        const checkFile = async (file: { id: string; name: string; mimeType: string }) => {
             try {
                 // Check cache first
                 let tree = loadedTreesCache[file.id];
                 if (!tree) {
-                    const content = await getFileContent(file.id);
-                    if (content && typeof content === 'object' && 'nodes' in content) {
-                        tree = content as TreeDocument;
-                        loadedTreesCache[file.id] = tree; // Cache it
+                    if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
+                        const { nodes, metadata, summary } = await loadTreeFromSheets(file.id);
+                        // Convert to TreeDocument structure
+                        const nodesRecord: Record<string, PersonNode> = {};
+                        nodes.forEach(n => nodesRecord[n.nodeId] = n);
+
+                        tree = {
+                            schemaVersion: 1,
+                            treeId: metadata.treeId || file.id,
+                            treeName: metadata.treeName || getTreeName(file.name),
+                            versionIndex: 0,
+                            timestamp: new Date().toISOString(),
+                            rootNodeId: metadata.rootNodeId || (nodes.length > 0 ? nodes[0].nodeId : ''),
+                            nodes: nodesRecord,
+                            marriages: [],
+                            summary: summary || [],
+                            meta: { createdBy: 'Sheets', createdTime: new Date().toISOString(), nodeCount: nodes.length }
+                        };
+                        loadedTreesCache[file.id] = tree;
+                    } else {
+                        // Legacy JSON support
+                        const content = await getFileContent(file.id);
+                        if (content && typeof content === 'object' && 'nodes' in content) {
+                            tree = content as TreeDocument;
+                            loadedTreesCache[file.id] = tree;
+                        }
                     }
                 }
 
@@ -195,8 +217,6 @@ export const findUserInTrees = async (email: string): Promise<{ treeId: string; 
                             isOriginal
                         };
                     }
-                } else {
-                    console.warn(`Tree content missing or invalid for file: ${file.name} (${file.id})`);
                 }
             } catch (e) {
                 console.warn(`Failed to check tree ${file.name} for user`, e);
