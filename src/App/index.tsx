@@ -168,6 +168,8 @@ function App() {
         showDashboard={showDashboard} setShowDashboard={setShowDashboard}
         findRelationIds={findRelationIds} historyFilterNodeId={historyFilterNodeId}
         onToggleEditor={onToggleEditor}
+        onShowPrivacy={() => setStaticPage('privacy')}
+        onShowTerms={() => setStaticPage('terms')}
       />
     </div>
   );

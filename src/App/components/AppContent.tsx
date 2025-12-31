@@ -59,6 +59,8 @@ interface AppContentProps {
     findRelationIds: { p1: string | null; p2: string | null };
     historyFilterNodeId: string | null;
     onToggleEditor: (nodeId: string, newStatus: boolean, updates?: { email?: string; phone?: string }) => void;
+    onShowPrivacy: () => void;
+    onShowTerms: () => void;
 }
 
 export const AppContent: React.FC<AppContentProps> = ({
@@ -69,7 +71,8 @@ export const AppContent: React.FC<AppContentProps> = ({
     handleSaveMember, setEditorMode, setEditingNodeId, geminiAdapters,
     showSearch, setShowSearch, showFindRelation, setShowFindRelation,
     showCollaborators, setShowCollaborators, showVersionHistory, setShowVersionHistory,
-    showDashboard, setShowDashboard, findRelationIds, historyFilterNodeId, onToggleEditor
+    showDashboard, setShowDashboard, findRelationIds, historyFilterNodeId, onToggleEditor,
+    onShowPrivacy, onShowTerms
 }) => {
     if (error) return <div className="error-screen">{error}</div>;
     if (accessDenied) return <div className="access-denied">Access Denied</div>;
@@ -81,7 +84,7 @@ export const AppContent: React.FC<AppContentProps> = ({
 
                 {!isSignedIn ? (
                     <Suspense fallback={<div>Loading...</div>}>
-                        <Landing />
+                        <Landing onShowPrivacy={onShowPrivacy} onShowTerms={onShowTerms} />
                     </Suspense>
                 ) : viewState === 'home' ? (
                     <Suspense fallback={<div>Loading Home...</div>}>
