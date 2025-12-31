@@ -11,7 +11,7 @@ export const listTreeFiles = async () => {
     try {
         const response = await (gapi.client as any).drive.files.list({
             q: "(mimeType='application/json' or mimeType='application/vnd.google-apps.spreadsheet') and name contains 'FT_' and trashed=false",
-            fields: 'files(id, name, modifiedTime, mimeType)',
+            fields: 'files(id, name, modifiedTime, mimeType, owners)',
             orderBy: 'name'
         });
         const files = response.result.files || [];

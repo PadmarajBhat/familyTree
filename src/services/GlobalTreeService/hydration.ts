@@ -169,7 +169,7 @@ export const findUserInTrees = async (email: string): Promise<{ treeId: string; 
         // Helper to clean tree name
         const getTreeName = (filename: string) => filename.replace('_family_tree.json', '');
 
-        const checkFile = async (file: { id: string; name: string; mimeType: string }) => {
+        const checkFile = async (file: any) => {
             try {
                 // Check cache first
                 let tree = loadedTreesCache[file.id];
@@ -190,7 +190,7 @@ export const findUserInTrees = async (email: string): Promise<{ treeId: string; 
                             nodes: nodesRecord,
                             marriages: [],
                             summary: summary || [],
-                            meta: { createdBy: 'Sheets', createdTime: new Date().toISOString(), nodeCount: nodes.length }
+                            meta: { createdBy: metadata.createdBy || file.owners?.[0]?.emailAddress || 'Sheets', createdTime: new Date().toISOString(), nodeCount: nodes.length }
                         };
                         loadedTreesCache[file.id] = tree;
                     } else {
@@ -205,8 +205,17 @@ export const findUserInTrees = async (email: string): Promise<{ treeId: string; 
 
                 if (tree && tree.nodes) {
                     // Search nodes
-                    const userNode = Object.values(tree.nodes).find(n => n.email?.trim().toLowerCase() === email.trim().toLowerCase());
-                    const isCreator = tree.meta?.createdBy?.trim().toLowerCase() === email.trim().toLowerCase();
+                    console.log(`[Debug] Searching for ${email} in tree ${tree.treeName}. Node count: ${Object.keys(tree.nodes).length}`);
+                    const userNode = Object.values(tree.nodes).find(n => {
+                        const nodeEmail = n.email?.trim().toLowerCase();
+                        const searchEmail = email.trim().toLowerCase();
+                        if (nodeEmail && nodeEmail.includes("padmaraj")) {
+                            console.log(`[Debug] Checking node ${n.name}: '${nodeEmail}' vs '${searchEmail}'`);
+                        }
+                        return nodeEmail === searchEmail;
+                    });
+                    const isCreator = (tree.meta?.createdBy?.trim().toLowerCase() === email.trim().toLowerCase()) ||
+                        (file.owners?.[0]?.emailAddress?.trim().toLowerCase() === email.trim().toLowerCase());
 
                     if (userNode || isCreator) {
                         const isOriginal = userNode ? !userNode.externalLink : true;
