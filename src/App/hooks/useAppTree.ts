@@ -1,8 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { TreeDocument } from '../../logic/types';
 import { GlobalTreeService } from '../../services/GlobalTreeService';
-import { listTreeFiles, getFileContent, migrateTreeToSheets } from '../../services/drive';
-import { getTreeNameFromFilename } from '../../logic/fileUtils';
 
 export interface AppTreeState {
     tree: TreeDocument | null;
@@ -24,7 +22,6 @@ export interface AppTreeState {
     homeAutoloadEnabled: boolean;
     setHomeAutoloadEnabled: (enabled: boolean) => void;
     loadTree: (returnOnly?: boolean, specificFileId?: string) => Promise<TreeDocument | null>;
-    handleMigrateToStage2: () => Promise<void>;
 }
 
 export const useAppTree = (currentUser: { email: string; name: string } | null, isSignedIn: boolean): AppTreeState => {
@@ -45,105 +42,27 @@ export const useAppTree = (currentUser: { email: string; name: string } | null, 
 
         try {
             // PHASE 2: Check for Sheets tree first
-            const mainSheetsTree = await GlobalTreeService.loadMainTreeFromSheets();
+            const mainSheetsTree = await GlobalTreeService.loadMainTreeFromSheets(specificFileId);
             if (mainSheetsTree) {
                 console.log("App: Successfully loaded tree from Sheets.");
                 if (!returnOnly) {
                     setTree(mainSheetsTree);
                     setIsSheetsMode(true);
-                    setCurrentTreeId('sheets_main');
-                    setCurrentTreeName('Main Family Tree');
+                    setCurrentTreeId(specificFileId || 'sheets_main');
+                    setCurrentTreeName(mainSheetsTree.treeName || 'Main Family Tree');
                     setHomeAutoloadEnabled(false);
                     setLoading(false);
                 }
                 return mainSheetsTree;
             }
 
-            console.log("App: Sheets tree not found, falling back to JSON files...");
-            setIsSheetsMode(false);
+            console.log("App: Sheets tree not found.");
+            setIsSheetsMode(true); // Always true now
 
-            const files = await listTreeFiles();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const fileslist = files as any[];
-
-            if (fileslist && fileslist.length > 0) {
-                let fileToLoad = fileslist[0];
-
-                if (specificFileId) {
-                    const found = fileslist.find((f: any) => f.id === specificFileId);
-                    if (found) {
-                        fileToLoad = found;
-                    } else {
-                        console.warn("Requested file ID not found:", specificFileId);
-                    }
-                } else if (currentTreeId && fileslist.some((f: any) => f.id === currentTreeId)) {
-                    if (currentTreeName) {
-                        const consistentFiles = fileslist.filter((f: any) => getTreeNameFromFilename(f.name) === currentTreeName);
-                        if (consistentFiles.length > 0) {
-                            consistentFiles.sort((a: any, b: any) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime());
-                            fileToLoad = consistentFiles[0];
-                        }
-                    } else {
-                        fileToLoad = fileslist.find((f: any) => f.id === currentTreeId);
-                    }
-                }
-
-                console.log("Loading file:", fileToLoad.name, fileToLoad.id);
-                setCurrentTreeId(fileToLoad.id);
-                setCurrentTreeName(getTreeNameFromFilename(fileToLoad.name));
-
-                const content = await getFileContent(fileToLoad.id);
-
-                if (!content || typeof content !== 'object') {
-                    throw new Error("Invalid file content: Not an object");
-                }
-                if (!('nodes' in content) || !('rootNodeId' in content)) {
-                    throw new Error("Invalid tree structure: Missing nodes or rootNodeId");
-                }
-
-                const treeDoc = content as TreeDocument;
-
-                if (!treeDoc.rootNodeId || !treeDoc.nodes[treeDoc.rootNodeId]) {
-                    console.warn(`Root node "${treeDoc.rootNodeId}" is invalid or not found in nodes! Attempting to fix...`);
-                    const nodeIds = Object.keys(treeDoc.nodes);
-                    if (nodeIds.length > 0) {
-                        const newRoot = Object.values(treeDoc.nodes).find(n => !n.parentId);
-                        if (newRoot) {
-                            treeDoc.rootNodeId = newRoot.nodeId;
-                        } else {
-                            treeDoc.rootNodeId = nodeIds[0];
-                        }
-                    } else {
-                        treeDoc.rootNodeId = "";
-                    }
-                }
-
-                if (currentUser && currentUser.email) {
-                    const userEmail = currentUser.email.toLowerCase();
-                    const nodes = Object.values(treeDoc.nodes);
-                    const isMember = nodes.some(n => n.email?.toLowerCase() === userEmail);
-                    const isCreator = treeDoc.meta.createdBy?.toLowerCase() === userEmail;
-                    const isEmpty = nodes.length === 0;
-
-                    if (!isMember && !isCreator && !isEmpty) {
-                        setAccessDenied(true);
-                        setTree(null);
-                        return null;
-                    }
-                }
-
-                GlobalTreeService.hydrateTree(treeDoc, fileslist);
-                GlobalTreeService.registerTree(fileToLoad.id, treeDoc);
-
-                setTree(treeDoc);
-                setHomeAutoloadEnabled(false);
-                return treeDoc;
-            } else {
-                if (isSignedIn) {
-                    setTree(null);
-                }
-                return null;
+            if (isSignedIn) {
+                setTree(null);
             }
+            return null;
         } catch (err) {
             console.error("Failed to load tree", err);
             if (isSignedIn) {
@@ -153,27 +72,7 @@ export const useAppTree = (currentUser: { email: string; name: string } | null, 
         } finally {
             if (!returnOnly) setLoading(false);
         }
-    }, [currentUser, isSignedIn, currentTreeId, currentTreeName]);
-
-    const handleMigrateToStage2 = useCallback(async () => {
-        if (!tree) return;
-        setLoading(true);
-        setLoadingMessage("Migrating to Stage 2 (Sheets)...");
-        try {
-            const success = await migrateTreeToSheets(tree);
-            if (success) {
-                alert("Migration successful! Reloading tree from Sheets...");
-                window.location.reload();
-            } else {
-                alert("Migration failed. Please check console.");
-            }
-        } catch (err) {
-            alert("Migration error.");
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    }, [tree]);
+    }, [currentUser, isSignedIn]);
 
     return {
         tree, setTree,
@@ -185,7 +84,6 @@ export const useAppTree = (currentUser: { email: string; name: string } | null, 
         currentTreeId, setCurrentTreeId,
         currentTreeName, setCurrentTreeName,
         homeAutoloadEnabled, setHomeAutoloadEnabled,
-        loadTree,
-        handleMigrateToStage2
+        loadTree
     };
 };

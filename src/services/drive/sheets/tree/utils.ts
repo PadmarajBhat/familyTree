@@ -39,46 +39,62 @@ export const rowToNode = (row: any[]): PersonNode => ({
 export const getOrCreateTreeSpreadsheet = async (treeName?: string): Promise<string | null> => {
     if (state.cachedTreeSpreadsheetId) return state.cachedTreeSpreadsheetId;
     try {
-        const title = treeName ? `FT_${treeName}` : 'FamilyTree_Data';
-        // Request modifiedTime to check for daily rotation
+        const sanitized = (treeName || 'Data').trim().replace(/\s+/g, '_');
+        const today = new Date();
+        const dateStr = today.toISOString().split('T')[0];
+        const title = `FT_${sanitized}_${dateStr}`;
+
+        // 1. Search for ANY version of this tree (ignoring date for discovery if needed, 
+        // but let's stick to name-prefix matching for specific trees)
+        const prefix = `FT_${sanitized}_`;
         const response = await (gapi.client as any).drive.files.list({
-            q: `name='${title}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
-            fields: 'files(id, name, modifiedTime)'
+            q: `name contains '${prefix}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+            fields: 'files(id, name, modifiedTime)',
+            orderBy: 'modifiedTime desc'
         });
         const files = response.result.files;
 
         if (files && files.length > 0) {
-            const file = files[0];
-            const modifiedTime = new Date(file.modifiedTime);
-            const today = new Date();
-
-            // Check if file is from today (local date)
-            const isToday = modifiedTime.getDate() === today.getDate() &&
-                modifiedTime.getMonth() === today.getMonth() &&
-                modifiedTime.getFullYear() === today.getFullYear();
+            const latestFile = files[0];
+            const latestFileName = latestFile.name;
+            const isToday = latestFileName.includes(dateStr);
 
             if (!isToday) {
-                console.log(`File ${file.name} is from a previous day. Rotating...`);
-                // 1. Rename old file to backup
-                const dateStr = modifiedTime.toISOString().split('T')[0];
-                const backupName = `backup_${title}_${dateStr}`;
-                const { renameFile } = await import('../../files'); // Dynamic import to avoid cycles if any
-                await renameFile(file.id, backupName);
-                console.log(`Renamed old file to ${backupName}`);
+                console.log(`Latest file ${latestFileName} is from a previous day. Creating new daily file...`);
+                // Rename old file to include 'backup' if not already? Or just leave it as is 
+                // since the date is already in the name.
+                if (!latestFileName.startsWith('backup_')) {
+                    const { renameFile } = await import('../../files');
+                    await renameFile(latestFile.id, `backup_${latestFileName}`);
+                }
 
-                // 2. Create new fresh file (Copy content? Or fresh?)
-                // User said "create a new file for today". 
-                // Usually we want to KEEP the data. So we copy the backup to the new name.
+                // Create new fresh file byproduct of today's date
                 const { copyFile } = await import('../../files');
-                const newFileId = await copyFile(file.id, title);
+                const newFileId = await copyFile(latestFile.id, title);
                 console.log(`Created new daily file ${title} with id ${newFileId}`);
 
                 state.setCachedTreeSpreadsheetId(newFileId);
                 return newFileId;
             }
 
-            state.setCachedTreeSpreadsheetId(file.id);
-            return file.id;
+            state.setCachedTreeSpreadsheetId(latestFile.id);
+            return latestFile.id;
+        }
+
+        // Fallback search for legacy names if the prefix search failed
+        if (!treeName) {
+            const legacyResponse = await (gapi.client as any).drive.files.list({
+                q: `(name='FamilyTree_Data' or name='FT_MainTree') and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+                fields: 'files(id, name, modifiedTime)'
+            });
+            if (legacyResponse.result.files?.length > 0) {
+                const legacyFile = legacyResponse.result.files[0];
+                // Rename legacy to new format
+                const { renameFile } = await import('../../files');
+                await renameFile(legacyFile.id, title);
+                state.setCachedTreeSpreadsheetId(legacyFile.id);
+                return legacyFile.id;
+            }
         }
 
         const createResponse = await (gapi.client as any).sheets.spreadsheets.create({

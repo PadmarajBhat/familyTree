@@ -1,10 +1,9 @@
 
 import { useState } from 'react';
-import { listTreeFiles, saveTreeFile, renameFile } from '../../../services/drive';
+import { listTreeFiles, renameFile } from '../../../services/drive';
 import { getISTTimestamp } from '../../../logic/dateUtils';
-import { getTreeNameFromFilename, generateFilename } from '../../../logic/fileUtils';
+import { getTreeNameFromFilename } from '../../../logic/fileUtils';
 import { GlobalTreeService } from '../../../services/GlobalTreeService';
-import type { TreeDocument } from '../../../logic/types';
 
 export interface TreeFile {
     id: string;
@@ -59,15 +58,22 @@ export function useHomeTrees(userEmail: string) {
         if (!newTreeName.trim()) return;
         setCreating(true);
         try {
-            const name = generateFilename(newTreeName);
-            const newTree: TreeDocument = {
-                schemaVersion: 1, treeId: crypto.randomUUID(), treeName: newTreeName.trim(), versionIndex: 0,
-                timestamp: getISTTimestamp(), rootNodeId: "", nodes: {}, marriages: [], summary: [],
-                meta: { createdBy: userEmail, createdTime: getISTTimestamp(), nodeCount: 0 }
-            };
-            await saveTreeFile(name, newTree);
-            await loadTrees();
-            return true;
+            const { getOrCreateTreeSpreadsheet } = await import('../../../services/drive/sheets/tree/utils');
+            const { saveMetadataToSheets } = await import('../../../services/drive/sheets/tree/save');
+
+            const spreadsheetId = await getOrCreateTreeSpreadsheet(newTreeName.trim());
+            if (spreadsheetId) {
+                // Initialize metadata with the tree name
+                await saveMetadataToSheets({
+                    treeName: newTreeName.trim(),
+                    createdBy: userEmail,
+                    createdTime: getISTTimestamp(),
+                    schemaVersion: '1'
+                });
+                await loadTrees();
+                return true;
+            }
+            return false;
         } catch (e) {
             console.error("Error creating tree", e);
             return false;

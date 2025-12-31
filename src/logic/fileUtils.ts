@@ -1,24 +1,30 @@
 
 export const getTreeNameFromFilename = (filename: string): string => {
-    // Expected format: family_tree_[TreeName]_[Date].json
-    // Or legacy: family_tree_[Date].json (TreeName is "family_tree")
-    // Or legacy: family_tree_name without date?
+    // New format: FT_[TreeName]_[Date].json or FT_[TreeName] (Spreadsheet)
+    // Legacy format: family_tree_[TreeName]_[Date].json
 
-    let temp = filename.replace('family_tree_', '').replace('.json', '');
+    let temp = filename
+        .replace('FT_', '')
+        .replace('family_tree_', '')
+        .replace('.json', '');
 
     // Remove Google Drive duplicate suffixes like " (1)" or "_1"
     temp = temp.replace(/ \(\d+\)$/, '').replace(/_\d+$/, '');
     temp = temp.trim();
 
-    // Recursively remove dates at the end (YYYY-MM-DD)
-    // This handles cases like "Sample_2025-12-13_2025-12-14" -> "Sample"
-    const dateRegex = /_(\d{4}-\d{2}-\d{2})$/;
+    // Standardize: Remove dates at the end (YYYY-MM-DD or YYYY_MM_DD)
+    const dateRegex = /[_-](\d{4}-\d{2}-\d{2})$/;
+    const alternativeDateRegex = /[_-](\d{4}_\d{2}_\d{2})$/;
+
     while (dateRegex.test(temp)) {
         temp = temp.replace(dateRegex, '');
     }
+    while (alternativeDateRegex.test(temp)) {
+        temp = temp.replace(alternativeDateRegex, '');
+    }
 
-    // Handling "family_tree" base case if it was just date
-    if (!temp || temp === '') return 'Family Tree';
+    // Special case for main data file
+    if (!temp || temp === '' || temp.toLowerCase() === 'data') return 'Main Family Tree';
 
     return temp.replace(/_/g, ' ');
 };
@@ -26,5 +32,5 @@ export const getTreeNameFromFilename = (filename: string): string => {
 export const generateFilename = (treeName: string): string => {
     const sanitized = treeName.trim().replace(/\s+/g, '_');
     const date = new Date().toISOString().split('T')[0];
-    return `family_tree_${sanitized}_${date}.json`;
+    return `FT_${sanitized}_${date}.json`;
 };
