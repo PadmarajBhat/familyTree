@@ -253,22 +253,21 @@ export class GeminiLiveService {
         if (!this.ws) return;
 
         const allNodes = GlobalTreeService.getAllNodesFlat();
-        const contextData = allNodes.map(n => ({
-            id: n.nodeId,
-            name: n.name,
-            gender: n.gender,
-            spouses: n.spouseIds,
-            children: n.childrenIds,
-            parents: n.parentId ? [n.parentId] : [],
-            dob: n.dob,
-            loc: n.location?.district || n.location?.state,
-            email: n.email
-        }));
+        // Create simplified CSV Context
+        const csvHeader = "NodeID,Name,Gender,ParentIDs,SpouseIDs\n";
+        const csvRows = allNodes.map(n => {
+            const pIds = n.parentId ? n.parentId : "";
+            const sIds = n.spouseIds ? n.spouseIds.join('|') : "";
+            const gender = n.gender || "unknown";
+            // Escape names? simple replace of comma for now
+            const name = (n.name || "Unknown").replace(/,/g, " ");
+            return `${n.nodeId},${name},${gender},${pIds},${sIds}`;
+        });
 
-        const jsonContext = JSON.stringify(contextData);
-        console.log(`Injecting ${contextData.length} nodes into context (~${jsonContext.length} chars)`);
+        const csvContext = csvHeader + csvRows.join("\n");
+        console.log(`Injecting ${csvRows.length} nodes into context (~${csvContext.length} chars)`);
 
-        const systemInstructionText = GET_GEMINI_SYSTEM_PROMPT(jsonContext);
+        const systemInstructionText = GET_GEMINI_SYSTEM_PROMPT(csvContext);
 
         const setupMsg = {
             setup: {
@@ -338,6 +337,17 @@ export class GeminiLiveService {
                                 properties: {
                                     limit: { type: "INTEGER", description: "Number of records to return (default 10)." }
                                 }
+                            }
+                        },
+                        {
+                            name: "get_person_details",
+                            description: "Get FULL details for a specific person (DOB, Location, Education, etc.). Use this when the user asks for details not in the initial CSV.",
+                            parameters: {
+                                type: "OBJECT",
+                                properties: {
+                                    node_id: { type: "STRING", description: "The NodeID of the person." }
+                                },
+                                required: ["node_id"]
                             }
                         }
                     ]
@@ -568,6 +578,27 @@ export class GeminiLiveService {
                             const nodes = await this.onGetRecentNodes(limit);
                             result = { results: nodes.map(n => ({ id: n.nodeId, name: n.name, dob: n.dob, email: n.email, added: (n as any).lastUpdated })) };
                             this.onLog({ type: 'tool-response', text: `Found ${nodes.length} recent additions.`, timestamp: new Date() });
+                        } else if (name === "get_person_details") {
+                            const nodeId = args.node_id;
+                            this.onLog({ type: 'tool-call', text: `Fetching details for: ${nodeId}`, timestamp: new Date() });
+
+                            // GlobalTreeService.getNode requires treeId. But we might not know it perfectly in 'allNodesFlat'.
+                            // ACTUALLY, GlobalTreeService.getNode(treeId, nodeId) is strict.
+                            // Better to search in 'allNodesFlat' logic or use a helper. 
+                            // Since we have 'allNodesFlat', let's just find it in memory for now or assume we passed treeId.
+                            // BUT wait, getAllNodesFlat() merges everything.
+                            // Let's implement a quick lookup in GlobalTreeService or iteration here.
+
+                            // Quickest fix: Re-fetch all flattened nodes and find. (Or optimize GlobalTreeService later)
+                            const all = GlobalTreeService.getAllNodesFlat();
+                            const found = all.find(n => n.nodeId === nodeId);
+
+                            if (found) {
+                                result = { result: found };
+                            } else {
+                                result = { error: "Person not found." };
+                            }
+                            this.onLog({ type: 'tool-response', text: found ? "Details found." : "Person not found.", timestamp: new Date() });
                         } else {
                             result = { result: "system_error: Unknown tool." };
                         }
