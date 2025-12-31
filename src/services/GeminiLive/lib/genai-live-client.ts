@@ -162,24 +162,29 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
     }
 
     protected onopen() {
-        this.log("client.open", "Connected");
+        console.log("GenAILiveClient: onopen triggered");
+        this.log("connection.open", "Connected to socket");
         this.emit("open");
     }
 
     protected onerror(e: ErrorEvent) {
-        this.log("server.error", e.message);
+        console.log("GenAILiveClient: onerror triggered", e);
+        this.log("connection.error", "Error in socket");
         this.emit("error", e);
     }
 
     protected onclose(e: CloseEvent) {
+        console.log("GenAILiveClient: onclose triggered");
         this.log(
-            `server.close`,
+            `connection.close`,
             `disconnected ${e.reason ? `with reason: ${e.reason}` : ``}`
         );
         this.emit("close", e);
+        this._status = "disconnected";
     }
 
     protected async onmessage(message: LiveServerMessage) {
+        console.log("GenAILiveClient: onmessage triggered", message);
         if (message.setupComplete) {
             this.log("server.send", "setupComplete");
             this.emit("setupcomplete");
