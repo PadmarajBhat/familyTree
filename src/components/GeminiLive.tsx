@@ -123,22 +123,19 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({
 
         // We can use the client's "content" event for model text
         const onContent = (content: any) => {
-            const text = content.modelTurn?.parts?.map((p: any) => p.text).join("");
-            if (text) {
-                // Check if last log is model and append?
-                setLogs(prev => {
-                    const last = prev[prev.length - 1];
-                    if (last && last.type === 'model') {
-                        const newLogs = [...prev];
-                        newLogs[newLogs.length - 1] = {
-                            ...last,
-                            text: last.text + text,
+            console.log("GeminiLive: Handling content:", content);
+            if (content.modelTurn && content.modelTurn.parts) {
+                const parts = content.modelTurn.parts;
+                console.log("GeminiLive: Model Parts:", parts);
+                for (const part of parts) {
+                    if (part.text) {
+                        addLog({
+                            type: 'model',
+                            text: part.text,
                             timestamp: new Date()
-                        };
-                        return newLogs;
+                        });
                     }
-                    return [...prev, { type: 'model', text, timestamp: new Date() }];
-                });
+                }
             }
         };
 
@@ -318,7 +315,7 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({
             // Connect with Config
             connect({
                 systemInstruction: { parts: [{ text: systemInstructionText }] },
-                responseModalities: ["AUDIO" as any],
+                responseModalities: ["AUDIO" as any, "TEXT" as any],
                 speechConfig: {
                     voiceConfig: {
                         prebuiltVoiceConfig: {

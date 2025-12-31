@@ -43,7 +43,6 @@ function App() {
   const [isSheetsMode, setIsSheetsMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
   const recentToolCalls = useRef<Map<string, number>>(new Map());
 
   const [isGapiReady, setIsGapiReady] = useState(false);
@@ -149,12 +148,13 @@ function App() {
     setAuthErrorCallback((err) => {
       console.warn("Auth Error caught in App:", err);
       if (err === 'interaction_required' || err === 'access_denied') {
-        setAuthError(err);
+        // Kick to home screen
+        window.location.href = window.location.origin;
       }
     });
 
     initGoogleClient((signedIn) => {
-      if (signedIn) setAuthError(null); // Reset if success
+      // if (signedIn) setAuthError(null); // Removed
       setIsSignedIn(signedIn);
     }).then(() => {
       setIsGapiReady(true);
@@ -2011,20 +2011,7 @@ function App() {
           />
         </Suspense>
       )}
-      {authError && (
-        <div className="auth-error-overlay">
-          <div className="auth-error-card">
-            <h3>{t('Session Expired')}</h3>
-            <p>{t('Your Google session has expired or requires re-authentication. Please sign in again to continue.')}</p>
-            <button onClick={() => {
-              setAuthError(null);
-              signIn();
-            }} className="btn btn-secondary" style={{ marginTop: '1rem' }}>
-              {t('Sign In with Google')}
-            </button>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 
