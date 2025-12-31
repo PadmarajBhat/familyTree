@@ -105,6 +105,7 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
             setConfig(newConfig);
         }
         client.disconnect();
+        await audioStreamerRef.current?.resume();
         await client.connect(model, configToUse);
     }, [client, config, model]);
 
