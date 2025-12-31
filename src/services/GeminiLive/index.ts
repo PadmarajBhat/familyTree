@@ -594,11 +594,31 @@ export class GeminiLiveService {
                             const found = all.find(n => n.nodeId === nodeId);
 
                             if (found) {
-                                result = { result: found };
+                                // SANITIZATION: Create a clean object with ONLY semantic fields.
+                                // Exclude imageUrl, videoUrl, externalLink to prevent context bloat.
+                                const sanitized = {
+                                    nodeId: found.nodeId,
+                                    name: found.name,
+                                    gender: found.gender,
+                                    dob: found.dob,
+                                    dod: found.dod,
+                                    location: found.location,
+                                    occupation: found.occupation,
+                                    education: found.education,
+                                    hobbies: found.hobbies,
+                                    phone: found.phone, // Include phone if needed for contact info
+                                    email: found.email,
+                                    spouseIds: found.spouseIds,
+                                    parentId: found.parentId,
+                                    childrenIds: found.childrenIds,
+                                    notes: found.notes,
+                                    address: found.address
+                                };
+                                result = { result: sanitized };
                             } else {
                                 result = { error: "Person not found." };
                             }
-                            this.onLog({ type: 'tool-response', text: found ? "Details found." : "Person not found.", timestamp: new Date() });
+                            this.onLog({ type: 'tool-response', text: found ? "Details found (sent sanitized data)." : "Person not found.", timestamp: new Date() });
                         } else {
                             result = { result: "system_error: Unknown tool." };
                         }
