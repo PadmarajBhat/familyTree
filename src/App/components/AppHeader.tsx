@@ -16,14 +16,14 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ treeName, isSignedIn, curr
     return (
         <header className="app-header">
             <div className="header-left">
-                <h1>{t('app.title')}</h1>
+                <h1>{t('appTitle')}</h1>
                 {treeName && <span className="tree-name">{treeName}</span>}
             </div>
             <div className="header-right">
                 {isSignedIn ? (
                     <div className="user-info">
                         <span>{currentUser?.name}</span>
-                        <button onClick={() => { signOut(); setIsSignedIn(false); }}>{t('auth.signOut')}</button>
+                        <button onClick={() => { signOut(); setIsSignedIn(false); }}>{t('menu.signOut')}</button>
                     </div>
                 ) : (
                     <button onClick={() => signIn()}>{t('auth.signIn')}</button>

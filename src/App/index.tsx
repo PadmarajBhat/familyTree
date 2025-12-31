@@ -84,7 +84,7 @@ function App() {
   if (staticPage === 'terms') return <Suspense fallback={<div>Loading...</div>}><TermsOfService onClose={() => { setStaticPage(null); window.history.back(); }} /></Suspense>;
 
   return (
-    <>
+    <div className="app-container">
       <AppHeader treeName={tree?.treeName} isSignedIn={isSignedIn} currentUser={currentUser} setIsSignedIn={setIsSignedIn} />
       <AppContent
         loading={loading} loadingMessage={loadingMessage} error={error} accessDenied={accessDenied}
@@ -108,7 +108,7 @@ function App() {
         handleViewHistory={handleViewHistory} handleSaveMember={handleSaveMember}
         setEditorMode={setEditorMode} setEditingNodeId={setEditingNodeId} geminiAdapters={geminiAdapters}
       />
-    </>
+    </div>
   );
 }
 

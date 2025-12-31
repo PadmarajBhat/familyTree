@@ -8,6 +8,7 @@ const PersonDetail = lazy(() => import('../../components/PersonDetail').then(mod
 const MemberEditor = lazy(() => import('../../components/MemberEditor').then(module => ({ default: module.MemberEditor })));
 const FanChartView = lazy(() => import('../../components/FanChartView').then(module => ({ default: module.FanChartView })));
 const Home = lazy(() => import('../../components/Home').then(module => ({ default: module.Home })));
+const Landing = lazy(() => import('../../components/Landing').then(module => ({ default: module.Landing })));
 const GeminiLive = lazy(() => import('../../components/GeminiLive').then(module => ({ default: module.GeminiLive })));
 
 interface AppContentProps {
@@ -57,7 +58,11 @@ export const AppContent: React.FC<AppContentProps> = ({
             <main className="app-main">
                 {loading && <LoadingOverlay message={loadingMessage} />}
 
-                {!isSignedIn || viewState === 'home' ? (
+                {!isSignedIn ? (
+                    <Suspense fallback={<div>Loading...</div>}>
+                        <Landing />
+                    </Suspense>
+                ) : viewState === 'home' ? (
                     <Suspense fallback={<div>Loading Home...</div>}>
                         <Home
                             userEmail={currentUser?.email || ''}

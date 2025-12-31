@@ -1,6 +1,10 @@
 {
     "appTitle": "Family Tree",
-    "dashboardTitle": "Family Tree Dashboard",
+    "appSubtitle": "Preserve your heritage, share your history.",
+    "auth": {
+        "signIn": "Sign in with Google",
+        "signOut": "Sign Out"
+    },
     "menu": {
         "search": "Search Members",
         "findRelation": "Find Relationship",
