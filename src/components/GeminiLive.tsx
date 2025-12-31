@@ -41,6 +41,10 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({
 
     const { client, connected, connect, disconnect, volume, setConfig } = useLiveAPI({ apiKey: CONFIG.API_KEY || "" });
 
+    useEffect(() => {
+        console.log("GeminiLive mounted. API Key present:", !!CONFIG.API_KEY);
+    }, []);
+
     const processingToolCalls = useRef<Set<string>>(new Set());
     const chatEndRef = useRef<HTMLDivElement>(null);
 
