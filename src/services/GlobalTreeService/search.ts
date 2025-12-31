@@ -1,5 +1,5 @@
-import type { PersonNode, TreeDocument } from '../../logic/types';
-import { listTreeFiles, getFileContent } from '../drive';
+import type { PersonNode } from '../../logic/types';
+import { listTreeFiles } from '../drive';
 import { loadedTreesCache } from './cache';
 
 export interface SearchResult {
@@ -31,9 +31,10 @@ export const loadShortlistedTrees = async (shortlistedIds: string[]): Promise<vo
         }
 
         try {
-            const content = await getFileContent(fileId);
-            if (content && typeof content === 'object' && 'nodes' in content) {
-                loadedTreesCache[fileMeta.id] = content as TreeDocument;
+            const { loadMainTreeFromSheets } = await import('./hydration');
+            const tree = await loadMainTreeFromSheets(fileId);
+            if (tree) {
+                loadedTreesCache[fileId] = tree;
             }
         } catch (e) {
             console.error(`Failed to load tree ${fileId}`, e);

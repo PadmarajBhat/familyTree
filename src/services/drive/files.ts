@@ -10,12 +10,13 @@ export interface UserPreferences {
 export const listTreeFiles = async () => {
     try {
         const response = await (gapi.client as any).drive.files.list({
-            q: "mimeType='application/vnd.google-apps.spreadsheet' and (name contains 'FT_' or name = 'FamilyTree_Data') and trashed=false",
+            q: "mimeType='application/vnd.google-apps.spreadsheet' and (name contains 'FT_') and trashed=false",
             fields: 'files(id, name, modifiedTime, mimeType, owners)',
             orderBy: 'name'
         });
         const files = response.result.files || [];
-        return files.filter((f: any) => !f.name.toLowerCase().startsWith('lock'));
+        // Optional: extra filter to ensure name starts with FT_ (query 'contains' is broader)
+        return files.filter((f: any) => f.name.startsWith('FT_'));
     } catch (err) {
         console.error("Error listing files", err);
         return [];

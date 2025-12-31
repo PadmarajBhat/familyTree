@@ -143,3 +143,54 @@ export const getOrCreateTreeSpreadsheet = async (treeName?: string): Promise<str
         return null;
     }
 };
+
+/**
+ * Ensures all required sheets exist in the spreadsheet.
+ * If any are missing, they are created and initialized with headers.
+ */
+export const ensureTreeSheetsExist = async (spreadsheetId: string): Promise<void> => {
+    try {
+        const response = await (gapi.client as any).sheets.spreadsheets.get({ spreadsheetId });
+        const sheets = response.result.sheets || [];
+        const existingTitles = sheets.map((s: any) => s.properties.title);
+
+        const requiredSheets = [
+            { title: 'Nodes', headers: TREE_NODE_HEADERS },
+            { title: 'Relationships', headers: TREE_RELATION_HEADERS },
+            { title: 'Metadata', headers: TREE_METADATA_HEADERS },
+            { title: 'ChangeLog', headers: TREE_CHANGELOG_HEADERS }
+        ];
+
+        const requests: any[] = [];
+        const headerUpdates: any[] = [];
+
+        for (const req of requiredSheets) {
+            if (!existingTitles.includes(req.title)) {
+                console.log(`Sheet '${req.title}' missing in ${spreadsheetId}. Creating...`);
+                requests.push({ addSheet: { properties: { title: req.title } } });
+                headerUpdates.push({
+                    range: `${req.title}!A1`,
+                    values: [req.headers]
+                });
+            }
+        }
+
+        if (requests.length > 0) {
+            await (gapi.client as any).sheets.spreadsheets.batchUpdate({
+                spreadsheetId,
+                resource: { requests }
+            });
+
+            // Initialize headers for the new sheets
+            await (gapi.client as any).sheets.spreadsheets.values.batchUpdate({
+                spreadsheetId,
+                resource: {
+                    data: headerUpdates,
+                    valueInputOption: 'RAW'
+                }
+            });
+        }
+    } catch (err) {
+        console.error("Error ensuring tree sheets exist", err);
+    }
+};

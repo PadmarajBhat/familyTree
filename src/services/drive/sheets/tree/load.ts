@@ -8,14 +8,19 @@ export const loadTreeFromSheets = async (targetSpreadsheetId?: string): Promise<
     if (!spreadsheetId) throw new Error("Could not access or create tree spreadsheet.");
 
     try {
+        // Ensure all sheets exist before loading
+        const { ensureTreeSheetsExist } = await import('./utils');
+        await ensureTreeSheetsExist(spreadsheetId);
+
         const response = await (gapi.client as any).sheets.spreadsheets.values.batchGet({
             spreadsheetId,
             ranges: ['Nodes!A2:S', 'Metadata!A2:B', 'ChangeLog!A2:E']
         });
 
-        const nodeRows = response.result.valueRanges[0].values || [];
-        const metaRows = response.result.valueRanges[1].values || [];
-        const logRows = response.result.valueRanges[2].values || [];
+        const valueRanges = response.result.valueRanges;
+        const nodeRows = valueRanges[0].values || [];
+        const metaRows = valueRanges[1].values || [];
+        const logRows = valueRanges[2].values || [];
 
         const nodes: PersonNode[] = nodeRows.map((row: any[]) => rowToNode(row));
 
