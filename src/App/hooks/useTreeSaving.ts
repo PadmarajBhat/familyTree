@@ -127,7 +127,7 @@ export const useTreeSaving = ({
             console.log("Creating new file for today...", todayFileName);
 
             // SAFETY FIX: Save the NEW file first.
-            const newFile = await saveTreeFile(todayFileName, localTree, summaryText);
+            const newFile = await saveTreeFile(todayFileName, localTree);
 
             if (newFile && newFile.id) {
                 // New file saved successfully. Now we can safely archive the old one.

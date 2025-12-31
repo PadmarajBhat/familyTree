@@ -1,0 +1,122 @@
+
+.home-screen {
+    padding: 2rem;
+    max-width: 100%;
+    width: 1200px;
+    margin: 0 auto;
+    box-sizing: border-box; 
+}
+.home-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 1rem;
+}
+.home-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.home-actions input {
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+@media (max-width: 768px) {
+    .home-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .home-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .home-actions input {
+        flex: 1;
+    }
+}
+.tree-list {
+    margin-top: 1rem;
+}
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+.tree-card {
+    background: white;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative;
+}
+.tree-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.tree-card.active {
+    border-color: #2196f3;
+    background: #f8fbff;
+}
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+.card-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: #333;
+}
+.star-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #ccc;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+.star-btn.starred {
+    color: #ffd700;
+}
+.star-btn:hover {
+    transform: scale(1.2);
+}
+.card-meta {
+    font-size: 0.9rem;
+    color: #666;
+}
+.card-actions {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: flex-end;
+}
+.delete-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+.delete-btn:hover {
+    opacity: 1;
+    color: #f44336;
+}
+.filter-toggle {
+    margin-bottom: 1rem;
+}
+.loading {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+}

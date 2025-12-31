@@ -1,8 +1,9 @@
+
 import { useState } from 'react';
 import type { PersonNode } from '../../logic/types';
-import { calculateAge } from '../../logic/dateUtils';
-import { getPhotoUrl } from '../../services/drive';
 import { CloseButton } from '../CloseButton';
+import { CollaboratorCard } from './components/CollaboratorCard';
+import { MissingDetailsDialog } from './components/MissingDetailsDialog';
 import './CollaboratorList.css';
 
 interface CollaboratorListProps {
@@ -10,7 +11,6 @@ interface CollaboratorListProps {
     currentUserEmail: string;
     canToggle: boolean;
     onToggleEditor: (nodeId: string, newStatus: boolean, updates?: { email?: string; phone?: string }) => void;
-    onSetDefaultTree?: (email: string) => void;
     onClose: () => void;
 }
 
@@ -24,241 +24,50 @@ export function CollaboratorList({ nodes, canToggle, onToggleEditor, onClose }: 
     const [isAdding, setIsAdding] = useState(false);
 
     const allMembers = Object.values(nodes);
+    const filteredMembers = isAdding ? allMembers.filter(n => (n.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (n.email || '').toLowerCase().includes(searchTerm.toLowerCase())) : allMembers;
+    const editors = allMembers.filter(n => n.isEditor).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const nonEditors = isAdding ? filteredMembers.filter(n => !n.isEditor) : [];
 
-    // Filter based on search (only relevant when adding)
-    const filteredMembers = isAdding
-        ? allMembers.filter(node =>
-            (node.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (node.email || '').toLowerCase().includes(searchTerm.toLowerCase())
-        )
-        : allMembers;
-
-    // Separate editors and non-editors
-    // Helper: always sort editors by name
-    const editors = allMembers
-        .filter(node => node.isEditor)
-        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-    const nonEditors = isAdding
-        ? filteredMembers.filter(node => !node.isEditor)
-        : [];
-
-    const formatDate = (isoString: string | null) => {
-        if (!isoString) return 'N/A';
-        const date = new Date(isoString);
-        return date.toLocaleDateString('en-IN', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    };
+    const formatDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A';
 
     const handleToggleClick = (node: PersonNode, newStatus: boolean) => {
-        // Check protected emails
-        if (!newStatus && node.email && PROTECTED_EMAILS.includes(node.email.toLowerCase())) {
-            alert("This administrator cannot be removed.");
-            return;
-        }
-
-        if (newStatus) {
-            // Adding as editor - check for mandatory fields
-            if (!node.email || !node.phone) {
-                setMissingDetailsNode(node);
-                setEmailInput(node.email || '');
-                setPhoneInput(node.phone || '');
-                return;
-            }
-        }
-
+        if (!newStatus && node.email && PROTECTED_EMAILS.includes(node.email.toLowerCase())) { alert("Administrator protected."); return; }
+        if (newStatus && (!node.email || !node.phone)) { setMissingDetailsNode(node); setEmailInput(node.email || ''); setPhoneInput(node.phone || ''); return; }
         onToggleEditor(node.nodeId, newStatus);
-
-        // If we just added someone, maybe exit adding mode? 
-        // Or keep it open to add more? User can click cancel.
-        if (newStatus) {
-            setSearchTerm('');
-        }
+        if (newStatus) setSearchTerm('');
     };
 
-    const handleConfirmDetails = () => {
-        if (!missingDetailsNode) return;
-
-        if (!emailInput.trim() || !phoneInput.trim()) {
-            alert("Email and Phone are mandatory for editors.");
-            return;
-        }
-
-        onToggleEditor(missingDetailsNode.nodeId, true, {
-            email: emailInput.trim(),
-            phone: phoneInput.trim()
-        });
-        setMissingDetailsNode(null);
-        setSearchTerm('');
+    const handleConfirm = () => {
+        if (!missingDetailsNode || !emailInput.trim() || !phoneInput.trim()) { alert("Mandatory fields missing."); return; }
+        onToggleEditor(missingDetailsNode.nodeId, true, { email: emailInput.trim(), phone: phoneInput.trim() });
+        setMissingDetailsNode(null); setSearchTerm('');
     };
 
-    const renderMemberCard = (node: PersonNode, isCurrentEditor: boolean) => {
-        const age = calculateAge(node.dob, node.dod);
-        const ageText = age !== null ? ` (${age})` : '';
-        const imageUrl = getPhotoUrl(node.imageUrl) ?? undefined;
-        const isProtected = !!(isCurrentEditor && node.email && PROTECTED_EMAILS.includes(node.email.toLowerCase()));
-
-        return (
-            <div key={node.nodeId} className="collaborator-card">
-                <div className="card-left">
-                    {imageUrl ? (
-                        <img src={imageUrl} alt={node.name || 'Member'} className="member-avatar" />
-                    ) : (
-                        <div className="member-avatar-placeholder">
-                            {node.name ? node.name.charAt(0).toUpperCase() : '?'}
-                        </div>
-                    )}
-                    <div className="collaborator-info">
-                        <div className="collaborator-name">
-                            {node.name || 'Unknown'}{ageText}
-                        </div>
-                        <div className="collaborator-details">
-                            <div>{node.email ? `📧 ${node.email}` : '📧 No Email'}</div>
-                            <div>{node.phone ? `📞 ${node.phone}` : '📞 No Phone'}</div>
-                            {isCurrentEditor && node.editorSince && (
-                                <div className="editor-since">
-                                    ✓ Editor since {formatDate(node.editorSince)}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-                <button
-                    className={`toggle-button ${isCurrentEditor ? 'remove' : 'add'}`}
-                    onClick={() => handleToggleClick(node, !isCurrentEditor)}
-                    disabled={!canToggle || (isProtected ?? false)}
-                    title={
-                        isProtected ? 'Protected Administrator' :
-                            !canToggle ? 'Only editors can modify permissions' :
-                                isCurrentEditor ? 'Remove editor access' : 'Grant editor access'
-                    }
-                >
-                    {isCurrentEditor ? 'Remove' : 'Add'}
-                </button>
-            </div>
-        );
-    };
+    const renderCard = (node: PersonNode, active: boolean) => (
+        <CollaboratorCard key={node.nodeId} node={node} isCurrentEditor={active} canToggle={canToggle} isProtected={!!(active && node.email && PROTECTED_EMAILS.includes(node.email.toLowerCase()))} onToggle={() => handleToggleClick(node, !active)} formatDate={formatDate} />
+    );
 
     return (
         <div className="collaborator-overlay">
             <div className="collaborator-container">
-                <div className="collaborator-header">
-                    <h2>Manage Editors</h2>
-                    <CloseButton onClick={onClose} />
-                </div>
-
-                {!canToggle && (
-                    <div className="info-banner">
-                        ℹ️ You can view collaborators but only editors can modify permissions
-                    </div>
-                )}
-
+                <div className="collaborator-header"><h2>Manage Editors</h2><CloseButton onClick={onClose} /></div>
+                {!canToggle && <div className="info-banner">ℹ️ View-only mode</div>}
                 <div className="collaborator-content">
-
                     {!isAdding ? (
                         <>
-                            <div className="section">
-                                <h3>Current Editors ({editors.length})</h3>
-                                {editors.length === 0 ? (
-                                    <div className="empty-state">No editors found</div>
-                                ) : (
-                                    <div className="collaborator-list">
-                                        {editors.map(node => renderMemberCard(node, true))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {canToggle && (
-                                <div className="actions-footer">
-                                    <button className="btn-primary full-width" onClick={() => setIsAdding(true)}>
-                                        + Add New Editor
-                                    </button>
-                                </div>
-                            )}
+                            <div className="section"><h3>Current Editors ({editors.length})</h3>{editors.length === 0 ? <div className="empty-state">No editors</div> : editors.map(n => renderCard(n, true))}</div>
+                            {canToggle && <div className="actions-footer"><button className="btn-primary full-width" onClick={() => setIsAdding(true)}>+ Add New Editor</button></div>}
                         </>
                     ) : (
                         <>
-                            <div className="add-editor-header">
-                                <button className="btn-text" onClick={() => { setIsAdding(false); setSearchTerm(''); }}>
-                                    ← Back to List
-                                </button>
-                                <h3>Add New Editor</h3>
-                            </div>
-
-                            <div className="search-section">
-                                <input
-                                    type="text"
-                                    className="search-input"
-                                    placeholder="Search members by name or email..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    autoFocus
-                                />
-                            </div>
-
-                            <div className="section">
-                                <h3>Search Results ({nonEditors.length})</h3>
-                                {nonEditors.length === 0 ? (
-                                    <div className="empty-state">
-                                        {searchTerm ? "No matching members found" : "Type to search members"}
-                                    </div>
-                                ) : (
-                                    <div className="collaborator-list">
-                                        {nonEditors.map(node => renderMemberCard(node, false))}
-                                    </div>
-                                )}
-                            </div>
+                            <div className="add-editor-header"><button className="btn-text" onClick={() => { setIsAdding(false); setSearchTerm(''); }}>← Back</button><h3>Add New Editor</h3></div>
+                            <div className="search-section"><input type="text" className="search-input" placeholder="Search..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} autoFocus /></div>
+                            <div className="section"><h3>Results ({nonEditors.length})</h3>{nonEditors.length === 0 ? <div className="empty-state">No results</div> : nonEditors.map(n => renderCard(n, false))}</div>
                         </>
                     )}
                 </div>
             </div>
-
-            {missingDetailsNode && (
-                <div className="details-dialog-overlay">
-                    <div className="details-dialog">
-                        <h3>Missing Details</h3>
-                        <p>
-                            To make <strong>{missingDetailsNode.name}</strong> an editor,
-                            Email ID and Phone Number are mandatory. Please provide them below.
-                        </p>
-                        <div className="input-group">
-                            <label>Email ID *</label>
-                            <input
-                                type="email"
-                                value={emailInput}
-                                onChange={(e) => setEmailInput(e.target.value)}
-                                placeholder="Enter email address"
-                            />
-                        </div>
-                        <div className="input-group">
-                            <label>Phone Number *</label>
-                            <input
-                                type="tel"
-                                value={phoneInput}
-                                onChange={(e) => setPhoneInput(e.target.value)}
-                                placeholder="Enter phone number"
-                            />
-                        </div>
-                        <div className="dialog-actions">
-                            <button
-                                className="dialog-button cancel"
-                                onClick={() => setMissingDetailsNode(null)}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="dialog-button confirm"
-                                onClick={handleConfirmDetails}
-                            >
-                                Save & Make Editor
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {missingDetailsNode && <MissingDetailsDialog node={missingDetailsNode} email={emailInput} phone={phoneInput} setEmail={setEmailInput} setPhone={setPhoneInput} onCancel={() => setMissingDetailsNode(null)} onConfirm={handleConfirm} />}
         </div>
     );
 }

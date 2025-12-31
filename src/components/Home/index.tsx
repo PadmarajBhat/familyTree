@@ -1,9 +1,10 @@
+
 import React, { useEffect, useState, useRef } from 'react';
-import { listTreeFiles, saveTreeFile, renameFile, getPreferences, updateUserStarredTrees } from '../../services/drive';
-import { getISTTimestamp } from '../../logic/dateUtils';
-import type { TreeDocument } from '../../logic/types';
-import { getTreeNameFromFilename, generateFilename } from '../../logic/fileUtils';
-import { GlobalTreeService } from '../../services/GlobalTreeService';
+import { useHomeTrees } from './hooks/useHomeTrees';
+import { useHomePreferences } from './hooks/useHomePreferences';
+import { HomeHeader } from './components/HomeHeader';
+import { TreeCard } from './components/TreeCard';
+import './Home.css';
 
 interface HomeProps {
     userEmail: string;
@@ -13,450 +14,47 @@ interface HomeProps {
     enableAutoload?: boolean;
 }
 
-interface TreeFile {
-    id: string;
-    name: string;
-    originalFilename: string;
-    modifiedTime: string;
-    description?: string;
-}
-
 export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTreeId, isEditor, enableAutoload = true }) => {
-    const [trees, setTrees] = useState<TreeFile[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [loadingMessage, setLoadingMessage] = useState<string>("Loading...");
-    const [shortlistedIds, setShortlistedIds] = useState<string[]>([]);
-    const [starredTreeNames, setStarredTreeNames] = useState<Set<string>>(new Set());
-    const [treeIdMap, setTreeIdMap] = useState<Record<string, string[]>>({});
+    const { trees, treeIdMap, loading, loadingMessage, creating, loadTrees, handleCreateTree, handleDeleteTree } = useHomeTrees(userEmail);
+    const { starredTreeNames, toggleShortlist } = useHomePreferences(userEmail, treeIdMap);
     const [showAll, setShowAll] = useState(false);
-    const [creating, setCreating] = useState(false);
     const [newTreeName, setNewTreeName] = useState('');
     const autoloadAttempted = useRef(false);
 
+    useEffect(() => { loadTrees(); }, [userEmail]);
+
     useEffect(() => {
-        loadTrees();
-
-        // Load starred trees from Cloud Preferences
-        const loadPrefs = async () => {
-            try {
-                const prefs = await getPreferences();
-                if (prefs && prefs[userEmail]?.starredTreeNames) {
-                    const stars = new Set(prefs[userEmail].starredTreeNames);
-                    setStarredTreeNames(stars);
-                    // We don't need to manually set shortlistedIds here, 
-                    // the effect below will sync them based on treeIdMap
-                } else if (prefs && prefs[userEmail]?.defaultTreeName) {
-                    // Backwards compatibility
-                    setStarredTreeNames(new Set([prefs[userEmail].defaultTreeName!]));
-                }
-            } catch (e) {
-                console.warn("Failed to load preferences in Home", e);
-                // Fallback to local storage if needed?
-                const storedShortlist = localStorage.getItem(`shortlist_${userEmail}`);
-                if (storedShortlist) {
-                    setShortlistedIds(JSON.parse(storedShortlist));
-                }
-            }
-        };
-        loadPrefs();
-
-    }, [userEmail]);
-
-    // Autoload Logic
-    useEffect(() => {
-        if (enableAutoload && !loading && trees.length > 0 && starredTreeNames.size === 1) {
-            if (autoloadAttempted.current) return;
-
-            const targetName = Array.from(starredTreeNames)[0];
-            const targetTree = trees.find(t => t.name === targetName);
-
-            if (targetTree) {
-                console.log("Autoloading single shortlisted tree:", targetTree.name);
+        if (enableAutoload && !loading && trees.length > 0 && starredTreeNames.size === 1 && !autoloadAttempted.current) {
+            const target = trees.find(t => t.name === Array.from(starredTreeNames)[0]);
+            if (target) {
                 autoloadAttempted.current = true;
-                onSelectTree(targetTree.id);
+                onSelectTree(target.id);
             }
         }
     }, [trees, starredTreeNames, loading, enableAutoload, onSelectTree]);
 
-    const loadTrees = async () => {
-        setLoading(true);
-        try {
-            const files = await listTreeFiles();
-
-            // Group files by Tree Name
-            const groupedFiles: Record<string, TreeFile[]> = {};
-            const idMap: Record<string, string[]> = {};
-
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            files.forEach((f: any) => {
-                const treeName = getTreeNameFromFilename(f.name);
-                if (!groupedFiles[treeName]) {
-                    groupedFiles[treeName] = [];
-                    idMap[treeName] = [];
-                }
-                groupedFiles[treeName].push({
-                    id: f.id,
-                    name: treeName,
-                    originalFilename: f.name,
-                    modifiedTime: f.modifiedTime,
-                    description: f.description
-                });
-                idMap[treeName].push(f.id);
-            });
-
-            setTreeIdMap(idMap);
-
-            // Determine starred tree names based on persistent shortlistedIds (history)
-            // We do this inside loadTrees to ensure we have the file list to cross-reference
-            // However, shortlistedIds needs to be read from state or storage. 
-            // Since loadTrees is async and called from useEffect, verify we have latest shortlistedIds?
-            // State shortlistedIds might be empty on first render when this is called.
-            // Let's read localStorage directly here to be safe and dependent on userEmail, 
-            // OR rely on shortlistedIds dependency in a separate effect.
-            // Better: Just update starredNames whenever shortlistedIds OR treeIdMap changes.
-            // But let's finish calculating latestTrees first.
-
-            // For each group, pick the latest one
-            const latestTrees: TreeFile[] = [];
-            Object.values(groupedFiles).forEach(group => {
-                // Sort by modifiedTime descending
-                group.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime());
-                latestTrees.push(group[0]);
-            });
-
-            setTrees(latestTrees);
-        } catch (error) {
-            console.error("Failed to list trees", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Sync shortlistedIds (IDs) from starredTreeNames (Names)
-    useEffect(() => {
-        const newIds: string[] = [];
-        starredTreeNames.forEach(name => {
-            const ids = treeIdMap[name];
-            if (ids) {
-                newIds.push(...ids);
-            }
-        });
-        setShortlistedIds(newIds);
-        // Sync local storage as backup
-        localStorage.setItem(`shortlist_${userEmail}`, JSON.stringify(newIds));
-    }, [starredTreeNames, treeIdMap, userEmail]);
-
-    // Sync GlobalTreeService with ALL available trees for Unified Search (using fresh IDs from Home)
-    useEffect(() => {
-        if (trees.length > 0) {
-            const allIds = trees.map(t => t.id);
-            GlobalTreeService.loadShortlistedTrees(allIds);
-        }
-    }, [trees]);
-
-    const toggleShortlist = (tree: TreeFile, e: React.MouseEvent) => {
-        e.stopPropagation();
-
-        const newStarred = new Set(starredTreeNames);
-        if (newStarred.has(tree.name)) {
-            newStarred.delete(tree.name);
-        } else {
-            newStarred.add(tree.name);
-        }
-
-        setStarredTreeNames(newStarred);
-        // Persist to Cloud
-        updateUserStarredTrees(userEmail, Array.from(newStarred)).catch(console.error);
-
-        // Also update legacy local storage for resilience
-        // We defer this since IDs are derived in effect
-    };
-
-    const handleCreateTree = async () => {
-        if (!newTreeName.trim()) return;
-        setCreating(true);
-        try {
-            const name = generateFilename(newTreeName);
-            const newTree: TreeDocument = {
-                schemaVersion: 1,
-                treeId: crypto.randomUUID(),
-                treeName: newTreeName.trim(),
-                versionIndex: 0,
-                timestamp: getISTTimestamp(),
-                rootNodeId: "",
-                nodes: {},
-                marriages: [],
-                summary: [],
-                meta: {
-                    createdBy: userEmail,
-                    createdTime: getISTTimestamp(),
-                    nodeCount: 0
-                }
-            };
-
-            await saveTreeFile(name, newTree, "New Family Tree");
-            await loadTrees();
-            setNewTreeName('');
-        } catch (e) {
-            console.error("Error creating tree", e);
-            alert("Failed to create tree");
-        } finally {
-            setCreating(false);
-        }
-    };
-
-    const handleDeleteTree = async (id: string, originalFilename: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!confirm(`Are you sure you want to delete tree "${originalFilename}"? This cannot be undone.`)) return;
-
-        try {
-            setLoading(true);
-            setLoadingMessage("Scanning references in other trees...");
-
-            // Deep Cleanup: Remove shadow nodes in other trees that point to this one
-            await GlobalTreeService.removeLinksToTree(id, userEmail, (msg) => {
-                setLoadingMessage(msg);
-            });
-
-            setLoadingMessage("Deleting tree...");
-
-            // Prefix delete_ to the FULL original filename
-            await renameFile(id, `delete_${originalFilename}`);
-
-            // Remove from Starred Preferences (Fix for Ghost Trees)
-            const treeName = getTreeNameFromFilename(originalFilename);
-            if (starredTreeNames.has(treeName)) {
-                const newStarred = new Set(starredTreeNames);
-                newStarred.delete(treeName);
-                setStarredTreeNames(newStarred);
-                await updateUserStarredTrees(userEmail, Array.from(newStarred));
-            }
-
-            // Also remove from shortlist if present (Legacy ID cleanup)
-            if (shortlistedIds.includes(id)) {
-                const newIds = shortlistedIds.filter(sid => sid !== id);
-                setShortlistedIds(newIds);
-                localStorage.setItem(`shortlist_${userEmail}`, JSON.stringify(newIds));
-            }
-            await loadTrees();
-        } catch (e) {
-            console.error("Error deleting tree", e);
-            alert("Failed to delete tree");
-        } finally {
-            setLoading(false);
-            setLoadingMessage("Loading...");
-        }
-    };
-
-    // Filter displayed trees logic
-    const displayedTrees = (starredTreeNames.size > 0 && !showAll)
-        ? trees.filter(t => starredTreeNames.has(t.name))
-        : trees;
+    const displayedTrees = (starredTreeNames.size > 0 && !showAll) ? trees.filter(t => starredTreeNames.has(t.name)) : trees;
 
     return (
         <div className="home-screen">
-            <header className="home-header">
-                <h1>Family Trees</h1>
-                <div className="home-actions">
-                    {isEditor && (
-                        <>
-                            <input
-                                type="text"
-                                placeholder="New Tree Name"
-                                value={newTreeName}
-                                onChange={e => setNewTreeName(e.target.value)}
-                            />
-                            <button onClick={handleCreateTree} disabled={creating || !newTreeName}>
-                                {creating ? "Creating..." : "Create New"}
-                            </button>
-                        </>
-                    )}
-                </div>
-            </header>
-
+            <HomeHeader isEditor={isEditor} creating={creating} newTreeName={newTreeName} setNewTreeName={setNewTreeName} onCreateTree={() => handleCreateTree(newTreeName).then(ok => ok && setNewTreeName(''))} />
             {loading ? (
                 <div className="loading">{loadingMessage}</div>
             ) : (
                 <div className="tree-list">
                     {starredTreeNames.size > 0 && (
                         <div className="filter-toggle">
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    checked={!showAll}
-                                    onChange={() => setShowAll(!showAll)}
-                                />
-                                Show only my shortlisted trees
-                            </label>
+                            <label><input type="checkbox" checked={!showAll} onChange={() => setShowAll(!showAll)} /> Show only my shortlisted trees</label>
                         </div>
                     )}
-
-                    {displayedTrees.length === 0 && (
-                        <div className="empty-state">
-                            {trees.length === 0 ? "No family trees found. Create one to get started!" : "No shortlisted trees found."}
-                        </div>
-                    )}
-
+                    {displayedTrees.length === 0 && <div className="empty-state">{trees.length === 0 ? "No family trees found." : "No shortlisted trees found."}</div>}
                     <div className="cards-grid">
                         {displayedTrees.map(tree => (
-                            <div
-                                key={tree.id}
-                                className={`tree-card ${currentTreeId === tree.id ? 'active' : ''}`}
-                                onClick={() => onSelectTree(tree.id)}
-                            >
-                                <div className="card-header">
-                                    <h3>{tree.name}</h3>
-                                    <button
-                                        className={`star-btn ${starredTreeNames.has(tree.name) ? 'starred' : ''}`}
-                                        onClick={(e) => toggleShortlist(tree, e)}
-                                        title={starredTreeNames.has(tree.name) ? "Remove from shortlist" : "Add to shortlist"}
-                                    >
-                                        ★
-                                    </button>
-                                </div>
-                                <div className="card-meta">
-                                    <span>Last modified: {new Date(tree.modifiedTime).toLocaleDateString()}</span>
-                                </div>
-                                <div className="card-actions">
-                                    {isEditor && (
-                                        <button
-                                            className="delete-btn"
-                                            onClick={(e) => handleDeleteTree(tree.id, tree.originalFilename, e)}
-                                            title="Delete Today's Version"
-                                        >
-                                            🗑️
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
+                            <TreeCard key={tree.id} tree={tree} isActive={currentTreeId === tree.id} isStarred={starredTreeNames.has(tree.name)} isEditor={isEditor} onSelect={() => onSelectTree(tree.id)} onToggleStar={() => toggleShortlist(tree.name)} onDelete={() => handleDeleteTree(tree.id, tree.originalFilename)} />
                         ))}
                     </div>
                 </div>
             )}
-
-            <style>{`
-                .home-screen {
-                    padding: 2rem;
-                    max-width: 100%;
-                    width: 1200px;
-                    margin: 0 auto;
-                    box-sizing: border-box; 
-                }
-                .home-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    flex-wrap: wrap;
-                    gap: 1rem;
-                    margin-bottom: 2rem;
-                    border-bottom: 2px solid #eee;
-                    padding-bottom: 1rem;
-                }
-                .home-actions {
-                    display: flex;
-                    gap: 1rem;
-                    flex-wrap: wrap;
-                }
-                .home-actions input {
-                    padding: 0.5rem;
-                    border: 1px solid #ccc;
-                    border-radius: 4px;
-                }
-                @media (max-width: 768px) {
-                    .home-header {
-                        flex-direction: column;
-                        align-items: flex-start;
-                    }
-                    .home-actions {
-                        width: 100%;
-                        justify-content: space-between;
-                    }
-                    .home-actions input {
-                        flex: 1;
-                    }
-                }
-                .tree-list {
-                    margin-top: 1rem;
-                }
-                .cards-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-                    gap: 1.5rem;
-                    margin-top: 1.5rem;
-                }
-                .tree-card {
-                    background: white;
-                    border: 1px solid #eee;
-                    border-radius: 8px;
-                    padding: 1.5rem;
-                    cursor: pointer;
-                    transition: transform 0.2s, box-shadow 0.2s;
-                    position: relative;
-                }
-                .tree-card:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                }
-                .tree-card.active {
-                    border-color: #2196f3;
-                    background: #f8fbff;
-                }
-                .card-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    margin-bottom: 1rem;
-                }
-                .card-header h3 {
-                    margin: 0;
-                    font-size: 1.2rem;
-                    color: #333;
-                }
-                .star-btn {
-                    background: none;
-                    border: none;
-                    font-size: 1.5rem;
-                    color: #ccc;
-                    cursor: pointer;
-                    padding: 0;
-                    line-height: 1;
-                }
-                .star-btn.starred {
-                    color: #ffd700;
-                }
-                .star-btn:hover {
-                    transform: scale(1.2);
-                }
-                .card-meta {
-                    font-size: 0.9rem;
-                    color: #666;
-                }
-                .card-actions {
-                    margin-top: 1rem;
-                    display: flex;
-                    justify-content: flex-end;
-                }
-                .delete-btn {
-                    background: none;
-                    border: none;
-                    cursor: pointer;
-                    font-size: 1.2rem;
-                    opacity: 0.5;
-                    transition: opacity 0.2s;
-                }
-                .delete-btn:hover {
-                    opacity: 1;
-                    color: #f44336;
-                }
-                .filter-toggle {
-                    margin-bottom: 1rem;
-                }
-                .loading {
-                    text-align: center;
-                    padding: 2rem;
-                    color: #666;
-                }
-            `}</style>
         </div>
     );
 };
