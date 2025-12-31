@@ -36,8 +36,9 @@ export const renameFile = async (fileId: string, newName: string): Promise<void>
 
 export const getPreferences = async (): Promise<UserPreferences> => {
     try {
-        const response = await (gapi.client as any).drive.appDataFolder.files.list({
+        const response = await (gapi.client as any).drive.files.list({
             q: "name='user_preferences.json'",
+            spaces: 'appDataFolder',
             fields: 'files(id, name)'
         });
         const files = response.result.files;
@@ -53,8 +54,9 @@ export const getPreferences = async (): Promise<UserPreferences> => {
 
 export const savePreferences = async (prefs: UserPreferences): Promise<void> => {
     try {
-        const response = await (gapi.client as any).drive.appDataFolder.files.list({
+        const response = await (gapi.client as any).drive.files.list({
             q: "name='user_preferences.json'",
+            spaces: 'appDataFolder',
             fields: 'files(id, name)'
         });
         const files = response.result.files;

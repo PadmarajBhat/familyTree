@@ -1,14 +1,24 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { PersonNode } from '../../logic/types';
-import { getISTTimestamp, deriveDobFromAge, calculateAge, formatDateToDDMMYYYY, parseDateFromDDMMYYYY } from '../../logic/dateUtils';
+import { getISTTimestamp, parseDateFromDDMMYYYY, formatDateToDDMMYYYY } from '../../logic/dateUtils';
 import { isAncestor } from '../../logic/relationshipUtils';
-import { uploadImage, uploadVideo, getPhotoUrl, deleteFile } from '../../services/drive';
+import { uploadImage, uploadVideo, deleteFile, getPhotoUrl } from '../../services/drive';
 import { GlobalTreeService, type SearchResult } from '../../services/GlobalTreeService';
-import { generateAllTranslations } from '../../services/TransliterationService';
 import { CloseButton } from '../CloseButton';
-import { validatePersonData } from '../../logic/validation';
 import './MemberEditor.css';
+
+// Hooks
+import { useMemberForm } from './hooks/useMemberForm';
+import { useMediaCapture } from './hooks/useMediaCapture';
+import { useLocationSearch } from './hooks/useLocationSearch';
+import { usePeopleSearch } from './hooks/usePeopleSearch';
+
+// Components
+import { MediaSection } from './components/MediaSection';
+import { BasicInfoSection } from './components/BasicInfoSection';
+import { RelationSelect } from './components/RelationSelect';
+import { LocationSection } from './components/LocationSection';
 
 interface MemberEditorProps {
     currentUserEmail: string;
@@ -29,365 +39,116 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     onCancel,
     onDelete
 }) => {
-    const [name, setName] = useState(initialData?.name || '');
-    const [translations, setTranslations] = useState<Record<string, string | undefined>>(initialData?.nameTranslations || {});
+    // 1. Core Form Data
+    const form = useMemberForm({ initialData, mode, existingNodes });
 
-    const handleNameBlur = async () => {
-        // Auto-generate translations if name is present
-        if (name && name.length > 2) {
-            // Only generate if we don't have them? Or update strictly?
-            // Plan said "Auto-Generation: On Save (or blur)".
-            // Let's generate and merge. Manual edits should be respected?
-            // If user manually edited 'ta', we shouldn't overwrite it unless they changed 'en' name significantly?
-            // For simplicity: We generate all. If user wants to correct, they correct AFTER generation.
-            // OR: We only fill missing ones.
-            // "Strict Fallback" implies we populate all.
-            try {
-                const generated = await generateAllTranslations(name);
-                setTranslations(prev => {
-                    const next = { ...prev };
-                    for (const [key, val] of Object.entries(generated)) {
-                        // Optional: Don't overwrite if already set? 
-                        // "Save-Time Auto-Generation" implies system truth.
-                        // But if user manually fixed it, we hate overwriting.
-                        // Let's overwrite ONLY if the english name changed?
-                        // Hard to track "changed".
-                        // Let's just overwrite for now as it's an explicit action (Blur/Save).
-                        // Or better: overwriting is risky.
-                        // Let's overwrite only if empty.
-                        if (!next[key]) next[key] = val;
-                    }
-                    return next;
-                });
-            } catch (e) {
-                console.warn("Translation failed", e);
-            }
-        }
-        setTimeout(() => setShowNameSuggestions(false), 200);
-    };
+    // 2. Media Capture
+    const media = useMediaCapture({
+        initialImageUrl: initialData?.imageUrl,
+        initialVideoUrl: initialData?.videoUrl
+    });
+    const [uploading, setUploading] = useState(false);
+    const cameraInputRef = React.useRef<HTMLInputElement>(null);
+    const imageInputRef = React.useRef<HTMLInputElement>(null);
 
-    // const [gender, setGender] = useState<'male' | 'female' | 'other'>('male'); // TODO: Add gender to PersonNode if needed, currently not in interface but useful for UI
-    const [isAlive, setIsAlive] = useState(initialData ? !initialData.dod : true);
-    const [dob, setDob] = useState(initialData?.dob || '');
-    const [dobInput, setDobInput] = useState(formatDateToDDMMYYYY(initialData?.dob || null));
-    const [age, setAge] = useState(initialData?.ageProvided?.toString() || '');
-    const [dod, setDod] = useState(initialData?.dod || '');
-    const [dodInput, setDodInput] = useState(formatDateToDDMMYYYY(initialData?.dod || null));
-    const [phone, setPhone] = useState(initialData?.phone || '');
-    const [email, setEmail] = useState(initialData?.email || '');
-    const [address, setAddress] = useState(initialData?.address?.freeform || '');
-    const [parentId, setParentId] = useState<string | null>(initialData?.parentId || null);
+    // 3. Location Search
+    const location = useLocationSearch({
+        initialLocation: initialData?.location,
+        disabled: !!initialData?.externalLink
+    });
 
-    const [gender, setGender] = useState<'male' | 'female' | 'other' | null>(initialData?.gender || null);
-    const [hobbies, setHobbies] = useState<string[]>(initialData?.hobbies || []);
-    const [education, setEducation] = useState<{ degree: string; major: string }[]>(initialData?.education || []);
-    const [occupation, setOccupation] = useState<{ role: string; organization: string } | null>(initialData?.occupation || null);
-    const [notes, setNotes] = useState(initialData?.notes || '');
-    const [zipcode, setZipcode] = useState(initialData?.location?.zipcode || '');
-    const [locationData, setLocationData] = useState<{ district: string | null; state: string | null; country: string | null }>(
-        initialData?.location ? { district: initialData.location.district, state: initialData.location.state, country: initialData.location.country } : { district: null, state: null, country: null }
-    );
-
-    // For Live Links
+    // 4. Live Link / Shadow Node State
     const [externalLink, setExternalLink] = useState<{ treeId: string; nodeId: string; treeName?: string } | undefined>(initialData?.externalLink);
     const [isLinkedNode, setIsLinkedNode] = useState(!!initialData?.externalLink);
-
-    // Generic Duplicate Search
-    const [nameSuggestions, setNameSuggestions] = useState<SearchResult[]>([]);
-    const [showNameSuggestions, setShowNameSuggestions] = useState(false);
-
-    // Father Search State
-    const [fatherSearch, setFatherSearch] = useState('');
-    const [showFatherSuggestions, setShowFatherSuggestions] = useState(false);
-
-    // Children Management State
-    const [childrenIds, setChildrenIds] = useState<string[]>(initialData?.childrenIds || []);
-    const [childSearch, setChildSearch] = useState('');
-    const [showChildSuggestions, setShowChildSuggestions] = useState(false);
-
-    // Spouse Management State
-    const [spouseIds, setSpouseIds] = useState<string[]>(initialData?.spouseIds || []);
-    const [spouseSearch, setSpouseSearch] = useState('');
-    const [showSpouseSuggestions, setShowSpouseSuggestions] = useState(false);
-
-    // Sibling Management State
-    // Siblings are derived from parentId, but we want to allow adding/removing them.
-    // "Adding" a sibling means linking another node to the same parent.
-    // "Removing" a sibling means unlinking that node from the parent.
-    // To manage this locally, we need to know who the CURRENT siblings are.
-    // If parentId changes, the available siblings context changes, which is tricky.
-    // For now, let's assume siblings are relevant to the *current* parentId state.
-    const [siblingIds, setSiblingIds] = useState<string[]>(() => {
-        if (!initialData?.parentId || !existingNodes[initialData.parentId]) return [];
-        return existingNodes[initialData.parentId].childrenIds.filter(id => id !== initialData.nodeId);
-    });
-    const [siblingSearch, setSiblingSearch] = useState('');
-    const [showSiblingSuggestions, setShowSiblingSuggestions] = useState(false);
-
-    // Update siblings if parentId changes (e.g. user selects a new father)
-    useEffect(() => {
-        if (parentId && existingNodes[parentId]) {
-            // If we picked a new parent, the siblings are the children of that parent (excluding self)
-            // But wait, if we are *editing*, we might have made changes to the sibling list that aren't saved yet?
-            // Simpler approach: When parent changes, reset sibling list to that parent's children.
-            // But we also want to allow *adding* new siblings to this list.
-            const newParentChildren = existingNodes[parentId].childrenIds.filter(id => id !== initialData?.nodeId);
-            // We should merge? Or just reset?
-            // Let's reset for now to avoid confusion.
-            setSiblingIds(newParentChildren);
-        } else {
-            setSiblingIds([]);
-        }
-    }, [parentId, existingNodes, initialData]);
-
-    const [imageFile, setImageFile] = useState<File | null>(null);
-    const [imagePreview, setImagePreview] = useState<string | null>(getPhotoUrl(initialData?.imageUrl || null) || null);
-    const [uploading, setUploading] = useState(false);
-
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const cameraInputRef = useRef<HTMLInputElement>(null);
-
-    // Video Recording State
-    const [isRecording, setIsRecording] = useState(false);
-    const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
-    const [videoPreview, setVideoPreview] = useState<string | null>(initialData?.videoUrl ? getPhotoUrl(initialData.videoUrl) : null);
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const videoRef = useRef<HTMLVideoElement>(null); // For live preview
-    const playbackRef = useRef<HTMLVideoElement>(null); // For playback
-    const chunksRef = useRef<Blob[]>([]);
-    const [recordingTime, setRecordingTime] = useState(0);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-    const startRecording = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-            }
-
-            const mediaRecorder = new MediaRecorder(stream);
-            mediaRecorderRef.current = mediaRecorder;
-            chunksRef.current = [];
-
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) {
-                    chunksRef.current.push(e.data);
-                }
-            };
-
-            mediaRecorder.onstop = () => {
-                const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-                setVideoBlob(blob);
-                const url = URL.createObjectURL(blob);
-                setVideoPreview(url);
-
-                // Stop all tracks
-                stream.getTracks().forEach(track => track.stop());
-            };
-
-            mediaRecorder.start();
-            setIsRecording(true);
-            setRecordingTime(0);
-
-            timerRef.current = setInterval(() => {
-                setRecordingTime(prev => {
-                    if (prev >= 15) {
-                        stopRecording();
-                        return 15;
-                    }
-                    return prev + 1;
-                });
-            }, 1000);
-
-        } catch (err) {
-            console.error("Error accessing camera:", err);
-            alert("Could not access camera. Please allow permissions.");
-        }
-    };
-
-    const stopRecording = () => {
-        if (mediaRecorderRef.current && isRecording) {
-            mediaRecorderRef.current.stop();
-            setIsRecording(false);
-            if (timerRef.current) {
-                clearInterval(timerRef.current);
-                timerRef.current = null;
-            }
-        }
-    };
-
-    const captureFrameFromVideo = () => {
-        if (playbackRef.current) {
-            const video = playbackRef.current;
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const dataUrl = canvas.toDataURL('image/jpeg');
-                setImagePreview(dataUrl);
-                // Convert to file for upload
-                fetch(dataUrl)
-                    .then(res => res.blob())
-                    .then(blob => {
-                        const file = new File([blob], "profile_frame.jpg", { type: "image/jpeg" });
-                        setImageFile(file);
-                    });
-            }
-        }
-    };
-
-    // Initialize computed age if dob exists but age doesn't
-    useEffect(() => {
-        if (mode === 'edit' && initialData?.dob && !initialData.ageProvided) {
-            const calculated = calculateAge(initialData.dob, initialData.dod);
-            if (calculated !== null) {
-                setAge(calculated.toString());
-            }
-        }
-        // Initialize father name for search field
-        if (initialData?.parentId && existingNodes[initialData.parentId]) {
-            setFatherSearch(existingNodes[initialData.parentId].name || 'Unknown');
-        }
-    }, [mode, initialData, existingNodes]);
-
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setImageFile(file);
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setImagePreview(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-
-
-    // Use an effect for searching to handle async GlobalTreeService if needed (though it's sync for now if loaded)
-    // Actually GlobalTreeService.searchAllTrees is sync on cache.
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (name && name.length > 2) {
-                const results = GlobalTreeService.searchAllTrees(name);
-                const filtered = results.filter(res => res.node.nodeId !== initialData?.nodeId);
-                setNameSuggestions(filtered);
-                setShowNameSuggestions(true);
-            } else {
-                setNameSuggestions([]);
-                setShowNameSuggestions(false);
-            }
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [name, initialData]);
-
-    const [suggestedFathers, setSuggestedFathers] = useState<SearchResult[]>([]);
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (fatherSearch && fatherSearch.length > 2) {
-                const results = GlobalTreeService.searchAllTrees(fatherSearch);
-                const filtered = results.filter(res => {
-                    // Cannot be own father
-                    if (res.node.nodeId === initialData?.nodeId) return false;
-                    // Prevent cycle if in same tree (simple check)
-                    // If in different tree, cycle check is harder, omitting for now or assuming OK.
-                    // Ideally we should check if 'res.node' is a descendant of 'initialData' crossing trees.
-                    // This requires a global graph traversal which is expensive.
-                    // For now, simple same-tree check:
-                    if (res.treeId === (initialData?.externalLink?.treeId || 'current') && initialData) {
-                        // This logic is flawed because we don't know "current" tree ID easily here without props.
-                        // But existingNodes comes from current tree.
-                        // Let's rely on the fact that if it's in existingNodes, use the old logic.
-                        // If it's from another tree, assume safe for now (or Shadow Node logic handles it).
-                    }
-                    // Prevent cycle: Candidate cannot be a descendant of current node
-                    // if (initialData && isAncestor(res.node.nodeId, initialData.nodeId, existingNodes)) return false; // Hard to check global ancenstry.
-                    return true;
-                }).slice(0, 10);
-                setSuggestedFathers(filtered);
-            } else {
-                setSuggestedFathers([]);
-            }
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [fatherSearch, initialData]);
-
-    const [suggestedSpouses, setSuggestedSpouses] = useState<SearchResult[]>([]);
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (spouseSearch && spouseSearch.length > 2) {
-                const results = GlobalTreeService.searchAllTrees(spouseSearch);
-                const filtered = results.filter(res => {
-                    if (res.node.nodeId === initialData?.nodeId) return false;
-                    return true;
-                }).slice(0, 10);
-                setSuggestedSpouses(filtered);
-            } else {
-                setSuggestedSpouses([]);
-            }
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [spouseSearch, initialData]);
-
-    const [suggestedChildren, setSuggestedChildren] = useState<SearchResult[]>([]);
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (childSearch && childSearch.length > 2) {
-                const results = GlobalTreeService.searchAllTrees(childSearch);
-                const filtered = results.filter(res => {
-                    if (res.node.nodeId === initialData?.nodeId) return false;
-                    return true;
-                }).slice(0, 10);
-                setSuggestedChildren(filtered);
-            } else {
-                setSuggestedChildren([]);
-            }
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [childSearch, initialData]);
-
-    // State for pending Shadow Nodes (remote nodes selected as relations)
+    const [linkedImageUrl, setLinkedImageUrl] = useState<string | null>(null);
     const [pendingShadowNodes, setPendingShadowNodes] = useState<PersonNode[]>([]);
 
-    const createShadowNode = (result: SearchResult): PersonNode => {
-        return {
+    const createShadowNode = (result: SearchResult): PersonNode => ({
+        nodeId: result.node.nodeId,
+        name: result.node.name,
+        imageUrl: result.node.imageUrl,
+        gender: result.node.gender,
+        dob: result.node.dob,
+        dobApprox: result.node.dobApprox || { known: false, year: null, month: null, day: null },
+        dod: result.node.dod,
+        dodApprox: result.node.dodApprox || { known: false, year: null, month: null, day: null },
+        dobInferred: false,
+        ageProvided: null,
+        phone: null,
+        phoneE164: null,
+        email: null,
+        address: { freeform: null }, // Don't verify address for shadow nodes
+        spouseIds: [],
+        parentId: null,
+        childrenIds: [],
+        isEditor: false,
+        editorSince: null,
+        editedBy: null,
+        editedTime: null,
+        externalLink: {
+            treeId: result.treeId,
             nodeId: result.node.nodeId,
-            name: result.node.name,
-            imageUrl: result.node.imageUrl,
-            gender: result.node.gender,
-            dob: result.node.dob,
-            dobApprox: result.node.dobApprox || { known: false, year: null, month: null, day: null },
-            dod: result.node.dod,
-            dodApprox: result.node.dodApprox || { known: false, year: null, month: null, day: null },
-            dobInferred: false,
-            ageProvided: null,
-            phone: null,
-            phoneE164: null,
-            email: null,
-            address: { freeform: null }, // Don't verify address for shadow nodes
-            spouseIds: [],
-            parentId: null,
-            childrenIds: [],
-            isEditor: false,
-            editorSince: null,
-            editedBy: null,
-            editedTime: null,
-            externalLink: {
-                treeId: result.treeId,
-                nodeId: result.node.nodeId,
-                treeName: result.treeName
-            }
-        };
+            treeName: result.treeName
+        }
+    });
+
+    // 5. Relations Search Logic
+    // Helper to filter out self, ancestors/descendants if needed (basic cycle check)
+    const filterRelation = (res: SearchResult) => {
+        if (res.node.nodeId === initialData?.nodeId) return false;
+        // Basic cycle prevention: if we know "current" node, prevent picking it.
+        // Deep ancestry check is expensive and complex across trees.
+        return true;
     };
 
-    const handleFatherSelect = (result: SearchResult) => {
-        setParentId(result.node.nodeId);
-        setFatherSearch(result.node.name || 'Unknown');
-        setShowFatherSuggestions(false);
+    // Father Search
+    const fatherSearch = usePeopleSearch({
+        initialValue: initialData?.parentId ? (existingNodes[initialData.parentId]?.name || 'Unknown') : '',
+        onSearch: (term) => GlobalTreeService.searchAllTrees(term).filter(res => filterRelation(res)).slice(0, 10),
+        disabled: isLinkedNode
+    });
 
-        // If not in existingNodes, queue it as a Shadow Node
+    // Spouse Search
+    const spouseSearch = usePeopleSearch({
+        onSearch: (term) => GlobalTreeService.searchAllTrees(term).filter(res => filterRelation(res)).slice(0, 10),
+        disabled: isLinkedNode
+    });
+
+    // Child Search
+    const childSearch = usePeopleSearch({
+        onSearch: (term) => GlobalTreeService.searchAllTrees(term).filter(res => filterRelation(res)).slice(0, 10),
+        disabled: isLinkedNode
+    });
+
+    // Sibling Search
+    // Siblings are local filtering usually
+
+    const [siblingSearchText, setSiblingSearchText] = useState('');
+    const siblingSuggestions = useMemo(() => {
+        if (!siblingSearchText || siblingSearchText.length < 2) return [];
+        const lower = siblingSearchText.toLowerCase();
+        return Object.values(existingNodes)
+            .filter(n =>
+                n.nodeId !== initialData?.nodeId &&
+                !form.siblingIds.includes(n.nodeId) &&
+                n.name?.toLowerCase().includes(lower) &&
+                (initialData ? !isAncestor(initialData.nodeId, n.nodeId, existingNodes) && !isAncestor(n.nodeId, initialData.nodeId, existingNodes) : true)
+            )
+            .slice(0, 5)
+            .map(n => ({
+                treeId: 'current',
+                treeName: 'Current Tree',
+                node: n,
+                parentName: n.parentId ? existingNodes[n.parentId]?.name : undefined
+            } as SearchResult));
+    }, [siblingSearchText, existingNodes, initialData, form.siblingIds]);
+
+
+    // Relation Handlers
+    const handleFatherSelect = (result: SearchResult) => {
+        form.setParentId(result.node.nodeId);
+        fatherSearch.setSearchText(result.node.name || 'Unknown');
+        fatherSearch.setShowSuggestions(false);
         if (!existingNodes[result.node.nodeId]) {
             const shadow = createShadowNode(result);
             setPendingShadowNodes(prev => [...prev.filter(n => n.nodeId !== shadow.nodeId), shadow]);
@@ -395,214 +156,134 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
     };
 
     const handleSpouseSelect = (result: SearchResult) => {
-        setSpouseIds(prev => [...prev, result.node.nodeId]);
-        setSpouseSearch('');
-        setShowSpouseSuggestions(false);
-
+        form.setSpouseIds(prev => [...prev, result.node.nodeId]);
+        spouseSearch.setSearchText('');
+        spouseSearch.setShowSuggestions(false);
         if (!existingNodes[result.node.nodeId]) {
             const shadow = createShadowNode(result);
             setPendingShadowNodes(prev => [...prev.filter(n => n.nodeId !== shadow.nodeId), shadow]);
         }
     };
 
-    // Need to implement handleChildSelect
     const handleChildSelect = (result: SearchResult) => {
-        setChildrenIds(prev => [...prev, result.node.nodeId]);
-        setChildSearch('');
-        setShowChildSuggestions(false);
-
+        form.setChildrenIds(prev => [...prev, result.node.nodeId]);
+        childSearch.setSearchText('');
+        childSearch.setShowSuggestions(false);
         if (!existingNodes[result.node.nodeId]) {
             const shadow = createShadowNode(result);
             setPendingShadowNodes(prev => [...prev.filter(n => n.nodeId !== shadow.nodeId), shadow]);
         }
     };
 
-    // Also update existing effect to use handleAddChild logic if needed
-    // But wait, the original code might have inline logic for these.
-    // I need to be careful not to double declare.
-    // The previous view showed handleFatherSelect was there but incomplete.
-
-
-    // Siblings are strictly local to the parent usually, unless we support cross-tree siblings (half-siblings?).
-    // For now, keep siblings local or use the same parent logic.
-    // If a parent is cross-tree, siblings should come from that tree?
-    // This is getting complex. Let's stick to: Siblings are children of the parent. 
-    // If the parent is a Shadow Node, we can't easily fetch their other children without loading that tree.
-    // GlobalTreeService loads all shortlisted trees, so we MIGHT have access.
-    // Let's leave siblings as is (local) for now or use local search.
-    // Actually, simply using existing logic for siblings is safest for this iteration.
-    const filteredSiblings = useMemo(() => {
-        if (!siblingSearch) return [];
-        const lowerSearch = siblingSearch.toLowerCase();
-        return Object.values(existingNodes)
-            .filter(node =>
-                node.nodeId !== initialData?.nodeId && // Cannot be own sibling
-                !siblingIds.includes(node.nodeId) && // Not already added
-                (node.name?.toLowerCase().includes(lowerSearch)) &&
-                (initialData ? !isAncestor(initialData.nodeId, node.nodeId, existingNodes) && !isAncestor(node.nodeId, initialData.nodeId, existingNodes) : true)
-            )
-            .slice(0, 5);
-    }, [siblingSearch, existingNodes, initialData, siblingIds]);
-
-
-
-    // REALITY CHECK: If I just pass ID, App.tsx won't find it in current tree nodes.
-    // So onSave will fail or create a broken link.
-    // I need to pass "newParentExternalLink" to onSave?
-    // Or onSave should accept "changes" object?
-
-    // Let's stick to the simplest Plan B:
-    // When selecting an external node, we don't support it FULLY in this step unless I modify onSave signature.
-    // I will MODIFY onSave signature to accept `externalLinks`.
-
-
-    const handleRemoveChild = (childId: string) => {
-        setChildrenIds(prev => prev.filter(id => id !== childId));
+    const handleSiblingSelect = (result: SearchResult) => {
+        form.setSiblingIds(prev => [...prev, result.node.nodeId]);
+        setSiblingSearchText('');
     };
 
+    // Duplicate/Live Link Selection
+    const nameDuplicateSearch = usePeopleSearch({
+        initialValue: '', // We don't start with a search, it's triggered by name hook manually usually?
+        // Actually, BasicInfoSection triggers it via `name` prop changes + usePeopleSearch effect?
+        // Let's reuse usePeopleSearch but driven by `form.name`.
+        onSearch: (term) => GlobalTreeService.searchAllTrees(term).filter(res => res.node.nodeId !== initialData?.nodeId),
+        disabled: isLinkedNode
+    });
 
+    // Wire up `nameDuplicateSearch` to `form.name`
+    useEffect(() => {
+        nameDuplicateSearch.setSearchText(form.name);
+    }, [form.name]);
 
-    const handleRemoveSpouse = (id: string) => {
-        setSpouseIds(prev => prev.filter(sid => sid !== id));
+    const handleDuplicateSelect = (result: SearchResult) => {
+        setExternalLink({ treeId: result.treeId, nodeId: result.node.nodeId, treeName: result.treeName });
+        setIsLinkedNode(true);
+        if (result.node.imageUrl) {
+            setLinkedImageUrl(result.node.imageUrl);
+            media.setImagePreview(getPhotoUrl(result.node.imageUrl));
+        }
+
+        form.setName(result.node.name || '');
+        if (result.node.dob) {
+            form.setDob(result.node.dob);
+            form.setDobInput(formatDateToDDMMYYYY(result.node.dob));
+        }
+        if (result.node.gender) form.setGender(result.node.gender || 'other');
+
+        nameDuplicateSearch.setShowSuggestions(false);
     };
-
-    const handleSiblingSelect = (node: PersonNode) => {
-        setSiblingIds(prev => [...prev, node.nodeId]);
-        setSiblingSearch('');
-        setShowSiblingSuggestions(false);
-    };
-
-    const handleRemoveSibling = (id: string) => {
-        setSiblingIds(prev => prev.filter(sid => sid !== id));
-    };
-
-    // State to hold the remote image URL during linking (to prevent wiping it on save)
-    const [linkedImageUrl, setLinkedImageUrl] = useState<string | null>(null);
 
     const getNodeName = (id: string) => {
         const node = existingNodes[id] || pendingShadowNodes.find(n => n.nodeId === id);
         return node?.name || 'Unknown';
     };
 
-    const handleDuplicateSelect = (result: SearchResult) => {
-        // Mandatory Live Link
-        setExternalLink({ treeId: result.treeId, nodeId: result.node.nodeId, treeName: result.treeName });
-        setIsLinkedNode(true);
-        if (result.node.imageUrl) {
-            setLinkedImageUrl(result.node.imageUrl);
-            setImagePreview(getPhotoUrl(result.node.imageUrl));
-        }
-
-        setName(result.node.name || '');
-        if (result.node.dob) {
-            setDob(result.node.dob);
-            setDobInput(formatDateToDDMMYYYY(result.node.dob));
-        }
-        if (result.node.gender) setGender(result.node.gender || 'other');
-
-        setShowNameSuggestions(false);
-    };
-
-    const handleSubmit = async (e: React.FormEvent, shouldAddChild: boolean = false) => {
+    // SAVE HANDLER
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
-        // Prepare data for validation
-        let finalDob = dob;
-        let dobInferred = initialData?.dobInferred || false;
-
-        if (!dob && age) {
-            finalDob = deriveDobFromAge(parseInt(age), isAlive ? null : dod);
-            dobInferred = true;
-        } else if (dob) {
-            dobInferred = false;
-        }
-
-        const dataToValidate: Partial<PersonNode> = {
-            name,
-            email,
-            dob: finalDob,
-            dod: !isAlive ? (dod || null) : null,
-            isEditor: initialData?.isEditor || false,
-            ageProvided: age ? parseInt(age) : null
-        };
-
-        const validation = validatePersonData(dataToValidate, initialData?.isEditor);
-        if (!validation.valid) {
-            alert(validation.errors.join('\n'));
-            return;
-        }
-
         setUploading(true);
 
         try {
-            let imageUrl = initialData?.imageUrl || null;
-
-            // If we have a linked image URL from duplicate selection, use it by default
-            if (linkedImageUrl) {
-                imageUrl = linkedImageUrl;
+            const validation = form.validate();
+            if (!validation.valid) {
+                alert(validation.errors.join('\n'));
+                setUploading(false);
+                return;
             }
 
-            if (imageFile) {
-                // If there was an old image, delete it to prevent duplicates
+            // Media Uploads
+            let finalImageUrl = initialData?.imageUrl || null;
+            if (linkedImageUrl) finalImageUrl = linkedImageUrl;
+            if (media.imageFile) {
                 if (initialData?.imageUrl) {
-                    try {
-                        await deleteFile(initialData.imageUrl);
-                    } catch (e) {
-                        console.warn("Failed to delete old image file", e);
-                        // Continue anyway, don't block save
-                    }
+                    try { await deleteFile(initialData.imageUrl); } catch (e) { console.warn("Delete old image failed", e); }
                 }
-                imageUrl = await uploadImage(imageFile);
+                finalImageUrl = await uploadImage(media.imageFile);
             }
 
             let finalVideoUrl = initialData?.videoUrl || null;
-            if (videoBlob) {
-                // Delete old video if exists
+            if (media.videoBlob) {
                 if (initialData?.videoUrl) {
-                    try {
-                        await deleteFile(initialData.videoUrl);
-                    } catch (e) { console.warn("Failed to delete old video", e); }
+                    try { await deleteFile(initialData.videoUrl); } catch (e) { console.warn("Delete old video failed", e); }
                 }
-                finalVideoUrl = await uploadVideo(videoBlob, `video_${initialData?.nodeId || 'new'}.webm`);
+                finalVideoUrl = await uploadVideo(media.videoBlob, `video_${initialData?.nodeId || 'new'}.webm`);
             }
 
             const now = getISTTimestamp();
-
             const personData: PersonNode = {
                 nodeId: initialData?.nodeId || uuidv4(),
-                name: name || null,
-                imageUrl: imageUrl,
+                name: form.name || null,
+                imageUrl: finalImageUrl,
                 videoUrl: finalVideoUrl,
-                phone: phone || null,
-                phoneE164: phone ? phone.replace(/\D/g, '') : null,
-                email: email ? email.toLowerCase() : null,
-                dob: finalDob || null,
+                phone: form.phone || null,
+                phoneE164: form.phone ? form.phone.replace(/\D/g, '') : null,
+                email: form.email ? form.email.toLowerCase() : null,
+                dob: validation.finalDob || null,
                 dobApprox: initialData?.dobApprox || { known: false, year: null, month: null, day: null },
-                dod: !isAlive ? (dod || null) : null,
+                dod: !form.isAlive ? (form.dod || null) : null,
                 dodApprox: initialData?.dodApprox || { known: false, year: null, month: null, day: null },
-                ageProvided: age ? parseInt(age) : null,
-                dobInferred: dobInferred,
-                address: { freeform: address || null },
-                spouseIds: spouseIds,
-                parentId: parentId,
-                childrenIds: childrenIds,
+                ageProvided: form.age ? parseInt(form.age) : null,
+                dobInferred: validation.dobInferred,
+                address: { freeform: form.address || null },
+                spouseIds: form.spouseIds,
+                parentId: form.parentId,
+                childrenIds: form.childrenIds,
                 isEditor: initialData?.isEditor || false,
                 editorSince: initialData?.editorSince || null,
                 editedBy: currentUserEmail,
                 editedTime: now,
-                gender: gender,
-                hobbies: hobbies,
-                education: education,
-                occupation: occupation,
-                notes: notes,
-                location: zipcode ? {
-                    zipcode: zipcode,
-                    district: locationData.district,
-                    state: locationData.state,
-                    country: locationData.country
+                gender: form.gender,
+                hobbies: form.hobbies,
+                education: form.education,
+                occupation: form.occupation,
+                notes: form.notes,
+                location: location.zipcode ? {
+                    zipcode: location.zipcode,
+                    district: location.locationData.district,
+                    state: location.locationData.state,
+                    country: location.locationData.country
                 } : null,
                 externalLink: externalLink,
-                nameTranslations: translations
+                nameTranslations: form.translations
             };
 
             // Live Link Write-Back
@@ -613,28 +294,11 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
                     personData,
                     currentUserEmail
                 );
-                if (!success) {
-                    // Error handled in service; abort local save to ensure consistency
-                    return;
-                }
+                if (!success) return; // Error handled in service
             }
 
-            onSave(personData, parentId, childrenIds, spouseIds, siblingIds, pendingShadowNodes);
-            if (shouldAddChild) {
-                // Logic handled in parent component via a specific signal or just by knowing the flow
-                // Actually, onSave is void. We might need a way to signal "Add Child".
-                // For now, let's assume onSave handles the data update, and we need a way to trigger the next step.
-                // We can pass a flag or use a different callback.
-                // But the prop definition is fixed. Let's stick to the plan:
-                // "Save & Add Child" -> We need to tell App.tsx to open add mode for a child.
-                // We can modify onSave signature or add a new prop.
-                // Let's hack it slightly: The App.tsx can inspect the 'shouldAddChild' if we pass it?
-                // No, let's just add a temporary property to the personData or change onSave signature in the interface above.
-                // I'll stick to changing the onSave signature in the interface above to include a 'nextAction' param?
-                // Or just keep it simple: The user asked for "Add child option".
-                // Let's just pass a callback or use a global state? No.
-                // Let's add a `nextAction` parameter to `onSave`.
-            }
+            onSave(personData, form.parentId, form.childrenIds, form.spouseIds, form.siblingIds, pendingShadowNodes);
+
         } catch (error) {
             console.error("Error saving member:", error);
             alert("Failed to save member. Please try again.");
@@ -643,750 +307,241 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
         }
     };
 
-    // Location Search State (Nominatim)
-    const [locationSearchText, setLocationSearchText] = useState('');
-    const [locationSuggestions, setLocationSuggestions] = useState<any[]>([]);
-    const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
-
-    // Ref to prevent auto-search when user selects a suggestion (or initially loads data)
-    const isSelectingRef = useRef(false);
-
-    // Initialize location search text from existing data
-    useEffect(() => {
-        if (initialData?.location) {
-            // Prevent search trigger on initial load
-            isSelectingRef.current = true;
-            const parts = [
-                initialData.location.district,
-                initialData.location.state,
-                initialData.location.country
-            ].filter(Boolean).join(', ');
-
-            if (parts) {
-                setLocationSearchText(parts + (initialData.location.zipcode ? ` (${initialData.location.zipcode})` : ''));
-            } else if (initialData.location.zipcode) {
-                setLocationSearchText(initialData.location.zipcode);
-            }
-        }
-    }, [initialData]);
-
-    // Debounced Location Search
-
-
-
-
-    // Debounced Location Search
-    useEffect(() => {
-        const timer = setTimeout(async () => {
-            // If we are merely setting the text due to selection, don't search again
-            if (isSelectingRef.current) {
-                isSelectingRef.current = false;
-                return;
-            }
-
-            if (!locationSearchText || locationSearchText.length < 3) {
-                setLocationSuggestions([]);
-                setShowLocationSuggestions(false);
-                return;
-            }
-
-            const cleanText = locationSearchText.trim();
-            const isSixDigitPincode = /^\d{6}$/.test(cleanText);
-
-            try {
-                if (isSixDigitPincode) {
-                    // Priority 1: Indian Post API for 6-digit numbers (More accurate for India)
-                    const response = await fetch(`https://api.postalpincode.in/pincode/${cleanText}`);
-                    const data = await response.json();
-                    if (data && data[0].Status === "Success") {
-                        const mapped = data[0].PostOffice.map((po: any) => ({
-                            display_name: `${po.Name}, ${po.District}, ${po.State}, India`,
-                            address: {
-                                postcode: po.Pincode,
-                                city: po.District, // Use District as City/Main location
-                                town: po.Name,
-                                village: po.Block,
-                                state: po.State,
-                                country: 'India'
-                            }
-                        }));
-                        setLocationSuggestions(mapped);
-                        setShowLocationSuggestions(true);
-                        return;
-                    }
-                }
-
-                // Priority 2: Photon API (Komoot) for text search or non-Indian/invalid pincodes
-                const response = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(cleanText)}&limit=5`);
-
-                if (response.ok) {
-                    const data = await response.json();
-                    // Photon returns GeoJSON features. Map them to our expected format.
-                    const mapped = data.features.map((f: any) => {
-                        const p = f.properties;
-                        return {
-                            display_name: [p.name, p.city, p.state, p.country].filter(Boolean).join(', '),
-                            address: {
-                                postcode: p.postcode,
-                                city: p.city,
-                                town: p.town,
-                                village: p.village,
-                                county: p.county,
-                                state_district: p.state, // Photon puts state in 'state' usually
-                                state: p.state,
-                                country: p.country
-                            }
-                        };
-                    });
-                    setLocationSuggestions(mapped);
-                    setShowLocationSuggestions(true);
-                }
-            } catch (err) {
-                console.error("Location search failed", err);
-            }
-
-        }, 500);
-
-        return () => clearTimeout(timer);
-    }, [locationSearchText]);
-
-    const handleLocationSelect = (place: any) => {
-        // Prevent the search effect from firing due to this update
-        isSelectingRef.current = true;
-
-        const addr = place.address;
-        const newZip = addr.postcode || '';
-        const district = addr.city || addr.town || addr.village || addr.county || addr.state_district || '';
-        const state = addr.state || '';
-        const country = addr.country || '';
-
-        setZipcode(newZip);
-        setLocationData({ district, state, country });
-
-        // Update display text
-        const displayParts = [district, state, country].filter(Boolean).join(', ');
-        setLocationSearchText(displayParts + (newZip ? ` (${newZip})` : ''));
-
-        setShowLocationSuggestions(false);
-    };
 
     return (
         <div className="member-editor-modal">
             <div className="member-editor-content">
                 <CloseButton onClick={onCancel} />
                 <h2>{mode === 'add' ? 'Add Member' : 'Edit Member'}</h2>
+
                 {isLinkedNode && externalLink && (
-                    <div style={{ background: '#e3f2fd', padding: '10px', borderRadius: '4px', marginBottom: '10px', border: '1px solid #2196f3' }}>
+                    <div className="live-link-banner" style={{ background: '#e3f2fd', padding: '10px', borderRadius: '4px', marginBottom: '10px', border: '1px solid #2196f3' }}>
                         <strong>Live Link Active:</strong> This person is linked to tree "{externalLink.treeName || externalLink.treeId}".
                         <br />
                         <small>Profile details are read-only. You can only edit relationships (Spouse/Children) in this tree.</small>
                     </div>
                 )}
 
-                <form onSubmit={(e) => handleSubmit(e, false)}>
+                <form onSubmit={handleSubmit}>
                     <div className="form-actions top-actions">
-                        {/* Left: Cancel - Safer Isolation */}
                         <button type="button" onClick={onCancel} disabled={uploading} className="cancel-btn">Cancel</button>
-
-                        {/* Right: Primary Actions */}
                         <div className="right-actions">
-                            {mode === 'edit' && onDelete && initialData && (childrenIds.length === 0 && spouseIds.length === 0) && (
+                            {mode === 'edit' && onDelete && initialData && (form.childrenIds.length === 0 && form.spouseIds.length === 0) && (
                                 <button type="button" onClick={() => {
-                                    if (window.confirm("Are you sure you want to delete this member?")) {
-                                        onDelete(initialData.nodeId);
-                                    }
-                                }} className="delete-btn">
-                                    Delete
-                                </button>
+                                    if (window.confirm("Are you sure you want to delete this member?")) onDelete(initialData.nodeId);
+                                }} className="delete-btn">Delete</button>
                             )}
-                            <button type="submit" disabled={uploading} className="primary-btn">
-                                {uploading ? 'Saving...' : 'Save'}
-                            </button>
+                            <button type="submit" disabled={uploading} className="primary-btn">{uploading ? 'Saving...' : 'Save'}</button>
                         </div>
                     </div>
 
-                    <div className="form-group image-upload" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '20px', marginBottom: '20px' }}>
+                    {/* Media */}
+                    <MediaSection
+                        imagePreview={media.imagePreview}
+                        onImageChange={media.handleImageChange}
+                        imageInputRef={imageInputRef}
+                        cameraInputRef={cameraInputRef}
+                        isRecording={media.isRecording}
+                        videoPreview={media.videoPreview}
+                        recordingTime={media.recordingTime}
+                        videoRef={media.videoRef}
+                        playbackRef={media.playbackRef}
+                        onStartRecording={media.startRecording}
+                        onStopRecording={media.stopRecording}
+                        onRetakeRecording={media.startRecording}
+                        onClearVideo={() => { media.setVideoPreview(null); media.setVideoBlob(null); }}
+                        onCaptureFrame={media.captureFrameFromVideo}
+                    />
 
-                        <button type="button" onClick={() => cameraInputRef.current?.click()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: 'none', background: 'none', cursor: 'pointer', padding: '10px' }}>
-                            <div style={{ background: '#e3f2fd', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-                                <span style={{ fontSize: '24px' }}>📷</span>
-                            </div>
-                            <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Camera</span>
-                        </button>
-
-                        <div
-                            className="image-preview"
-                            style={{
-                                width: '120px',
-                                height: '120px',
-                                borderRadius: '50%',
-                                border: '4px solid #fff',
-                                boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-                                backgroundImage: imagePreview ? `url(${imagePreview})` : 'none',
-                                backgroundSize: 'cover',
-                                backgroundPosition: 'center',
-                                backgroundColor: '#f0f2f5',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0,
-                                margin: '0'
-                            }}
-                        >
-                            {!imagePreview && <span style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>No Photo</span>}
-                        </div>
-
-                        <button type="button" onClick={() => fileInputRef.current?.click()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: 'none', background: 'none', cursor: 'pointer', padding: '10px' }}>
-                            <div style={{ background: '#e3f2fd', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-                                <span style={{ fontSize: '24px' }}>🖼️</span>
-                            </div>
-                            <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Gallery</span>
-                        </button>
-
-                        <input
-                            type="file"
-                            accept="image/*"
-                            ref={fileInputRef}
-                            onChange={handleImageChange}
-                            style={{ display: 'none' }}
-                        />
-                        <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            ref={cameraInputRef}
-                            onChange={handleImageChange}
-                            style={{ display: 'none' }}
-                        />
-                    </div>
-
-                    {/* Video Recording Section */}
-                    <div className="form-group video-section" style={{ textAlign: 'center', marginBottom: '20px' }}>
-                        {!isRecording && !videoPreview && (
-                            <button type="button" onClick={startRecording} className="secondary-btn" style={{ background: '#fce4ec', color: '#c2185b', border: '1px solid #f8bbd0' }}>
-                                🎥 Record 15s Video Profile
-                            </button>
-                        )}
-
-                        {isRecording && (
-                            <div className="recording-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <video ref={videoRef} autoPlay muted playsInline style={{ width: '100%', maxWidth: '300px', borderRadius: '8px', border: '2px solid #e91e63' }} />
-                                <div style={{ marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                    <span style={{ color: '#e91e63', fontWeight: 'bold' }}>🔴 Recording: {recordingTime}s / 15s</span>
-                                    <button type="button" onClick={stopRecording} className="primary-btn" style={{ background: '#e91e63' }}>Stop</button>
-                                </div>
-                            </div>
-                        )}
-
-                        {!isRecording && videoPreview && (
-                            <div className="preview-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <video ref={playbackRef} src={videoPreview} controls style={{ width: '100%', maxWidth: '300px', borderRadius: '8px', marginBottom: '10px' }} />
-                                <div style={{ display: 'flex', gap: '10px' }}>
-                                    <button type="button" onClick={startRecording} className="secondary-btn">Retake</button>
-                                    <button type="button" onClick={() => { setVideoPreview(null); setVideoBlob(null); }} className="secondary-btn">Clear</button>
-                                    <button type="button" onClick={captureFrameFromVideo} className="primary-btn" title="Extract smiling photo">📸 Use Frame as Photo</button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* 1. Name */}
-                    <div className="form-group" style={{ position: 'relative' }}>
-                        <label>Name</label>
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={e => setName(e.target.value)}
-                            onFocus={() => !isLinkedNode && name.length > 2 && setShowNameSuggestions(true)}
-                            onBlur={handleNameBlur}
-                            required
-                            disabled={isLinkedNode}
-                        />
-                        {showNameSuggestions && nameSuggestions.length > 0 && (
-                            <div className="suggestions-dropdown">
-                                <div className="suggestions-header">Possible Duplicates (Click to Populate)</div>
-                                {nameSuggestions.map(curr => (
-                                    <div
-                                        key={`${curr.treeId}-${curr.node.nodeId}`}
-                                        className="suggestion-item"
-                                        onClick={() => handleDuplicateSelect(curr)}
-                                    >
-                                        <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: curr.node.imageUrl ? `url(${getPhotoUrl(curr.node.imageUrl)})` : 'none' }}>
-                                            {!curr.node.imageUrl && '?'}
-                                        </div>
-                                        <div className="suggestion-info">
-                                            <div className="suggestion-name">{curr.node.name} <span className="tree-badge">({curr.treeName})</span></div>
-                                            <div className="suggestion-details">
-                                                {curr.parentName ? `${curr.node.gender === 'female' ? 'D/o' : 'S/o'} ${curr.parentName}` : 'No parent info'}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* 1.1 Name Translations */}
-                    {Object.keys(translations).length > 0 || name.length > 2 ? (
-                        <div className="form-group">
-                            <label style={{ fontSize: '0.9em', color: '#666' }}>Translations (Auto-filled)</label>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                {['ta', 'ml', 'hi', 'kn'].map(lang => (
-                                    <div key={lang}>
-                                        <input
-                                            type="text"
-                                            value={translations[lang] || ''}
-                                            onChange={e => setTranslations(prev => ({ ...prev, [lang]: e.target.value }))}
-                                            placeholder={lang.toUpperCase()}
-                                            style={{ fontSize: '0.9em', padding: '4px 8px' }}
-                                            disabled={isLinkedNode}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ) : null}
-
-                    {/* 2. Gender */}
-                    <div className="form-group">
-                        <label>Gender</label>
-                        <div className="toggle-group">
-                            <label>
-                                <input
-                                    type="radio"
-                                    name="gender"
-                                    checked={gender === 'male'}
-                                    onChange={() => setGender('male')}
-                                    disabled={isLinkedNode}
-                                /> Male
-                            </label>
-                            <label>
-                                <input
-                                    type="radio"
-                                    name="gender"
-                                    checked={gender === 'female'}
-                                    onChange={() => setGender('female')}
-                                    disabled={isLinkedNode}
-                                /> Female
-                            </label>
-                            <label>
-                                <input
-                                    type="radio"
-                                    name="gender"
-                                    checked={gender === 'other'}
-                                    onChange={() => setGender('other')}
-                                    disabled={isLinkedNode}
-                                /> Other
-                            </label>
-                        </div>
-                    </div>
+                    {/* Basic Info */}
+                    <BasicInfoSection
+                        name={form.name}
+                        setName={form.setName}
+                        onNameBlur={form.handleNameBlur}
+                        onNameFocus={() => !isLinkedNode && form.name.length > 2 && nameDuplicateSearch.setShowSuggestions(true)}
+                        translations={form.translations}
+                        setTranslations={form.setTranslations}
+                        gender={form.gender}
+                        setGender={form.setGender}
+                        nameSuggestions={nameDuplicateSearch.suggestions}
+                        showNameSuggestions={nameDuplicateSearch.showSuggestions}
+                        onDuplicateSelect={handleDuplicateSelect}
+                        disabled={isLinkedNode}
+                    />
 
                     {/* 3. Phone */}
                     <div className="form-group">
                         <label>Phone</label>
-                        <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} disabled={isLinkedNode} />
+                        <input type="tel" value={form.phone} onChange={e => form.setPhone(e.target.value)} disabled={isLinkedNode} />
                     </div>
 
                     {/* 4. Father */}
-                    <div className="form-group">
-                        <label>Father (Parent)</label>
-                        <div className="autocomplete">
-                            <input
-                                type="text"
-                                value={fatherSearch}
-                                onChange={e => {
-                                    setFatherSearch(e.target.value);
-                                    setShowFatherSuggestions(true);
-                                    if (e.target.value === '') setParentId(null);
-                                }}
-                                onFocus={() => setShowFatherSuggestions(true)}
-                                placeholder="Search for father..."
-                            />
-                            {showFatherSuggestions && suggestedFathers.length > 0 && (
-                                <div className="suggestions-dropdown">
-                                    <div className="suggestions-header">Search Results</div>
-                                    {suggestedFathers.map((res, idx) => (
-                                        <div
-                                            key={`${res.node.nodeId}-${idx}`}
-                                            className="suggestion-item"
-                                            onClick={() => handleFatherSelect(res)}
-                                        >
-                                            <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: res.node.imageUrl ? `url(${getPhotoUrl(res.node.imageUrl)})` : 'none' }}>
-                                                {!res.node.imageUrl && '?'}
-                                            </div>
-                                            <div className="suggestion-info">
-                                                <div className="suggestion-name">{res.node.name} <span className="tree-badge">({res.treeName})</span></div>
-                                                <div className="suggestion-details">
-                                                    {res.parentName ? `${res.node.gender === 'female' ? 'D/o' : 'S/o'} ${res.parentName}` : 'No parent info'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <RelationSelect
+                        label="Father (Parent)"
+                        searchText={fatherSearch.searchText}
+                        onSearchChange={(val) => { fatherSearch.setSearchText(val); if (!val) form.setParentId(null); }}
+                        suggestions={fatherSearch.suggestions}
+                        showSuggestions={fatherSearch.showSuggestions}
+                        onSelect={handleFatherSelect}
+                        searchPlaceholder="Search for father..."
+                        disabled={isLinkedNode}
+                    />
 
                     {/* 5. Spouses */}
-                    <div className="form-group">
-                        <label>Spouses</label>
-                        <div className="children-list">
-                            {spouseIds.map(id => {
-                                return (
-                                    <div key={id} className="child-tag">
-                                        <span>{getNodeName(id)}</span>
-                                        <button type="button" onClick={() => handleRemoveSpouse(id)}>×</button>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <div className="autocomplete">
-                            <input
-                                type="text"
-                                value={spouseSearch}
-                                onChange={e => {
-                                    setSpouseSearch(e.target.value);
-                                    setShowSpouseSuggestions(true);
-                                }}
-                                onFocus={() => setShowSpouseSuggestions(true)}
-                                placeholder="Search to add spouse..."
-                            />
-                            {showSpouseSuggestions && suggestedSpouses.length > 0 && (
-                                <div className="suggestions-dropdown">
-                                    <div className="suggestions-header">Search Results</div>
-                                    {suggestedSpouses.map((res, idx) => (
-                                        <div
-                                            key={`${res.node.nodeId}-${idx}`}
-                                            className="suggestion-item"
-                                            onClick={() => handleSpouseSelect(res)}
-                                        >
-                                            <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: res.node.imageUrl ? `url(${getPhotoUrl(res.node.imageUrl)})` : 'none' }}>
-                                                {!res.node.imageUrl && '?'}
-                                            </div>
-                                            <div className="suggestion-info">
-                                                <div className="suggestion-name">{res.node.name} <span className="tree-badge">({res.treeName})</span></div>
-                                                <div className="suggestion-details">
-                                                    {res.parentName ? `${res.node.gender === 'female' ? 'D/o' : 'S/o'} ${res.parentName}` : 'No parent info'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <RelationSelect
+                        label="Spouses"
+                        items={form.spouseIds.map(id => ({ id, name: getNodeName(id) }))}
+                        searchText={spouseSearch.searchText}
+                        onSearchChange={spouseSearch.setSearchText}
+                        suggestions={spouseSearch.suggestions}
+                        showSuggestions={spouseSearch.showSuggestions}
+                        onSelect={handleSpouseSelect}
+                        onRemove={(id) => form.setSpouseIds(prev => prev.filter(sid => sid !== id))}
+                        searchPlaceholder="Search to add spouse..."
+                        disabled={isLinkedNode}
+                    />
 
-                    {/* 6. Location (Name/Zipcode) */}
-                    <div className="form-group" style={{ position: 'relative' }}>
-                        <label>Location (City/Village or Zipcode)</label>
-                        <input
-                            type="text"
-                            value={locationSearchText}
-                            onChange={e => {
-                                setLocationSearchText(e.target.value);
-                                // If user manually clears it, we should verify if we clear data? 
-                                // Let's keep it robust. If they type, we search.
-                            }}
-                            onFocus={() => locationSearchText.length > 2 && setShowLocationSuggestions(true)}
-                            onBlur={() => setTimeout(() => setShowLocationSuggestions(false), 200)}
-                            placeholder="e.g. Mulgund or 582117"
-                            disabled={isLinkedNode}
-                        />
-                        {showLocationSuggestions && locationSuggestions.length > 0 && (
-                            <div className="suggestions-dropdown">
-                                <div className="suggestions-header">Locations (OpenStreetMap)</div>
-                                {locationSuggestions.map((place, idx) => (
-                                    <div
-                                        key={idx}
-                                        className="suggestion-item"
-                                        onClick={() => handleLocationSelect(place)}
-                                    >
-                                        <div className="suggestion-info">
-                                            <div className="suggestion-name">{place.display_name}</div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        {/* Hidden/Read-only debug view or simple info if needed */}
-                        {(locationData.district || zipcode) && (
-                            <div style={{ marginTop: '5px', fontSize: '0.85em', color: '#666' }}>
-                                <strong>Stored:</strong> {locationData.district}{locationData.state ? `, ${locationData.state}` : ''}{locationData.country ? `, ${locationData.country}` : ''}
-                                {zipcode ? ` (${zipcode})` : ''}
-                            </div>
-                        )}
-                    </div>
+                    {/* Location */}
+                    <LocationSection
+                        searchText={location.searchText}
+                        setSearchText={location.setSearchText}
+                        onFocus={() => location.searchText.length > 2 && location.setShowSuggestions(true)}
+                        onBlur={() => setTimeout(() => location.setShowSuggestions(false), 200)}
+                        suggestions={location.suggestions}
+                        showSuggestions={location.showSuggestions}
+                        onSelect={location.handleSelect}
+                        locationData={location.locationData}
+                        zipcode={location.zipcode}
+                        disabled={isLinkedNode}
+                    />
 
-
-
-                    {/* 7. Status */}
+                    {/* Status & Dates */}
                     <div className="form-group">
                         <label>Status</label>
                         <div className="toggle-group">
-                            <label>
-                                <input
-                                    type="radio"
-                                    checked={isAlive}
-                                    onChange={() => setIsAlive(true)}
-                                    disabled={isLinkedNode}
-                                /> Alive
-                            </label>
-                            <label>
-                                <input
-                                    type="radio"
-                                    checked={!isAlive}
-                                    onChange={() => setIsAlive(false)}
-                                    disabled={isLinkedNode}
-                                /> Deceased
-                            </label>
+                            <label><input type="radio" checked={form.isAlive} onChange={() => form.setIsAlive(true)} disabled={isLinkedNode} /> Alive</label>
+                            <label><input type="radio" checked={!form.isAlive} onChange={() => form.setIsAlive(false)} disabled={isLinkedNode} /> Deceased</label>
                         </div>
                     </div>
 
-                    {/* 8. DOB / Age / DOD */}
                     <div className="form-group">
                         <label>Date of Birth (DD-MM-YYYY)</label>
                         <input
                             type="text"
-                            value={dobInput}
+                            value={form.dobInput}
                             placeholder="DD-MM-YYYY"
                             inputMode="numeric"
                             onChange={e => {
-                                const val = e.target.value;
-                                setDobInput(val);
-                                const parsed = parseDateFromDDMMYYYY(val);
-                                if (parsed) {
-                                    setDob(parsed);
-                                } else if (val === '') {
-                                    setDob('');
-                                }
+                                form.setDobInput(e.target.value);
+                                const parsed = parseDateFromDDMMYYYY(e.target.value);
+                                if (parsed) form.setDob(parsed);
+                                else if (!e.target.value) form.setDob('');
                             }}
                             disabled={isLinkedNode}
                         />
                     </div>
-
-                    {!dob && (
+                    {!form.dob && (
                         <div className="form-group">
                             <label>Or Age (approx)</label>
-                            <input type="number" value={age} onChange={e => { setAge(e.target.value); setDob(''); setDobInput(''); }} placeholder="Years" disabled={isLinkedNode} />
+                            <input type="number" value={form.age} onChange={e => { form.setAge(e.target.value); form.setDob(''); form.setDobInput(''); }} placeholder="Years" disabled={isLinkedNode} />
                         </div>
-                    )
-                    }
+                    )}
+                    {!form.isAlive && (
+                        <div className="form-group">
+                            <label>Date of Death (DD-MM-YYYY)</label>
+                            <input
+                                type="text"
+                                value={form.dodInput}
+                                placeholder="DD-MM-YYYY"
+                                inputMode="numeric"
+                                onChange={e => {
+                                    form.setDodInput(e.target.value);
+                                    const parsed = parseDateFromDDMMYYYY(e.target.value);
+                                    if (parsed) form.setDod(parsed);
+                                    else if (!e.target.value) form.setDod('');
+                                }}
+                                disabled={isLinkedNode}
+                            />
+                        </div>
+                    )}
 
-                    {
-                        !isAlive && (
-                            <div className="form-group">
-                                <label>Date of Death (DD-MM-YYYY)</label>
-                                <input
-                                    type="text"
-                                    value={dodInput}
-                                    placeholder="DD-MM-YYYY"
-                                    inputMode="numeric"
-                                    onChange={e => {
-                                        const val = e.target.value;
-                                        setDodInput(val);
-                                        const parsed = parseDateFromDDMMYYYY(val);
-                                        if (parsed) {
-                                            setDod(parsed);
-                                        } else if (val === '') {
-                                            setDod('');
-                                        }
-                                    }}
-                                    disabled={isLinkedNode}
-                                />
-                            </div>
-                        )
-                    }
-
-                    {/* 9. Email */}
+                    {/* Email */}
                     <div className="form-group">
                         <label>Email {(initialData?.isEditor) && <span style={{ color: 'red' }}>*</span>}</label>
-                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required={initialData?.isEditor || false} disabled={isLinkedNode} />
+                        <input type="email" value={form.email} onChange={e => form.setEmail(e.target.value)} required={initialData?.isEditor || false} disabled={isLinkedNode} />
                     </div>
 
-                    {/* 10. Address */}
+                    {/* Address */}
                     <div className="form-group">
                         <label>Address</label>
-                        <textarea value={address} onChange={e => setAddress(e.target.value)} rows={3} disabled={isLinkedNode} />
+                        <textarea value={form.address} onChange={e => form.setAddress(e.target.value)} rows={3} disabled={isLinkedNode} />
                     </div>
 
-                    {/* 11. Education */}
+                    {/* Education */}
                     <div className="form-group">
                         <label>Education</label>
-                        {education.map((edu, index) => (
+                        {form.education.map((edu, index) => (
                             <div key={index} style={{ display: 'flex', gap: '10px', marginBottom: '5px' }}>
-                                <input
-                                    type="text"
-                                    placeholder="Degree"
-                                    value={edu.degree}
-                                    onChange={e => {
-                                        const newEdu = [...education];
-                                        newEdu[index].degree = e.target.value;
-                                        setEducation(newEdu);
-                                    }}
-                                />
-                                <input
-                                    type="text"
-                                    placeholder="Major"
-                                    value={edu.major}
-                                    onChange={e => {
-                                        const newEdu = [...education];
-                                        newEdu[index].major = e.target.value;
-                                        setEducation(newEdu);
-                                    }}
-                                />
-                                <button type="button" onClick={() => {
-                                    setEducation(education.filter((_, i) => i !== index));
-                                }} disabled={isLinkedNode}>×</button>
+                                <input type="text" placeholder="Degree" value={edu.degree} onChange={e => { const newEdu = [...form.education]; newEdu[index].degree = e.target.value; form.setEducation(newEdu); }} disabled={isLinkedNode} />
+                                <input type="text" placeholder="Major" value={edu.major} onChange={e => { const newEdu = [...form.education]; newEdu[index].major = e.target.value; form.setEducation(newEdu); }} disabled={isLinkedNode} />
+                                <button type="button" onClick={() => form.setEducation(form.education.filter((_, i) => i !== index))} disabled={isLinkedNode}>×</button>
                             </div>
                         ))}
-                        <button type="button" onClick={() => setEducation([...education, { degree: '', major: '' }])} style={{ fontSize: '0.8em' }} disabled={isLinkedNode}>+ Add Education</button>
+                        <button type="button" onClick={() => form.setEducation([...form.education, { degree: '', major: '' }])} style={{ fontSize: '0.8em' }} disabled={isLinkedNode}>+ Add Education</button>
                     </div>
 
-                    {/* 12. Occupation */}
+                    {/* Occupation */}
                     <div className="form-group">
                         <label>Occupation</label>
                         <div style={{ display: 'flex', gap: '10px' }}>
-                            <input
-                                type="text"
-                                placeholder="Role"
-                                value={occupation?.role || ''}
-                                onChange={e => setOccupation({ ...occupation, role: e.target.value, organization: occupation?.organization || '' })}
-                                disabled={isLinkedNode}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Organization"
-                                value={occupation?.organization || ''}
-                                onChange={e => setOccupation({ ...occupation, role: occupation?.role || '', organization: e.target.value })}
-                                disabled={isLinkedNode}
-                            />
+                            <input type="text" placeholder="Role" value={form.occupation?.role || ''} onChange={e => form.setOccupation({ ...form.occupation, role: e.target.value, organization: form.occupation?.organization || '' })} disabled={isLinkedNode} />
+                            <input type="text" placeholder="Organization" value={form.occupation?.organization || ''} onChange={e => form.setOccupation({ ...form.occupation, role: form.occupation?.role || '', organization: e.target.value })} disabled={isLinkedNode} />
                         </div>
                     </div>
 
-                    {/* 13. Hobbies */}
+                    {/* Hobbies */}
                     <div className="form-group">
                         <label>Hobbies</label>
-                        <input
-                            type="text"
-                            value={hobbies.join(', ')}
-                            onChange={e => setHobbies(e.target.value.split(',').map(s => s.trim()).filter(s => s))}
-                            placeholder="Reading, Traveling, etc."
-                            disabled={isLinkedNode}
-                        />
+                        <input type="text" value={form.hobbies.join(', ')} onChange={e => form.setHobbies(e.target.value.split(',').map(s => s.trim()).filter(s => s))} placeholder="Reading, Traveling, etc." disabled={isLinkedNode} />
                     </div>
 
-                    {/* 14. Siblings */}
-                    <div className="form-group">
-                        <label>Siblings {(!parentId) && <span style={{ fontSize: '0.8em', color: '#888' }}>(Requires Parent)</span>}</label>
-                        {parentId ? (
-                            <>
-                                <div className="children-list">
-                                    {siblingIds.map(id => {
-                                        return (
-                                            <div key={id} className="child-tag">
-                                                <span>{getNodeName(id)}</span>
-                                                <button type="button" onClick={() => handleRemoveSibling(id)}>×</button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                <div className="autocomplete">
-                                    <input
-                                        type="text"
-                                        value={siblingSearch}
-                                        onChange={e => {
-                                            setSiblingSearch(e.target.value);
-                                            setShowSiblingSuggestions(true);
-                                        }}
-                                        onFocus={() => setShowSiblingSuggestions(true)}
-                                        placeholder="Search to add sibling..."
-                                    />
-                                    {showSiblingSuggestions && filteredSiblings.length > 0 && (
-                                        <div className="suggestions-dropdown">
-                                            <div className="suggestions-header">Possible Siblings</div>
-                                            {filteredSiblings.map(node => (
-                                                <div
-                                                    key={node.nodeId}
-                                                    className="suggestion-item"
-                                                    onClick={() => handleSiblingSelect(node)}
-                                                >
-                                                    <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: node.imageUrl ? `url(${getPhotoUrl(node.imageUrl)})` : 'none' }}>
-                                                        {!node.imageUrl && '?'}
-                                                    </div>
-                                                    <div className="suggestion-info">
-                                                        <div className="suggestion-name">{node.name}</div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </>
-                        ) : (
-                            <div className="info-text" style={{ color: '#666', fontStyle: 'italic' }}>
-                                Please select a father/parent first to manage siblings.
-                            </div>
-                        )}
-                    </div>
+                    {/* Siblings */}
+                    <RelationSelect
+                        label={`Siblings ${(!form.parentId) ? '(Requires Parent)' : ''}`}
+                        items={form.siblingIds.map(id => ({ id, name: getNodeName(id) }))}
+                        searchText={siblingSearchText}
+                        onSearchChange={setSiblingSearchText}
+                        suggestions={siblingSuggestions}
+                        showSuggestions={!!siblingSuggestions.length && !!siblingSearchText}
+                        onSelect={handleSiblingSelect}
+                        onRemove={(id) => form.setSiblingIds(prev => prev.filter(sid => sid !== id))}
+                        searchPlaceholder="Search to add sibling..."
+                        disabled={isLinkedNode || !form.parentId}
+                        emptyMessage={(!form.parentId) ? "Please select a father/parent first to manage siblings." : undefined}
+                    />
 
-                    {/* 15. Children */}
-                    <div className="form-group">
-                        <label>Children</label>
-                        <div className="children-list">
-                            {childrenIds.map(childId => {
-                                return (
-                                    <div key={childId} className="child-tag">
-                                        <span>{getNodeName(childId)}</span>
-                                        <button type="button" onClick={() => handleRemoveChild(childId)}>×</button>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <div className="autocomplete">
-                            <input
-                                type="text"
-                                value={childSearch}
-                                onChange={e => {
-                                    setChildSearch(e.target.value);
-                                    setShowChildSuggestions(true);
-                                }}
-                                onFocus={() => setShowChildSuggestions(true)}
-                                placeholder="Search to add child..."
-                            />
-                            {showChildSuggestions && suggestedChildren.length > 0 && (
-                                <div className="suggestions-dropdown">
-                                    <div className="suggestions-header">Search Results</div>
-                                    {suggestedChildren.map((res, idx) => (
-                                        <div
-                                            key={`${res.node.nodeId}-${idx}`}
-                                            className="suggestion-item"
-                                            onClick={() => handleChildSelect(res)}
-                                        >
-                                            <div className="suggestion-avatar member-avatar-sm" style={{ backgroundImage: res.node.imageUrl ? `url(${getPhotoUrl(res.node.imageUrl)})` : 'none' }}>
-                                                {!res.node.imageUrl && '?'}
-                                            </div>
-                                            <div className="suggestion-info">
-                                                <div className="suggestion-name">{res.node.name} <span className="tree-badge">({res.treeName})</span></div>
-                                                <div className="suggestion-details">
-                                                    {res.parentName ? `${res.node.gender === 'female' ? 'D/o' : 'S/o'} ${res.parentName}` : 'No parent info'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    {/* Children */}
+                    <RelationSelect
+                        label="Children"
+                        items={form.childrenIds.map(id => ({ id, name: getNodeName(id) }))}
+                        searchText={childSearch.searchText}
+                        onSearchChange={childSearch.setSearchText}
+                        suggestions={childSearch.suggestions}
+                        showSuggestions={childSearch.showSuggestions}
+                        onSelect={handleChildSelect}
+                        onRemove={(id) => form.setChildrenIds(prev => prev.filter(cid => cid !== id))}
+                        searchPlaceholder="Search to add child..."
+                        disabled={isLinkedNode}
+                    />
 
-                    {/* 16. Notes */}
+                    {/* Notes */}
                     <div className="form-group">
                         <label>Notes</label>
-                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Random remarks..." disabled={isLinkedNode} />
+                        <textarea value={form.notes} onChange={e => form.setNotes(e.target.value)} rows={3} placeholder="Random remarks..." disabled={isLinkedNode} />
                     </div>
 
-                </form >
-
-            </div >
-        </div >
+                </form>
+            </div>
+        </div>
     );
 };
