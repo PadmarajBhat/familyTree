@@ -175,6 +175,7 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
 
     protected onclose(e: CloseEvent) {
         console.log("GenAILiveClient: onclose triggered");
+        console.error("GenAILiveClient: onclose triggered with reason:", e.reason, "code:", e.code);
         this.log(
             `connection.close`,
             `disconnected ${e.reason ? `with reason: ${e.reason}` : ``}`
@@ -217,6 +218,7 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
 
             if ("modelTurn" in serverContent) {
                 let parts: Part[] = serverContent.modelTurn?.parts || [];
+                console.log("GenAILiveClient: Received modelTurn parts:", parts.length, parts);
 
                 // when its audio that is returned for modelTurn
                 const audioParts = parts.filter(

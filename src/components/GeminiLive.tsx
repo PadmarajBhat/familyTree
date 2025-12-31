@@ -112,8 +112,9 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({
         const onOpen = () => {
             addLog({ type: 'info', text: 'Connected to Gemini Live', timestamp: new Date() });
         };
-        const onClose = () => {
-            addLog({ type: 'info', text: 'Disconnected', timestamp: new Date() });
+        const onClose = (event: CloseEvent) => {
+            const reason = event?.reason ? ` (${event.reason})` : '';
+            addLog({ type: 'info', text: `Disconnected${reason}`, timestamp: new Date() });
         };
         const onError = (e: ErrorEvent) => {
             addLog({ type: 'info', text: `Error: ${e.message}`, timestamp: new Date() });
@@ -297,6 +298,7 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({
             disconnect();
         } else {
             console.log("Starting connection process...");
+            addLog({ type: 'info', text: "Connecting...", timestamp: new Date() });
             // Build Context
             const allNodes = GlobalTreeService.getAllNodesFlat();
             // Create simplified CSV Context
@@ -315,7 +317,7 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({
             // Connect with Config
             connect({
                 systemInstruction: { parts: [{ text: systemInstructionText }] },
-                responseModalities: ["AUDIO" as any, "TEXT" as any],
+                responseModalities: ["AUDIO" as any],
                 speechConfig: {
                     voiceConfig: {
                         prebuiltVoiceConfig: {

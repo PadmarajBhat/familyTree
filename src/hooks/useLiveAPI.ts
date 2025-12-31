@@ -74,8 +74,10 @@ export function useLiveAPI(options: LiveClientOptions): UseLiveAPIResults {
 
         const stopAudioStreamer = () => audioStreamerRef.current?.stop();
 
-        const onAudio = (data: ArrayBuffer) =>
+        const onAudio = (data: ArrayBuffer) => {
+            console.log("useLiveAPI: Received audio chunk", data.byteLength);
             audioStreamerRef.current?.addPCM16(new Uint8Array(data));
+        };
 
         client
             .on("error", onError)
