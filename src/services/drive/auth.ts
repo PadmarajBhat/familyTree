@@ -85,6 +85,9 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                         if (tokenResponse && tokenResponse.access_token) {
                             state.setAccessToken(tokenResponse.access_token);
                             localStorage.setItem('gapi_token', tokenResponse.access_token);
+                            if (tokenResponse.scope) {
+                                localStorage.setItem('gapi_token_scopes', tokenResponse.scope);
+                            }
                             if (tokenResponse.expires_in) {
                                 const expiresAt = Date.now() + (Number(tokenResponse.expires_in) * 1000);
                                 localStorage.setItem('gapi_token_expires', expiresAt.toString());
@@ -99,8 +102,12 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
 
                 const storedToken = localStorage.getItem('gapi_token');
                 const tokenExpires = localStorage.getItem('gapi_token_expires');
+                const storedScopes = localStorage.getItem('gapi_token_scopes');
+                const requiredScope = 'https://www.googleapis.com/auth/drive.appdata';
 
-                if (storedToken && tokenExpires && parseInt(tokenExpires, 10) > Date.now() + (2 * 60 * 1000)) {
+                const hasValidScopes = storedScopes && storedScopes.includes(requiredScope);
+
+                if (storedToken && tokenExpires && parseInt(tokenExpires, 10) > Date.now() + (2 * 60 * 1000) && hasValidScopes) {
                     state.setAccessToken(storedToken);
                     gapi.client.setToken({ access_token: storedToken });
                     getUserProfile().then(profile => {
@@ -108,11 +115,13 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
                         else {
                             localStorage.removeItem('gapi_token');
                             localStorage.removeItem('gapi_token_expires');
+                            localStorage.removeItem('gapi_token_scopes');
                             updateSigninStatus(false);
                         }
                     }).catch(() => {
                         localStorage.removeItem('gapi_token');
                         localStorage.removeItem('gapi_token_expires');
+                        localStorage.removeItem('gapi_token_scopes');
                         updateSigninStatus(false);
                     });
                 } else {
@@ -139,6 +148,7 @@ export const signOut = () => {
             state.setAccessToken(null);
             localStorage.removeItem('gapi_token');
             localStorage.removeItem('gapi_token_expires');
+            localStorage.removeItem('gapi_token_scopes');
             window.location.reload();
         });
     }

@@ -14,7 +14,8 @@ export const listTreeFiles = async () => {
             fields: 'files(id, name, modifiedTime, mimeType)',
             orderBy: 'name'
         });
-        return response.result.files || [];
+        const files = response.result.files || [];
+        return files.filter((f: any) => !f.name.toLowerCase().startsWith('lock'));
     } catch (err) {
         console.error("Error listing files", err);
         return [];
