@@ -29,34 +29,42 @@ const splitIDs = (val: any): string[] => {
 };
 
 export const rowToNode = (row: any[], headerMap?: Record<string, number>): PersonNode => {
-    const idx = (name: string, defaultIdx: number) => headerMap && headerMap[name] !== undefined ? headerMap[name] : defaultIdx;
+    // Helper to find column index using multiple aliases
+    const idx = (aliases: string[], defaultIdx: number) => {
+        if (!headerMap) return defaultIdx;
+        for (const alias of aliases) {
+            const normalized = alias.toLowerCase(); // Map is already normalized
+            if (headerMap[normalized] !== undefined) return headerMap[normalized];
+        }
+        return defaultIdx;
+    };
 
     return {
-        nodeId: (row[idx('NodeID', 0)] || '').toString().trim(),
-        name: row[idx('Name', 1)] || null,
-        gender: (row[idx('Gender', 2)] || '').toString().trim() as any,
-        dob: row[idx('DoB', 3)] || null,
-        dod: row[idx('DoD', 4)] || null,
-        email: (row[idx('Email', 5)] || '').toString().trim() || null,
-        phone: (row[idx('Phone', 6)] || '').toString().trim() || null,
+        nodeId: (row[idx(['nodeid', 'id'], 0)] || '').toString().trim(),
+        name: row[idx(['name', 'fullname'], 1)] || null,
+        gender: (row[idx(['gender', 'sex'], 2)] || '').toString().trim() as any,
+        dob: row[idx(['dob', 'dateofbirth', 'birthdate'], 3)] || null,
+        dod: row[idx(['dod', 'dateofdeath', 'deathdate'], 4)] || null,
+        email: (row[idx(['email', 'emailaddress'], 5)] || '').toString().trim() || null,
+        phone: (row[idx(['phone', 'phonenumber', 'mobile'], 6)] || '').toString().trim() || null,
         phoneE164: null,
-        imageUrl: row[idx('PhotoUrl', 16)] || null,
+        imageUrl: row[idx(['photourl', 'photo', 'image', 'picture'], 16)] || null,
         dobApprox: { known: false, year: null, month: null, day: null },
         dodApprox: { known: false, year: null, month: null, day: null },
         ageProvided: null,
         dobInferred: false,
-        address: { freeform: row[idx('Address', 7)] || null },
-        occupation: safeParseJSON(row[idx('Occupation', 8)]),
-        education: safeParseJSON(row[idx('Education', 9)], []),
-        hobbies: safeParseJSON(row[idx('Hobbies', 10)], []),
-        notes: row[idx('Notes', 11)] || null,
-        parentId: (row[idx('ParentID', 12)] || '').toString().trim() || null,
-        spouseIds: splitIDs(row[idx('SpouseIDs', 13)]),
-        childrenIds: splitIDs(row[idx('ChildrenIDs', 14)]),
-        isEditor: (row[idx('IsEditor', 17)] || '').toString().trim().toUpperCase() === 'TRUE',
-        editorSince: row[idx('EditorSince', 18)] || null,
+        address: { freeform: row[idx(['address', 'location'], 7)] || null },
+        occupation: safeParseJSON(row[idx(['occupation', 'job'], 8)]),
+        education: safeParseJSON(row[idx(['education', 'school'], 9)], []),
+        hobbies: safeParseJSON(row[idx(['hobbies', 'interests'], 10)], []),
+        notes: row[idx(['notes', 'comments'], 11)] || null,
+        parentId: (row[idx(['parentid', 'parent_id', 'fatherid', 'motherid'], 12)] || '').toString().trim() || null,
+        spouseIds: splitIDs(row[idx(['spouseids', 'spouse_ids', 'spouses'], 13)]),
+        childrenIds: splitIDs(row[idx(['childrenids', 'children_ids', 'children'], 14)]),
+        isEditor: (row[idx(['iseditor', 'editor'], 17)] || '').toString().trim().toUpperCase() === 'TRUE',
+        editorSince: row[idx(['editorsince'], 18)] || null,
         editedBy: null,
-        editedTime: row[idx('LastUpdated', 15)] || null,
+        editedTime: row[idx(['lastupdated', 'updatedat', 'timestamp'], 15)] || null,
     };
 };
 

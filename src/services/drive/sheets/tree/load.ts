@@ -23,13 +23,16 @@ export const loadTreeFromSheets = async (targetSpreadsheetId?: string): Promise<
         const metaRows = valueRanges[2].values || [];
         const logRows = valueRanges[3].values || [];
 
-        // Build generic header map
+        // Build generic header map (normalized keys)
         const headerMap: Record<string, number> = {};
         if (headerRow.length > 0) {
             headerRow.forEach((col: string, idx: number) => {
-                if (col) headerMap[col.trim()] = idx;
+                if (col) {
+                    const normalized = col.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                    headerMap[normalized] = idx;
+                }
             });
-            console.log("Detected Tree Headers:", headerMap);
+            console.log("Detected Tree Headers (Normalized):", headerMap);
         }
 
         const nodes: PersonNode[] = nodeRows.map((row: any[]) => rowToNode(row, headerMap));
