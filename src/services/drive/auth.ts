@@ -15,15 +15,23 @@ const setupTokenRefreshMonitor = () => {
 
     state.setRefreshInterval(setInterval(() => {
         const tokenExpires = localStorage.getItem('gapi_token_expires');
-        if (!tokenExpires || !state.tokenClient) return;
+        if (!tokenExpires) return;
 
         const expiresAt = parseInt(tokenExpires, 10);
         const now = Date.now();
-        const timeLeftMs = expiresAt - now;
 
-        if (timeLeftMs < 10 * 60 * 1000) {
-            console.log("Proactive silent refresh triggered...");
-            state.tokenClient.requestAccessToken({ prompt: 'none' });
+        if (now >= expiresAt) {
+            console.log("Session expired. Redirecting to landing page...");
+            if (state.refreshInterval) clearInterval(state.refreshInterval);
+
+            // Clear session
+            state.setAccessToken(null);
+            localStorage.removeItem('gapi_token');
+            localStorage.removeItem('gapi_token_expires');
+            localStorage.removeItem('gapi_token_scopes');
+
+            // Redirect to force re-auth
+            window.location.href = window.location.origin + import.meta.env.BASE_URL;
         }
     }, 60000));
 };
