@@ -29,6 +29,17 @@ export const loadMainTreeFromSheets = async (spreadsheetId?: string): Promise<Tr
             }
         };
 
+        // Bidirectional consistency: Ensure childrenIds are populated from parentId
+        Object.values(treeDoc.nodes).forEach(node => {
+            if (node.parentId && treeDoc.nodes[node.parentId]) {
+                const parent = treeDoc.nodes[node.parentId];
+                if (!parent.childrenIds.includes(node.nodeId)) {
+                    parent.childrenIds.push(node.nodeId);
+                    console.log(`[Repair] Added missing child link: ${parent.name} -> ${node.name}`);
+                }
+            }
+        });
+
         // Logic Check: Ensure rootNodeId exists in nodes. Fix if missing.
         if (treeDoc.rootNodeId && !treeDoc.nodes[treeDoc.rootNodeId]) {
             const orphan = nodes.find(n => !n.parentId);

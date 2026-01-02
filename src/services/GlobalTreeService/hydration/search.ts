@@ -1,6 +1,6 @@
-import type { PersonNode } from '../../../logic/types';
-import { loadTreeFromSheets, listTreeFiles } from '../../drive';
+import { listTreeFiles } from '../../drive';
 import { loadedTreesCache } from '../cache';
+import { loadMainTreeFromSheets } from './load';
 
 /**
  * Scans all available trees to find if the user exists.
@@ -23,24 +23,7 @@ export const findUserInTrees = async (email: string): Promise<{ treeId: string; 
                 // Check cache first
                 let tree = loadedTreesCache[file.id];
                 if (!tree) {
-                    const { nodes, metadata, summary } = await loadTreeFromSheets(file.id);
-                    // Convert to TreeDocument structure
-                    const nodesRecord: Record<string, PersonNode> = {};
-                    nodes.forEach(n => nodesRecord[n.nodeId] = n);
-
-                    tree = {
-                        schemaVersion: 1,
-                        treeId: metadata.treeId || file.id,
-                        treeName: metadata.treeName || getTreeName(file.name),
-                        versionIndex: 0,
-                        timestamp: new Date().toISOString(),
-                        rootNodeId: metadata.rootNodeId || (nodes.length > 0 ? nodes[0].nodeId : ''),
-                        nodes: nodesRecord,
-                        marriages: [],
-                        summary: summary || [],
-                        meta: { createdBy: metadata.createdBy || file.owners?.[0]?.emailAddress || 'Sheets', createdTime: new Date().toISOString(), nodeCount: nodes.length }
-                    };
-                    loadedTreesCache[file.id] = tree;
+                    tree = await loadMainTreeFromSheets(file.id) as any;
                 }
 
                 if (tree && tree.nodes) {

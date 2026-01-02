@@ -1,6 +1,8 @@
 import type { PersonNode } from '../../logic/types';
 import { listTreeFiles } from '../drive';
 import { loadedTreesCache } from './cache';
+import { loadMainTreeFromSheets } from './hydration/load';
+import { hydrateTree } from './hydration/hydrate';
 
 export interface SearchResult {
     treeId: string;
@@ -31,17 +33,20 @@ export const loadShortlistedTrees = async (shortlistedIds: string[]): Promise<vo
         }
 
         try {
-            const { loadMainTreeFromSheets } = await import('./hydration');
-            const tree = await loadMainTreeFromSheets(fileId);
-            if (tree) {
-                loadedTreesCache[fileId] = tree;
-            }
+            await loadMainTreeFromSheets(fileId);
         } catch (e) {
             console.error(`Failed to load tree ${fileId}`, e);
         }
     });
 
     await Promise.all(promises);
+
+    // Second Pass: Now that all trees are in the cache, re-hydrate all of them
+    // to resolve any cross-tree links that might have been missed in the first pass
+    const allTrees = Object.values(loadedTreesCache);
+    allTrees.forEach(tree => {
+        hydrateTree(tree, files as any);
+    });
 };
 
 // Unified Search
