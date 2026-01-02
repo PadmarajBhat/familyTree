@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { migrateTreeToSheets } from '../services/drive/sheets/tree/save';
 
-const MIGRATION_KEY = 'migration_FT_Sample_2025_12_30_done_v2';
+const MIGRATION_KEY = 'migration_FT_Sample_2025_12_30_done_v3';
 
 export const MigrationRunner: React.FC = () => {
     const [status, setStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
