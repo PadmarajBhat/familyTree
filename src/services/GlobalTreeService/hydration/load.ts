@@ -30,15 +30,38 @@ export const loadMainTreeFromSheets = async (spreadsheetId?: string): Promise<Tr
         };
 
         // Bidirectional consistency: Ensure childrenIds are populated from parentId
+        let repaired = 0;
+        let disconnected = 0;
+        const nodesByName: Record<string, PersonNode> = {};
+        Object.values(treeDoc.nodes).forEach(n => { if (n.name) nodesByName[n.name.toLowerCase().trim()] = n; });
+
         Object.values(treeDoc.nodes).forEach(node => {
-            if (node.parentId && treeDoc.nodes[node.parentId]) {
-                const parent = treeDoc.nodes[node.parentId];
-                if (!parent.childrenIds.includes(node.nodeId)) {
-                    parent.childrenIds.push(node.nodeId);
-                    console.log(`[Repair] Added missing child link: ${parent.name} -> ${node.name}`);
+            if (node.parentId) {
+                let parent = treeDoc.nodes[node.parentId];
+                if (!parent) {
+                    // Fuzzy match: Maybe the user typed the parent's NAME in the ParentID column
+                    parent = nodesByName[node.parentId.toLowerCase().trim()];
+                    if (parent) {
+                        console.warn(`[Repair] Auto-resolved parent by name for ${node.name}: "${node.parentId}" -> ${parent.nodeId}`);
+                        node.parentId = parent.nodeId; // Correct it in memory
+                    }
+                }
+
+                if (parent) {
+                    if (!parent.childrenIds.includes(node.nodeId)) {
+                        parent.childrenIds.push(node.nodeId);
+                        repaired++;
+                    }
+                } else {
+                    disconnected++;
                 }
             }
         });
+
+        console.log(`[Repair] Summary: Repaired ${repaired} links. ${disconnected} nodes remain disconnected from parents.`);
+        if (disconnected > 0 && nodes.length > 1) {
+            console.warn(`[Repair] High number of disconnected nodes (${disconnected}/${nodes.length}). Check ParentID column for ID vs Name mismatches.`);
+        }
 
         // Logic Check: Ensure rootNodeId exists in nodes. Fix if missing.
         console.log(`[Load] Initial rootNodeId: ${treeDoc.rootNodeId}`);

@@ -21,6 +21,13 @@ const safeParseJSON = (val: any, fallback: any = null) => {
     }
 };
 
+const splitIDs = (val: any): string[] => {
+    if (!val) return [];
+    const str = val.toString();
+    // Support pipe, comma, or semicolon as separators
+    return str.split(/[|,;]/).map((s: string) => s.trim()).filter(Boolean);
+};
+
 export const rowToNode = (row: any[]): PersonNode => ({
     nodeId: (row[0] || '').toString().trim(),
     name: row[1] || null,
@@ -41,8 +48,8 @@ export const rowToNode = (row: any[]): PersonNode => ({
     hobbies: safeParseJSON(row[10], []),
     notes: row[11] || null,
     parentId: (row[12] || '').toString().trim() || null,
-    spouseIds: row[13] ? row[13].split('|').map((s: string) => s.trim()).filter(Boolean) : [],
-    childrenIds: row[14] ? row[14].split('|').map((s: string) => s.trim()).filter(Boolean) : [],
+    spouseIds: splitIDs(row[13]),
+    childrenIds: splitIDs(row[14]),
     isEditor: (row[17] || '').toString().trim().toUpperCase() === 'TRUE',
     editorSince: row[18] || null,
     editedBy: null,
