@@ -36,7 +36,9 @@ export const rowToNode = (row: any[], headerMap?: Record<string, number>): Perso
             const normalized = alias.toLowerCase(); // Map is already normalized
             if (headerMap[normalized] !== undefined) return headerMap[normalized];
         }
-        return defaultIdx;
+        // If headerMap exists but column not found, do NOT fallback to defaultIdx.
+        // Return -1 so the row lookup returns undefined.
+        return -1;
     };
 
     return {

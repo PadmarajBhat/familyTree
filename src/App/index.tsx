@@ -15,6 +15,7 @@ import { useGeminiAdapters } from './hooks/useGeminiAdapters';
 // Components
 import { AppHeader } from './components/AppHeader';
 import { AppContent } from './components/AppContent';
+import { MigrationRunner } from '../components/MigrationRunner';
 
 const PrivacyPolicy = lazy(() => import('../components/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('../components/TermsOfService'));
@@ -126,19 +127,22 @@ function App() {
   return (
     <div className="app-container">
       {isSignedIn && (
-        <AppHeader
-          treeName={tree?.treeName}
-          isSignedIn={isSignedIn}
-          currentUser={currentUser}
-          setIsSignedIn={setIsSignedIn}
-          onShowSearch={() => setShowSearch(true)}
-          onShowFindRelation={() => setShowFindRelation(true)}
-          onShowCollaborators={() => setShowCollaborators(true)}
-          onShowHistory={() => { setHistoryFilterNodeId(null); setShowVersionHistory(true); }}
-          onShowDashboard={() => setShowDashboard(true)}
-          onSetDefault={handleSetDefault}
-          onSetViewState={setViewState}
-        />
+        <>
+          <MigrationRunner />
+          <AppHeader
+            treeName={tree?.treeName}
+            isSignedIn={isSignedIn}
+            currentUser={currentUser}
+            setIsSignedIn={setIsSignedIn}
+            onShowSearch={() => setShowSearch(true)}
+            onShowFindRelation={() => setShowFindRelation(true)}
+            onShowCollaborators={() => setShowCollaborators(true)}
+            onShowHistory={() => { setHistoryFilterNodeId(null); setShowVersionHistory(true); }}
+            onShowDashboard={() => setShowDashboard(true)}
+            onSetDefault={handleSetDefault}
+            onSetViewState={setViewState}
+          />
+        </>
       )}
       <AppContent
         loading={loading} loadingMessage={loadingMessage} error={error} accessDenied={accessDenied}
