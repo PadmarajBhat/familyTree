@@ -53,6 +53,9 @@ export const loadMainTreeFromSheets = async (spreadsheetId?: string): Promise<Tr
                         repaired++;
                     }
                 } else {
+                    if (disconnected < 10) { // Increased limit
+                        console.warn(`[Repair Debug] Failed to link '${node.name}' (ID: ${node.nodeId}). Parsed ParentID: '${node.parentId}' - Not found in tree.`);
+                    }
                     disconnected++;
                 }
             }
