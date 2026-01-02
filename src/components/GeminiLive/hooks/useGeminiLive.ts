@@ -113,7 +113,7 @@ export function useGeminiLive({
 
                     let result: any = {};
                     try {
-                        addLog({ type: 'tool-call', text: `Calling ${name}...`, timestamp: new Date() });
+                        // addLog({ type: 'tool-call', text: `Calling ${name}...`, timestamp: new Date() });
 
                         if (name === "add_person") {
                             const validation = validatePersonData(args);
@@ -188,7 +188,7 @@ export function useGeminiLive({
 
             connect({
                 systemInstruction: { parts: [{ text: GET_GEMINI_SYSTEM_PROMPT(csvContext) }] },
-                responseModalities: ["AUDIO"] as any,
+                responseModalities: ["AUDIO", "TEXT"] as any,
                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: preferredVoice } } },
                 tools: [{
                     functionDeclarations: [
