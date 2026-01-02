@@ -1,6 +1,7 @@
 import type { TreeDocument, PersonNode } from '../../../logic/types';
-import { loadTreeFromSheets } from '../../drive';
+import { loadTreeFromSheets, listTreeFiles } from '../../drive';
 import { loadedTreesCache } from '../cache';
+import { hydrateTree } from './hydrate';
 
 export const loadMainTreeFromSheets = async (spreadsheetId?: string): Promise<TreeDocument | null> => {
     try {
@@ -37,6 +38,11 @@ export const loadMainTreeFromSheets = async (spreadsheetId?: string): Promise<Tr
                 treeDoc.rootNodeId = nodes[0].nodeId;
             }
         }
+
+        // Hydrate before caching and returning
+        // We fetch the files list here to support tree name fallback in hydration
+        const files = await listTreeFiles();
+        hydrateTree(treeDoc, files as any);
 
         // Cache it
         loadedTreesCache[treeDoc.treeId] = treeDoc;

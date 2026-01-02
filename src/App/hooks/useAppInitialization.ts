@@ -32,7 +32,7 @@ export function useAppInitialization({
         setAuthErrorCallback((err) => {
             console.warn("Auth Error caught in App:", err);
             if (err === 'interaction_required' || err === 'access_denied') {
-                window.location.href = window.location.origin;
+                window.location.href = window.location.origin + import.meta.env.BASE_URL;
             }
         });
 
