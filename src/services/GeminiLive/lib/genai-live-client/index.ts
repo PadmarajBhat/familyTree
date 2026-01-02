@@ -99,7 +99,7 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
         };
 
         try {
-            console.log("GenAILiveClient: Initiating client.live.connect...");
+            console.log("GenAILiveClient: Initiating client.live.connect with config:", JSON.stringify(config, null, 2));
             this._session = await this.client.live.connect({
                 model,
                 config,

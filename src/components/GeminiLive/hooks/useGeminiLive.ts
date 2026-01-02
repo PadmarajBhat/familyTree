@@ -188,15 +188,15 @@ export function useGeminiLive({
 
             connect({
                 systemInstruction: { parts: [{ text: GET_GEMINI_SYSTEM_PROMPT(csvContext) }] },
-                responseModalities: ["audio" as any, "text" as any],
+                responseModalities: ["AUDIO", "TEXT"] as any,
                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: preferredVoice } } },
                 tools: [{
                     functionDeclarations: [
-                        { name: "add_person", description: "Add a person", parameters: { type: "OBJECT" as any, properties: { name: { type: "STRING" as any } }, required: ["name"] } },
-                        { name: "update_person", description: "Update a person", parameters: { type: "OBJECT" as any, properties: { node_id: { type: "STRING" as any } }, required: ["node_id"] } },
-                        { name: "search_family_tree", description: "Search tree", parameters: { type: "OBJECT" as any, properties: { query: { type: "STRING" as any } } } },
-                        { name: "get_recent_additions", description: "Recent adds", parameters: { type: "OBJECT" as any, properties: { limit: { type: "INTEGER" as any } } } },
-                        { name: "get_person_details", description: "Get details", parameters: { type: "OBJECT" as any, properties: { node_id: { type: "STRING" as any } } } },
+                        { name: "add_person", description: "Add a person", parameters: { type: "object" as any, properties: { name: { type: "string" as any } }, required: ["name"] } },
+                        { name: "update_person", description: "Update a person", parameters: { type: "object" as any, properties: { node_id: { type: "string" as any } }, required: ["node_id"] } },
+                        { name: "search_family_tree", description: "Search tree", parameters: { type: "object" as any, properties: { query: { type: "string" as any } } } },
+                        { name: "get_recent_additions", description: "Recent adds", parameters: { type: "object" as any, properties: { limit: { type: "integer" as any } } } },
+                        { name: "get_person_details", description: "Get details", parameters: { type: "object" as any, properties: { node_id: { type: "string" as any } } } },
                     ]
                 }]
             });
