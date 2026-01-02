@@ -197,7 +197,7 @@ export function useGeminiLive({
 
             connect({
                 systemInstruction: { parts: [{ text: GET_GEMINI_SYSTEM_PROMPT(csvContext) }] },
-                responseModalities: ["AUDIO", "TEXT"] as any,
+                responseModalities: ["audio", "text"] as any,
                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: preferredVoice } } },
                 tools: [{
                     functionDeclarations: [
@@ -205,19 +205,19 @@ export function useGeminiLive({
                             name: "add_person",
                             description: "Add a person to the family tree",
                             parameters: {
-                                type: "OBJECT" as any,
+                                type: "object" as any,
                                 properties: {
-                                    name: { type: "STRING" as any },
-                                    gender: { type: "STRING" as any, enum: ["male", "female", "other"] },
-                                    dob: { type: "STRING" as any, description: "Date of birth in YYYY-MM-DD format" },
-                                    phone: { type: "STRING" as any, description: "Mobile number" },
-                                    email: { type: "STRING" as any },
-                                    address: { type: "STRING" as any, description: "Full address or location" },
-                                    occupation: { type: "STRING" as any, description: "Job title or role" },
-                                    hobbies: { type: "STRING" as any, description: "Comma-separated list of hobbies" },
-                                    notes: { type: "STRING" as any },
-                                    parent_id: { type: "STRING" as any },
-                                    spouse_ids: { type: "ARRAY" as any, items: { type: "STRING" as any } }
+                                    name: { type: "string" as any },
+                                    gender: { type: "string" as any, enum: ["male", "female", "other"] },
+                                    dob: { type: "string" as any, description: "Date of birth in YYYY-MM-DD format" },
+                                    phone: { type: "string" as any, description: "Mobile number" },
+                                    email: { type: "string" as any },
+                                    address: { type: "string" as any, description: "Full address or location" },
+                                    occupation: { type: "string" as any, description: "Job title or role" },
+                                    hobbies: { type: "string" as any, description: "Comma-separated list of hobbies" },
+                                    notes: { type: "string" as any },
+                                    parent_id: { type: "string" as any },
+                                    spouse_ids: { type: "array" as any, items: { type: "string" as any } }
                                 },
                                 required: ["name"]
                             }
@@ -226,25 +226,25 @@ export function useGeminiLive({
                             name: "update_person",
                             description: "Update details of an existing person",
                             parameters: {
-                                type: "OBJECT" as any,
+                                type: "object" as any,
                                 properties: {
-                                    node_id: { type: "STRING" as any },
-                                    name: { type: "STRING" as any },
-                                    gender: { type: "STRING" as any, enum: ["male", "female", "other"] },
-                                    dob: { type: "STRING" as any, description: "Date of birth in YYYY-MM-DD format" },
-                                    phone: { type: "STRING" as any, description: "Mobile number" },
-                                    email: { type: "STRING" as any },
-                                    address: { type: "STRING" as any },
-                                    occupation: { type: "STRING" as any },
-                                    hobbies: { type: "STRING" as any },
-                                    notes: { type: "STRING" as any }
+                                    node_id: { type: "string" as any },
+                                    name: { type: "string" as any },
+                                    gender: { type: "string" as any, enum: ["male", "female", "other"] },
+                                    dob: { type: "string" as any, description: "Date of birth in YYYY-MM-DD format" },
+                                    phone: { type: "string" as any, description: "Mobile number" },
+                                    email: { type: "string" as any },
+                                    address: { type: "string" as any },
+                                    occupation: { type: "string" as any },
+                                    hobbies: { type: "string" as any },
+                                    notes: { type: "string" as any }
                                 },
                                 required: ["node_id"]
                             }
                         },
-                        { name: "search_family_tree", description: "Search tree", parameters: { type: "OBJECT" as any, properties: { query: { type: "STRING" as any } } } },
-                        { name: "get_recent_additions", description: "Recent adds", parameters: { type: "OBJECT" as any, properties: { limit: { type: "INTEGER" as any } } } },
-                        { name: "get_person_details", description: "Get details", parameters: { type: "OBJECT" as any, properties: { node_id: { type: "STRING" as any } } } },
+                        { name: "search_family_tree", description: "Search tree", parameters: { type: "object" as any, properties: { query: { type: "string" as any } } } },
+                        { name: "get_recent_additions", description: "Recent adds", parameters: { type: "object" as any, properties: { limit: { type: "integer" as any } } } },
+                        { name: "get_person_details", description: "Get details", parameters: { type: "object" as any, properties: { node_id: { type: "string" as any } } } },
                     ]
                 }]
             });
