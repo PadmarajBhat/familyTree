@@ -28,33 +28,37 @@ const splitIDs = (val: any): string[] => {
     return str.split(/[|,;]/).map((s: string) => s.trim()).filter(Boolean);
 };
 
-export const rowToNode = (row: any[]): PersonNode => ({
-    nodeId: (row[0] || '').toString().trim(),
-    name: row[1] || null,
-    gender: (row[2] || '').toString().trim() as any,
-    dob: row[3] || null,
-    dod: row[4] || null,
-    email: (row[5] || '').toString().trim() || null,
-    phone: (row[6] || '').toString().trim() || null,
-    phoneE164: null,
-    imageUrl: row[16] || null,
-    dobApprox: { known: false, year: null, month: null, day: null },
-    dodApprox: { known: false, year: null, month: null, day: null },
-    ageProvided: null,
-    dobInferred: false,
-    address: { freeform: row[7] || null },
-    occupation: safeParseJSON(row[8]),
-    education: safeParseJSON(row[9], []),
-    hobbies: safeParseJSON(row[10], []),
-    notes: row[11] || null,
-    parentId: (row[12] || '').toString().trim() || null,
-    spouseIds: splitIDs(row[13]),
-    childrenIds: splitIDs(row[14]),
-    isEditor: (row[17] || '').toString().trim().toUpperCase() === 'TRUE',
-    editorSince: row[18] || null,
-    editedBy: null,
-    editedTime: row[15] || null,
-});
+export const rowToNode = (row: any[], headerMap?: Record<string, number>): PersonNode => {
+    const idx = (name: string, defaultIdx: number) => headerMap && headerMap[name] !== undefined ? headerMap[name] : defaultIdx;
+
+    return {
+        nodeId: (row[idx('NodeID', 0)] || '').toString().trim(),
+        name: row[idx('Name', 1)] || null,
+        gender: (row[idx('Gender', 2)] || '').toString().trim() as any,
+        dob: row[idx('DoB', 3)] || null,
+        dod: row[idx('DoD', 4)] || null,
+        email: (row[idx('Email', 5)] || '').toString().trim() || null,
+        phone: (row[idx('Phone', 6)] || '').toString().trim() || null,
+        phoneE164: null,
+        imageUrl: row[idx('PhotoUrl', 16)] || null,
+        dobApprox: { known: false, year: null, month: null, day: null },
+        dodApprox: { known: false, year: null, month: null, day: null },
+        ageProvided: null,
+        dobInferred: false,
+        address: { freeform: row[idx('Address', 7)] || null },
+        occupation: safeParseJSON(row[idx('Occupation', 8)]),
+        education: safeParseJSON(row[idx('Education', 9)], []),
+        hobbies: safeParseJSON(row[idx('Hobbies', 10)], []),
+        notes: row[idx('Notes', 11)] || null,
+        parentId: (row[idx('ParentID', 12)] || '').toString().trim() || null,
+        spouseIds: splitIDs(row[idx('SpouseIDs', 13)]),
+        childrenIds: splitIDs(row[idx('ChildrenIDs', 14)]),
+        isEditor: (row[idx('IsEditor', 17)] || '').toString().trim().toUpperCase() === 'TRUE',
+        editorSince: row[idx('EditorSince', 18)] || null,
+        editedBy: null,
+        editedTime: row[idx('LastUpdated', 15)] || null,
+    };
+};
 
 export const getOrCreateTreeSpreadsheet = async (treeName?: string): Promise<string | null> => {
     if (state.cachedTreeSpreadsheetId) return state.cachedTreeSpreadsheetId;

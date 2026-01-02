@@ -14,15 +14,25 @@ export const loadTreeFromSheets = async (targetSpreadsheetId?: string): Promise<
 
         const response = await (gapi.client as any).sheets.spreadsheets.values.batchGet({
             spreadsheetId,
-            ranges: ['Nodes!A2:S', 'Metadata!A2:B', 'ChangeLog!A2:E']
+            ranges: ['Nodes!1:1', 'Nodes!A2:Z', 'Metadata!A2:B', 'ChangeLog!A2:E']
         });
 
         const valueRanges = response.result.valueRanges;
-        const nodeRows = valueRanges[0].values || [];
-        const metaRows = valueRanges[1].values || [];
-        const logRows = valueRanges[2].values || [];
+        const headerRow = valueRanges[0].values?.[0] || [];
+        const nodeRows = valueRanges[1].values || [];
+        const metaRows = valueRanges[2].values || [];
+        const logRows = valueRanges[3].values || [];
 
-        const nodes: PersonNode[] = nodeRows.map((row: any[]) => rowToNode(row));
+        // Build generic header map
+        const headerMap: Record<string, number> = {};
+        if (headerRow.length > 0) {
+            headerRow.forEach((col: string, idx: number) => {
+                if (col) headerMap[col.trim()] = idx;
+            });
+            console.log("Detected Tree Headers:", headerMap);
+        }
+
+        const nodes: PersonNode[] = nodeRows.map((row: any[]) => rowToNode(row, headerMap));
 
         const metadata: Record<string, string> = {};
         metaRows.forEach((row: any[]) => {
