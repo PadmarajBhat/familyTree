@@ -7,7 +7,15 @@ export const buildHierarchy = (
     visited: Set<string> = new Set()
 ): HierarchyPersonNode | null => {
     const node = data.nodes[nodeId];
-    if (!node) return null;
+    if (!node) {
+        if (visited.size === 0) console.warn(`[Hierarchy] Root node ${nodeId} not found in data.nodes!`);
+        return null;
+    }
+
+    if (visited.size === 0) {
+        console.log(`[Hierarchy] Building tree from root: ${node.name} (${nodeId}). Total nodes in tree: ${Object.keys(data.nodes).length}`);
+        console.log(`[Hierarchy] Root childrenIds:`, node.childrenIds);
+    }
 
     if (visited.has(nodeId)) {
         // Cycle detected or multi-parent path (e.g. pedigree collapse)
@@ -27,8 +35,20 @@ export const buildHierarchy = (
     });
 
     const children: HierarchyPersonNode[] = Array.from(allChildrenIds)
-        .map(childId => buildHierarchy(data, childId, new Set(visited)))
+        .map(childId => {
+            const childNode = buildHierarchy(data, childId, new Set(visited));
+            if (!childNode && data.nodes[childId]) {
+                console.warn(`[Hierarchy] Child ${childId} of ${node.name} failed to build (likely a cycle).`);
+            } else if (!childNode) {
+                console.warn(`[Hierarchy] Child ${childId} of ${node.name} not found in nodes!`);
+            }
+            return childNode;
+        })
         .filter((n): n is HierarchyPersonNode => n !== null);
+
+    if (visited.size === 1) { // Immediate children of root
+        console.log(`[Hierarchy] Resolved ${children.length} immediate children for root.`);
+    }
 
     // Sort children by Age (DOB) if available
     children.sort((a, b) => {

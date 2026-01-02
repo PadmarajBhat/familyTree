@@ -41,13 +41,19 @@ export const loadMainTreeFromSheets = async (spreadsheetId?: string): Promise<Tr
         });
 
         // Logic Check: Ensure rootNodeId exists in nodes. Fix if missing.
-        if (treeDoc.rootNodeId && !treeDoc.nodes[treeDoc.rootNodeId]) {
-            const orphan = nodes.find(n => !n.parentId);
+        console.log(`[Load] Initial rootNodeId: ${treeDoc.rootNodeId}`);
+        if (!treeDoc.rootNodeId || !treeDoc.nodes[treeDoc.rootNodeId]) {
+            console.warn(`[Load] Root node ${treeDoc.rootNodeId} missing or invalid. Searching for orphan...`);
+            const orphan = Object.values(treeDoc.nodes).find(n => !n.parentId);
             if (orphan) {
                 treeDoc.rootNodeId = orphan.nodeId;
+                console.log(`[Load] Found orphan to use as root: ${orphan.name} (${orphan.nodeId})`);
             } else if (nodes.length > 0) {
                 treeDoc.rootNodeId = nodes[0].nodeId;
+                console.log(`[Load] No orphan found, using first node: ${nodes[0].name}`);
             }
+        } else {
+            console.log(`[Load] Valid root node confirmed: ${treeDoc.nodes[treeDoc.rootNodeId].name}`);
         }
 
         // Hydrate before caching and returning
