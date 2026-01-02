@@ -197,7 +197,8 @@ export function useGeminiLive({
 
             connect({
                 systemInstruction: { parts: [{ text: GET_GEMINI_SYSTEM_PROMPT(csvContext) }] },
-                responseModalities: ["audio", "text"] as any,
+                responseModalities: ["audio"] as any,
+                outputAudioTranscription: {},
                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: preferredVoice } } },
                 tools: [{
                     functionDeclarations: [

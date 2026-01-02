@@ -4,13 +4,32 @@ This file tracks the attempts and changes made to the Gemini Live API connection
 
 ## Change Log
 
-### 2026-01-02 22:00 (Latest)
-- **Status**: Working
+### 2026-01-02 22:35 (Testing Audio + Transcriptions)
+- **Status**: Testing
 - **Changes**:
-    - Converted `responseModalities` from `["AUDIO", "TEXT"]` to `["audio", "text"]`.
-    - Converted all schema `type` declarations in tools (e.g., `OBJECT`, `STRING`, `INTEGER`) to lowercase (`object`, `string`, `integer`).
-    - Fixed broken syntax in `useGeminiLive.ts` tool declarations.
-- **Outcome**: Connection successful, `1007: Request contains an invalid argument` error resolved.
+    - Set `responseModalities: ["audio"]`.
+    - Added `outputAudioTranscription: {}`.
+- **Reasoning**: To get text bubbles (transcriptions) while keeping the working "audio" only modality that doesn't trigger 1007 error.
+- **Outcome**: Pending.
+
+### 2026-01-02 22:30 (SUCCESS)
+- **Status**: Working (Audio Only)
+- **Changes**:
+    - Set `responseModalities` to `["audio"]`.
+- **Outcome**: Connection successful. Audio is working.
+
+### 2026-01-02 22:25 (Attempting Single Modality)
+- **Status**: Failing (1007)
+- **Changes**:
+    - Attempted `["audio", "text"]`.
+- **Outcome**: Failed with `1007: Request contains an invalid argument`. This confirms that requesting dual modalities is NOT supported or very unstable in the current API version.
+
+### 2026-01-02 22:00 (Previous Failure)
+- **Status**: Failing (1007)
+- **Changes**:
+    - Used `["AUDIO", "TEXT"]` (uppercase).
+    - Used uppercase schema types (`OBJECT`, `STRING`).
+- **Outcome**: Failed with `1007: Request contains an invalid argument`.
 
 ### Previous Attempts (Summary)
 - Attempted `["AUDIO", "TEXT"]` -> Resulted in `1007` error.
