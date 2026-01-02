@@ -26,6 +26,7 @@ export const loadTreeFromSheets = async (targetSpreadsheetId?: string): Promise<
         // Build generic header map (normalized keys)
         const headerMap: Record<string, number> = {};
         if (headerRow.length > 0) {
+            console.log("Raw Sheet Headers:", headerRow);
             headerRow.forEach((col: string, idx: number) => {
                 if (col) {
                     const normalized = col.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
