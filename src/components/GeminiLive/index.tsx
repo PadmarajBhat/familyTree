@@ -9,7 +9,7 @@ import './GeminiLive.css';
 
 interface GeminiLiveProps {
     onAddPerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
-    onUpdatePerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
+    onUpdatePerson: (nodeId: string, data: Partial<PersonNode>) => Promise<ToolResult>;
     onSearchNodes: (query: string) => Promise<PersonNode[]>;
     onGetRecentNodes: (limit: number) => Promise<PersonNode[]>;
     preferredVoice?: string;
@@ -20,7 +20,11 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const { logs, connected, volume, handleToggle } = useGeminiLive({
-        onAddPerson, onUpdatePerson, onSearchNodes, onGetRecentNodes, preferredVoice
+        onAddPerson,
+        onUpdatePerson: (nodeId: string, data: Partial<PersonNode>) => onUpdatePerson(nodeId, data),
+        onSearchNodes,
+        onGetRecentNodes,
+        preferredVoice
     });
 
     return (

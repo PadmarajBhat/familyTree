@@ -13,7 +13,7 @@ import type { LiveServerToolCall } from '@google/genai';
 
 interface UseGeminiLiveProps {
     onAddPerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
-    onUpdatePerson: (data: Partial<PersonNode>) => Promise<ToolResult>;
+    onUpdatePerson: (nodeId: string, data: Partial<PersonNode>) => Promise<ToolResult>;
     onSearchNodes: (query: string) => Promise<PersonNode[]>;
     onGetRecentNodes: (limit: number) => Promise<PersonNode[]>;
     preferredVoice: string;
@@ -121,17 +121,17 @@ export function useGeminiLive({
                                 result = { error: `Validation Failed: ${validation.errors.join(", ")}` };
                             } else {
                                 const response = await onAddPerson({
-                                    name: args.name, gender: args.gender, dob: args.dob, parentId: args.parent_id,
-                                    spouseIds: args.spouse_id ? [args.spouse_id] : [], phone: args.phone,
-                                    location: args.location_district || args.location_state ? {
-                                        district: args.location_district || null,
-                                        state: args.location_state || null,
-                                        country: args.location_country || null,
-                                        zipcode: null
-                                    } : undefined,
-                                    occupation: args.occupation_role || args.occupation_org ? {
-                                        role: args.occupation_role, organization: args.occupation_org
-                                    } : undefined,
+                                    name: args.name,
+                                    gender: args.gender,
+                                    dob: args.dob,
+                                    parentId: args.parent_id,
+                                    spouseIds: args.spouse_ids || (args.spouse_id ? [args.spouse_id] : []),
+                                    phone: args.phone,
+                                    email: args.email,
+                                    address: args.address ? { freeform: args.address } : undefined,
+                                    occupation: args.occupation ? { role: args.occupation, organization: '' } : undefined,
+                                    hobbies: args.hobbies ? (Array.isArray(args.hobbies) ? args.hobbies : args.hobbies.split(',').map((s: string) => s.trim())) : undefined,
+                                    notes: args.notes,
                                 });
                                 result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
                             }
@@ -140,13 +140,22 @@ export function useGeminiLive({
                             if (!validation.valid) {
                                 result = { error: `Validation Failed: ${validation.errors.join(", ")}` };
                             } else {
-                                const response = await onUpdatePerson({
-                                    nodeId: args.node_id, name: args.name, dob: args.dob, dod: args.dod, gender: args.gender,
-                                    email: args.email, spouseIds: args.spouse_id ? [args.spouse_id] : [],
+                                const response = await onUpdatePerson(args.node_id, {
+                                    name: args.name,
+                                    gender: args.gender,
+                                    dob: args.dob,
+                                    dod: args.dod,
+                                    email: args.email,
+                                    phone: args.phone,
+                                    address: args.address ? { freeform: args.address } : undefined,
+                                    occupation: args.occupation ? { role: args.occupation, organization: '' } : undefined,
+                                    hobbies: args.hobbies ? (Array.isArray(args.hobbies) ? args.hobbies : args.hobbies.split(',').map((s: string) => s.trim())) : undefined,
+                                    notes: args.notes,
                                 });
                                 result = { result: response.success ? `Success: ${response.message}` : `Error: ${response.message}` };
                             }
-                        } else if (name === "search_family_tree") {
+                        }
+                        else if (name === "search_family_tree") {
                             const nodes = await onSearchNodes(args.query);
                             result = { results: nodes.map(n => ({ id: n.nodeId, name: n.name })) };
                         } else if (name === "get_recent_additions") {
@@ -192,8 +201,47 @@ export function useGeminiLive({
                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: preferredVoice } } },
                 tools: [{
                     functionDeclarations: [
-                        { name: "add_person", description: "Add a person", parameters: { type: "OBJECT" as any, properties: { name: { type: "STRING" as any } }, required: ["name"] } },
-                        { name: "update_person", description: "Update a person", parameters: { type: "OBJECT" as any, properties: { node_id: { type: "STRING" as any } }, required: ["node_id"] } },
+                        {
+                            name: "add_person",
+                            description: "Add a person to the family tree",
+                            parameters: {
+                                type: "OBJECT" as any,
+                                properties: {
+                                    name: { type: "STRING" as any },
+                                    gender: { type: "STRING" as any, enum: ["male", "female", "other"] },
+                                    dob: { type: "STRING" as any, description: "Date of birth in YYYY-MM-DD format" },
+                                    phone: { type: "STRING" as any, description: "Mobile number" },
+                                    email: { type: "STRING" as any },
+                                    address: { type: "STRING" as any, description: "Full address or location" },
+                                    occupation: { type: "STRING" as any, description: "Job title or role" },
+                                    hobbies: { type: "STRING" as any, description: "Comma-separated list of hobbies" },
+                                    notes: { type: "STRING" as any },
+                                    parent_id: { type: "STRING" as any },
+                                    spouse_ids: { type: "ARRAY" as any, items: { type: "STRING" as any } }
+                                },
+                                required: ["name"]
+                            }
+                        },
+                        {
+                            name: "update_person",
+                            description: "Update details of an existing person",
+                            parameters: {
+                                type: "OBJECT" as any,
+                                properties: {
+                                    node_id: { type: "STRING" as any },
+                                    name: { type: "STRING" as any },
+                                    gender: { type: "STRING" as any, enum: ["male", "female", "other"] },
+                                    dob: { type: "STRING" as any, description: "Date of birth in YYYY-MM-DD format" },
+                                    phone: { type: "STRING" as any, description: "Mobile number" },
+                                    email: { type: "STRING" as any },
+                                    address: { type: "STRING" as any },
+                                    occupation: { type: "STRING" as any },
+                                    hobbies: { type: "STRING" as any },
+                                    notes: { type: "STRING" as any }
+                                },
+                                required: ["node_id"]
+                            }
+                        },
                         { name: "search_family_tree", description: "Search tree", parameters: { type: "OBJECT" as any, properties: { query: { type: "STRING" as any } } } },
                         { name: "get_recent_additions", description: "Recent adds", parameters: { type: "OBJECT" as any, properties: { limit: { type: "INTEGER" as any } } } },
                         { name: "get_person_details", description: "Get details", parameters: { type: "OBJECT" as any, properties: { node_id: { type: "STRING" as any } } } },

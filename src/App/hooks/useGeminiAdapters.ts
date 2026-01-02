@@ -28,10 +28,10 @@ export function useGeminiAdapters({ tree, handleSaveMember }: UseGeminiAdaptersP
         }
     };
 
-    const handleGeminiUpdatePerson = async (data: Partial<PersonNode>) => {
+    const handleGeminiUpdatePerson = async (nodeId: string, data: Partial<PersonNode>) => {
         try {
-            if (!data.nodeId || !tree?.nodes[data.nodeId]) throw new Error("Node not found");
-            const existing = tree.nodes[data.nodeId];
+            if (!nodeId || !tree?.nodes[nodeId]) throw new Error("Node not found");
+            const existing = tree.nodes[nodeId];
             const updated = { ...existing, ...data };
             await handleSaveMember(updated, updated.parentId, [], [], []);
             return { success: true, message: `Updated ${updated.name}`, nodeId: updated.nodeId };
