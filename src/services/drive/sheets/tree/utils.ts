@@ -72,6 +72,20 @@ export const rowToNode = (row: any[], headerMap?: Record<string, number>): Perso
 
 export const getOrCreateTreeSpreadsheet = async (treeName?: string): Promise<string | null> => {
     if (state.cachedTreeSpreadsheetId) return state.cachedTreeSpreadsheetId;
+
+    if (import.meta.env.DEV) {
+        console.log("Dev Mode: Bypassing getOrCreateTreeSpreadsheet");
+        // Ensure we have a mock file to "return"
+        const { listTreeFiles } = await import('../../files');
+        const files = await listTreeFiles();
+        if (files.length > 0) {
+            state.setCachedTreeSpreadsheetId(files[0].id);
+            return files[0].id;
+        }
+        // If no files (shouldn't happen due to seeding), return a fallback
+        return 'mock_tree_1';
+    }
+
     try {
         const sanitized = (treeName || 'Data').trim().replace(/\s+/g, '_');
         const today = new Date();
@@ -189,6 +203,11 @@ export const ensureTreeSheetsExist = async (spreadsheetId: string): Promise<void
     if (Object.prototype.hasOwnProperty.call(ensureInProgressCache, spreadsheetId)) {
         console.log(`Waiting for existing ensureTreeSheetsExist process for ${spreadsheetId}...`);
         return ensureInProgressCache[spreadsheetId];
+    }
+
+    if (import.meta.env.DEV) {
+        console.log("Dev Mode: Bypassing ensureTreeSheetsExist");
+        return Promise.resolve();
     }
 
     const run = async () => {

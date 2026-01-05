@@ -12,6 +12,26 @@ export const loadTreeFromSheets = async (targetSpreadsheetId?: string): Promise<
         const { ensureTreeSheetsExist } = await import('./utils');
         await ensureTreeSheetsExist(spreadsheetId);
 
+        if (import.meta.env.DEV) {
+            console.log(`Dev Mode: Loading tree ${spreadsheetId} from Mock Storage`);
+            // The file content in mock storage serves as the source of truth
+            const { getFileContent } = await import('../../files');
+            const content = await getFileContent(spreadsheetId);
+            // Content in mock storage is the Full Tree JSON (TreeDocument structure)
+            // But this function expects to return { nodes, metadata, summary } derived from sheets.
+            // We can just return the parts directly if it matches TreeDocument.
+            if (content && typeof content === 'object') {
+                // Map dictionary to array for nodes as this function returns Node[]
+                const nodesArray = Object.values((content as any).nodes || {});
+                return {
+                    nodes: nodesArray as PersonNode[],
+                    metadata: (content as any).metadata || {},
+                    summary: (content as any).summary || []
+                };
+            }
+            return { nodes: [], metadata: {}, summary: [] };
+        }
+
         const response = await (gapi.client as any).sheets.spreadsheets.values.batchGet({
             spreadsheetId,
             ranges: ['Nodes!1:1', 'Nodes!A2:Z', 'Metadata!A2:B', 'ChangeLog!A2:E']

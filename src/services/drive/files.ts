@@ -7,7 +7,48 @@ export interface UserPreferences {
     [key: string]: any;
 }
 
+// --- Mock Drive Implementation for Local Dev ---
+const MOCK_STORAGE_KEY_PREFIX = 'mock_drive_file_';
+const MOCK_METADATA_KEY = 'mock_drive_metadata';
+
+const getMockMetadata = (): any[] => {
+    const meta = localStorage.getItem(MOCK_METADATA_KEY);
+    return meta ? JSON.parse(meta) : [];
+};
+
+const saveMockMetadata = (meta: any[]) => {
+    localStorage.setItem(MOCK_METADATA_KEY, JSON.stringify(meta));
+};
+
 export const listTreeFiles = async () => {
+    if (import.meta.env.DEV) {
+        console.log("Dev Mode: Listing files from Local Mock Storage");
+        let meta = getMockMetadata();
+        // Seed initial file if empty
+        if (meta.length === 0) {
+            const seedId = 'mock_tree_1';
+            const seedFile = { id: seedId, name: 'FT_Dev_Sample.json', mimeType: 'application/vnd.google-apps.spreadsheet', modifiedTime: new Date().toISOString() };
+            meta.push(seedFile);
+            saveMockMetadata(meta);
+
+            // Create dummy tree content
+            const dummyTree = {
+                treeName: 'FT_Dev_Sample',
+                nodes: {
+                    "root": { nodeId: "root", name: "Dev Root", gender: "male", spouseIds: [], type: "root" },
+                    "user_node": { nodeId: "user_node", name: "Padmaraj Bhat (Dev)", gender: "male", email: "padmarajbhat@gmail.com", parentId: "root", spouseIds: [], childrenIds: [] }
+                },
+                rootNodeId: "root",
+                meta: { nodeCount: 2 },
+                version: "1.0",
+                formatVersion: "1.0",
+                summary: []
+            };
+            localStorage.setItem(MOCK_STORAGE_KEY_PREFIX + seedId, JSON.stringify(dummyTree));
+        }
+        return meta.filter((f: any) => f.name.startsWith('FT_'));
+    }
+
     try {
         const response = await (gapi.client as any).drive.files.list({
             q: "mimeType='application/vnd.google-apps.spreadsheet' and (name contains 'FT_') and trashed=false",
@@ -37,6 +78,11 @@ export const renameFile = async (fileId: string, newName: string): Promise<void>
 };
 
 export const getPreferences = async (): Promise<UserPreferences> => {
+    if (import.meta.env.DEV) {
+        const prefs = localStorage.getItem('mock_user_prefs');
+        return prefs ? JSON.parse(prefs) : {};
+    }
+
     try {
         const response = await (gapi.client as any).drive.files.list({
             q: "name='user_preferences.json'",
@@ -55,6 +101,11 @@ export const getPreferences = async (): Promise<UserPreferences> => {
 };
 
 export const savePreferences = async (prefs: UserPreferences): Promise<void> => {
+    if (import.meta.env.DEV) {
+        localStorage.setItem('mock_user_prefs', JSON.stringify(prefs));
+        return;
+    }
+
     try {
         const response = await (gapi.client as any).drive.files.list({
             q: "name='user_preferences.json'",
@@ -90,6 +141,14 @@ export const updateUserStarredTrees = async (email: string, starredTreeNames: st
 };
 
 export const getFileContent = async (fileId: string) => {
+    if (import.meta.env.DEV) {
+        const content = localStorage.getItem(MOCK_STORAGE_KEY_PREFIX + fileId);
+        if (content) {
+            try { return JSON.parse(content); } catch (e) { return content; }
+        }
+        return null;
+    }
+
     try {
         const response = await (gapi.client as any).drive.files.get({ fileId: fileId, alt: 'media' });
         if (typeof response.result === 'string') {
@@ -121,6 +180,11 @@ export const saveTreeFile = async (name: string, content: unknown) => {
 };
 
 export const updateTreeFile = async (fileId: string, content: unknown, description?: string, _unlock: boolean = false) => {
+    if (import.meta.env.DEV) {
+        localStorage.setItem(MOCK_STORAGE_KEY_PREFIX + fileId, JSON.stringify(content));
+        return;
+    }
+
     try {
         await (gapi.client as any).drive.files.update({
             fileId: fileId,
@@ -134,6 +198,14 @@ export const updateTreeFile = async (fileId: string, content: unknown, descripti
 };
 
 export const deleteFile = async (fileId: string): Promise<void> => {
+    if (import.meta.env.DEV) {
+        localStorage.removeItem(MOCK_STORAGE_KEY_PREFIX + fileId);
+        const meta = getMockMetadata();
+        const newMeta = meta.filter(f => f.id !== fileId);
+        saveMockMetadata(newMeta);
+        return;
+    }
+
     try {
         await (gapi.client as any).drive.files.delete({ fileId: fileId });
     } catch (err) {

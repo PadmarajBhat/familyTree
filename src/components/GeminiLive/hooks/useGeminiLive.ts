@@ -95,6 +95,14 @@ export function useGeminiLive({
                     }
                 }
             }
+
+            if (content.inputAudioTranscription && content.inputAudioTranscription.finalContent) {
+                addLog({ type: 'user', text: content.inputAudioTranscription.finalContent, timestamp: new Date() });
+            }
+
+            if (content.outputAudioTranscription && content.outputAudioTranscription.text) {
+                addLog({ type: 'model', text: content.outputAudioTranscription.text, timestamp: new Date() });
+            }
         };
 
         const onToolCall = async (toolCall: LiveServerToolCall) => {
@@ -197,9 +205,22 @@ export function useGeminiLive({
 
             connect({
                 systemInstruction: { parts: [{ text: GET_GEMINI_SYSTEM_PROMPT(csvContext) }] },
-                responseModalities: ["audio"] as any,
-                outputAudioTranscription: {},
-                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: preferredVoice } } },
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: {
+                                voiceName: preferredVoice || "Aoede"
+                            }
+                        }
+                    },
+                    inputAudioTranscription: {
+                        model: "google-1"
+                    },
+                    outputAudioTranscription: {
+                        model: "google-1"
+                    }
+                } as any,
                 tools: [{
                     functionDeclarations: [
                         {

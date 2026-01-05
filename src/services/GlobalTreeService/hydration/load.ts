@@ -48,6 +48,7 @@ export const loadMainTreeFromSheets = async (spreadsheetId?: string): Promise<Tr
                 }
 
                 if (parent) {
+                    if (!parent.childrenIds) parent.childrenIds = [];
                     if (!parent.childrenIds.includes(node.nodeId)) {
                         parent.childrenIds.push(node.nodeId);
                         repaired++;

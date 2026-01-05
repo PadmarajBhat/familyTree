@@ -38,6 +38,31 @@ export const appendChangeLogToSheets = async (log: any): Promise<void> => {
 
 export const saveTreeUpdate = async (nodes: PersonNode[], changeLog: any): Promise<void> => {
     // Parallel execution of Node Batch Update and History Append
+    if (import.meta.env.DEV) {
+        console.log("Dev Mode: Mocking saveTreeUpdate");
+        const { getFileContent, updateTreeFile } = await import('../../files');
+        const spreadsheetId = await getOrCreateTreeSpreadsheet();
+        if (!spreadsheetId) return;
+
+        const currentTree = await getFileContent(spreadsheetId);
+        if (currentTree && typeof currentTree === 'object') {
+            const tree: TreeDocument = currentTree as any;
+            nodes.forEach(n => {
+                tree.nodes[n.nodeId] = n;
+            });
+            if (!tree.summary) tree.summary = [];
+            tree.summary.unshift({
+                editedTime: changeLog.editedTime,
+                editedBy: changeLog.editedBy,
+                changes: changeLog.changes,
+                rootNodeName: changeLog.rootNodeName,
+                structured: changeLog.structured
+            });
+            await updateTreeFile(spreadsheetId, tree, "Save tree update");
+        }
+        return;
+    }
+
     await Promise.all([
         saveNodesBatchToSheets(nodes),
         appendChangeLogToSheets(changeLog)
@@ -73,6 +98,20 @@ export const saveNodeToSheets = async (node: Partial<PersonNode> & { nodeId: str
 export const saveNodesBatchToSheets = async (nodes: PersonNode[]): Promise<void> => {
     const spreadsheetId = await getOrCreateTreeSpreadsheet();
     if (!spreadsheetId) return;
+
+    if (import.meta.env.DEV) {
+        console.log("Dev Mode: Mocking saveNodesBatchToSheets");
+        const { getFileContent, updateTreeFile } = await import('../../files');
+        const currentTree = await getFileContent(spreadsheetId);
+        if (currentTree && typeof currentTree === 'object') {
+            const tree: TreeDocument = currentTree as any;
+            nodes.forEach(n => {
+                tree.nodes[n.nodeId] = n;
+            });
+            await updateTreeFile(spreadsheetId, tree, "Batch update nodes");
+        }
+        return;
+    }
 
     try {
         const response = await (gapi.client as any).sheets.spreadsheets.values.get({ spreadsheetId, range: 'Nodes!A2:A' });
@@ -136,6 +175,15 @@ export const saveMetadataToSheets = async (metadata: Record<string, string>): Pr
 export const migrateTreeToSheets = async (tree: TreeDocument): Promise<boolean> => {
     const spreadsheetId = await getOrCreateTreeSpreadsheet(tree.treeName);
     if (!spreadsheetId) return false;
+
+    if (import.meta.env.DEV) {
+        console.log("Dev Mode: Mocking migrateTreeToSheets");
+        const { updateTreeFile } = await import('../../files');
+        // In local dev, we just save the whole tree json to the mock file
+        await updateTreeFile(spreadsheetId, tree, "Migrate tree");
+        return true;
+    }
+
     try {
         const nodeData = Object.values(tree.nodes).map(node => nodeToRow(node));
         await (gapi.client as any).sheets.spreadsheets.values.update({

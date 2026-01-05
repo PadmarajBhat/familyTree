@@ -53,6 +53,11 @@ const waitForGoogle = (timeout = 10000): Promise<void> => {
 };
 
 export const getUserProfile = async () => {
+    // Local Dev Bypass
+    if (import.meta.env.DEV) {
+        return { email: 'padmarajbhat@gmail.com', name: 'Padmaraj Bhat (Dev)' };
+    }
+
     try {
         const accessToken = gapi.client.getToken()?.access_token;
         if (!accessToken) return null;
@@ -85,6 +90,19 @@ export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => vo
             }).then(() => {
                 return waitForGoogle();
             }).then(() => {
+                // Local Dev Bypass for Token Client
+                if (import.meta.env.DEV) {
+                    console.log("Dev Mode: Skipping Token Client Init & Bypassing Auth");
+                    state.setAccessToken('mock_dev_token');
+                    // Mock setting the token for gapi client so it doesn't complain, 
+                    // though actual calls to private Drive files will fail without real token.
+                    // But public/shared files via API Key might work.
+                    gapi.client.setToken({ access_token: 'mock_dev_token' });
+                    updateSigninStatus(true);
+                    resolve();
+                    return;
+                }
+
                 state.setTokenClient(google.accounts.oauth2.initTokenClient({
                     client_id: CONFIG.CLIENT_ID,
                     scope: CONFIG.SCOPES,

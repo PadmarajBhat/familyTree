@@ -35,3 +35,20 @@ export interface LiveClientEventTypes {
     // Emitted when the current turn is complete
     turncomplete: () => void;
 }
+
+export interface LiveGenerationConfig {
+    responseModalities: "audio"[];
+    speechConfig?: {
+        voiceConfig: {
+            prebuiltVoiceConfig: {
+                voiceName: string;
+            };
+        };
+    };
+    inputAudioTranscription?: {
+        model?: string;
+    };
+    outputAudioTranscription?: {
+        model?: string;
+    };
+}

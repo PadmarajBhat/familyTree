@@ -213,6 +213,16 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
                 this.emit("content", content);
                 this.log(`server.content`, message);
             }
+
+            if ("inputAudioTranscription" in serverContent) {
+                this.emit("content", { inputAudioTranscription: serverContent.inputAudioTranscription } as any);
+                this.log(`server.inputAudioTranscription`, message);
+            }
+
+            if ("outputAudioTranscription" in serverContent) {
+                this.emit("content", { outputAudioTranscription: serverContent.outputAudioTranscription } as any);
+                this.log(`server.outputAudioTranscription`, message);
+            }
         } else {
             console.log("received unmatched message", message);
         }

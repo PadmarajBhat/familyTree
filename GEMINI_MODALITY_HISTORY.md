@@ -4,13 +4,24 @@ This file tracks the attempts and changes made to the Gemini Live API connection
 
 ## Change Log
 
+### 2026-01-02 22:45 (SUCCESS - Partial)
+- **Status**: Connected
+- **Changes**:
+    - `responseModalities: ["audio"]`
+    - `outputAudioTranscription: {}`
+- **Outcome**: 
+    - Connection established (Code 1000).
+    - Audio output works (streaming chunks received).
+    - **Issue**: Text bubbles (transcription) are NOT appearing in the UI yet, although `modelTurn` parts are being received.
+    - **Next Step**: Investigate "missing text bubbles" processing in `useGeminiLive.ts`.
+
 ### 2026-01-02 22:35 (Testing Audio + Transcriptions)
-- **Status**: Testing
+- **Status**: Tested -> Promoted to Working (Partial)
 - **Changes**:
     - Set `responseModalities: ["audio"]`.
     - Added `outputAudioTranscription: {}`.
-- **Reasoning**: To get text bubbles (transcriptions) while keeping the working "audio" only modality that doesn't trigger 1007 error.
-- **Outcome**: Pending.
+- **Reasoning**: To get text bubbles (transcriptions) while keeping the working "audio" only modality.
+- **Outcome**: Connection works, but text tracking needs fix.
 
 ### 2026-01-02 22:30 (SUCCESS)
 - **Status**: Working (Audio Only)

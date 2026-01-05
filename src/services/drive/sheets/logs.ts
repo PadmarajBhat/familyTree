@@ -4,6 +4,7 @@ import * as state from '../state';
 
 export const getOrCreateSharedLogSheet = async (): Promise<string | null> => {
     if (state.cachedLogSpreadsheetId) return state.cachedLogSpreadsheetId;
+    if (import.meta.env.DEV) return 'mock_log_sheet';
     try {
         const response = await (gapi.client as any).drive.files.list({
             q: "name='Gemini_FamilyTree_Logs' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
@@ -34,6 +35,11 @@ export const getOrCreateSharedLogSheet = async (): Promise<string | null> => {
 export const appendGeminiLogToSheets = async (email: string, logEntries: { type: string, text: string, data?: any, timestamp: Date }[]): Promise<void> => {
     const spreadsheetId = await getOrCreateSharedLogSheet();
     if (!spreadsheetId) return;
+
+    if (import.meta.env.DEV) {
+        console.log("Dev Mode (Mock Log): would append", JSON.stringify(logEntries));
+        return;
+    }
 
     try {
         const rows = logEntries.map(entry => [
