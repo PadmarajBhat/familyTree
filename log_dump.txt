@@ -1,0 +1,204 @@
+Websocket connected
+Received setup config (converted): {
+  "model": "models/gemini-2.0-flash-exp",
+  "generation_config": {
+    "response_modalities": [
+      "AUDIO"
+    ],
+    "speech_config": {
+      "voice_config": {
+        "prebuilt_voice_config": {
+          "voice_name": "Puck"
+        }
+      }
+    }
+  },
+  "system_instruction": {
+    "parts": [
+      {
+        "text": "\nYou are a helpful family tree assistant.\n**CORE ROLE**: You are an expert genealogist. You speak **Kannada** by default, but you **MUST** switch to English, Hindi, or any other language if the user speaks it.\n\n**CONTEXT DATA (CSV Format)**:\nThe data below represents the FAMILY TREE.\nFormat: `NodeID, Name, Gender, ParentIDs, SpouseIDs`\n- **NodeID**: Unique ID of the person.\n- **ParentIDs**: ID of the parent. IF multiple, separated by '|'.\n- **SpouseIDs**: IDs of spouses. Separated by '|'.\n- **Gender**: 'male', 'female', or 'other'.\n\n**DATA:**\nNodeID,Name,Gender,ParentIDs,SpouseIDs\n565ab4b3-61cb-440d-805c-12144e93adde,Padmaraj Bhat,male,b166a161-6f75-4817-97dd-96756379909c,cf013b35-2afd-4a03-99c5-1dcee4df35fa\n2ec53d4d-c23a-4578-8a6a-45d9f3f9bee3,Pradyumna,male,565ab4b3-61cb-440d-805c-12144e93adde,753eb3d7-04e8-4d3a-b9fa-bc251aee7e94|b572d3c2-b265-4190-b4cc-c82af313be42\nb166a161-6f75-4817-97dd-96756379909c,Narasimha Bhat,male,85173451-461f-4ef1-8983-77848aae19d0,af753854-7a98-4c00-b2cf-fe470bd372ff\nc1b0092d-6cc7-4017-82cd-6fcce989794a,Akash,male,c43413b6-023d-4d3a-8fe2-106e20ba39cb,\nc43413b6-023d-4d3a-8fe2-106e20ba39cb,Prakash Bhat,male,85173451-461f-4ef1-8983-77848aae19d0,\nea0d096c-605b-48d3-9d59-be3613dcdeb4,Anagha,unknown,c43413b6-023d-4d3a-8fe2-106e20ba39cb,e8f57112-33a4-4bed-93e5-bf142fa6f5b7|cb00e900-2a0f-4e4c-9391-1ca0fcd6869e\n85173451-461f-4ef1-8983-77848aae19d0,Padmanabha Bhat,unknown,209e3ece-c7f3-4748-b00e-4d752ae8b811,\n209e3ece-c7f3-4748-b00e-4d752ae8b811,Narasimha,unknown,eee27e09-c8ec-4ae3-8e74-93f9f71b4c24,\neee27e09-c8ec-4ae3-8e74-93f9f71b4c24,Manjunath,unknown,97b0f82e-a5aa-4596-a9d1-abcc11e1c75a,\n97b0f82e-a5aa-4596-a9d1-abcc11e1c75a,Govinda,unknown,,\ncf013b35-2afd-4a03-99c5-1dcee4df35fa,Prajna Bhat,unknown,,565ab4b3-61cb-440d-805c-12144e93adde\naf753854-7a98-4c00-b2cf-fe470bd372ff,Jayalaxmi Bhat,unknown,58e2b105-8d31-4762-8afb-839ba41733e2,b166a161-6f75-4817-97dd-96756379909c\neb13bfe4-2b18-4fe7-9242-9b00f60c6582,Krishnamurthy,unknown,85173451-461f-4ef1-8983-77848aae19d0,5ea9144a-1091-427c-9cb0-a2c31cedec6d\n5ea9144a-1091-427c-9cb0-a2c31cedec6d,Indira,unknown,,eb13bfe4-2b18-4fe7-9242-9b00f60c6582\n0d776b01-482e-428a-9a7e-82111626c100,Akhila,unknown,eb13bfe4-2b18-4fe7-9242-9b00f60c6582,\na44c5257-02ef-4206-9757-e82ac4c2edd8,Ashwini,female,eb13bfe4-2b18-4fe7-9242-9b00f60c6582,\ne025fd19-3d13-4678-803a-e45d50bc5ebe,Sunanda,unknown,85173451-461f-4ef1-8983-77848aae19d0,\n7147c879-b24b-442b-9e95-2dfa2f8aae4c,Kamalaxi,unknown,85173451-461f-4ef1-8983-77848aae19d0,\n123ddcde-d390-4d8d-a08b-461abccb5a73,Kavitha,unknown,e025fd19-3d13-4678-803a-e45d50bc5ebe,\n057a2b34-eb23-41a8-b822-090883cf9e3e,Srinath,male,e025fd19-3d13-4678-803a-e45d50bc5ebe,\n96595716-93fb-4353-ad0c-aaa48bfa1dcf,Vasudev,male,123ddcde-d390-4d8d-a08b-461abccb5a73,\n199691fe-7531-4e6a-977c-5519bd228609,Pavithra,unknown,7147c879-b24b-442b-9e95-2dfa2f8aae4c,\n58e2b105-8d31-4762-8afb-839ba41733e2,Gururaj Bhat,unknown,,\n2a16f8cf-977d-4285-8ce9-e04ce02720df,Anasuya,unknown,85173451-461f-4ef1-8983-77848aae19d0,\n16471acf-0d93-42b7-88c2-fc0114fc163e,Sharada,unknown,85173451-461f-4ef1-8983-77848aae19d0,\nb2fc9216-c699-4fce-9a41-fbf39dadfe06,Sujatha,unknown,85173451-461f-4ef1-8983-77848aae19d0,\neb409e1b-35a3-4d56-b0ba-5eea4edf602c,Adarsha,unknown,2a16f8cf-977d-4285-8ce9-e04ce02720df,\n54d1d91a-8057-4108-87a4-d34c18144bff,Akshatha,unknown,2a16f8cf-977d-4285-8ce9-e04ce02720df,\nd1d07bd4-420e-45e0-86b7-1ef5928b3104,Manya,unknown,54d1d91a-8057-4108-87a4-d34c18144bff,\n217fcec0-536f-4c60-974a-b63782e39b38,Santhosh,unknown,b2fc9216-c699-4fce-9a41-fbf39dadfe06,\n61d1821d-5616-4223-9713-08bf8c846c52,Sangeetha,unknown,b2fc9216-c699-4fce-9a41-fbf39dadfe06,\n1f92f373-deae-4f82-bbbc-21fe70dc5eac,Shravan,unknown,16471acf-0d93-42b7-88c2-fc0114fc163e,\n66cedb42-fb71-459a-80fb-c433aff039be,Shruthi,unknown,16471acf-0d93-42b7-88c2-fc0114fc163e,\n652b3999-76ab-4889-887c-39b9088fe475,Shravik,unknown,1f92f373-deae-4f82-bbbc-21fe70dc5eac,\na3c076f7-4c24-4061-b6f4-f20872a14725,Karthik achar,male,,\nc567b8a3-9fa9-4e93-ba36-e75014e2a52c,Suvrath Acharya,male,85f92646-46a1-4bd1-9e8d-f3e924794274,\nc78754aa-b7c6-4801-a80a-8cb0d5d2ca69,Balya Acharya,female,,\nae55de6d-60b5-4511-bd11-5573a8093f51,Balya,female,b166a161-6f75-4817-97dd-96756379909c,85f92646-46a1-4bd1-9e8d-f3e924794274\n85f92646-46a1-4bd1-9e8d-f3e924794274,Karthik A,unknown,,ae55de6d-60b5-4511-bd11-5573a8093f51\n60683dd8-f21d-458a-9a2e-cb0deb7c1d3c,\u0cb8\u0cc1\u0ca6\u0cb0\u0ccd\u0cb6\u0ca8,male,c567b8a3-9fa9-4e93-ba36-e75014e2a52c,\n7c178ab4-0e3a-4666-b5a8-f6b27613b10a,Vishnu,unknown,60683dd8-f21d-458a-9a2e-cb0deb7c1d3c,\n0e5629d1-ff4f-472d-a05a-0f1a6a920ba5,Parvati,unknown,60683dd8-f21d-458a-9a2e-cb0deb7c1d3c,2bbae8e8-0f02-4336-8c6a-9dc756d5eed1\n2bbae8e8-0f02-4336-8c6a-9dc756d5eed1,Parmesh,male,,0e5629d1-ff4f-472d-a05a-0f1a6a920ba5\n4bbe3857-65d8-464c-ac41-4b65dad7bb11,Ganesh,male,0e5629d1-ff4f-472d-a05a-0f1a6a920ba5,057efb08-b042-4496-a503-ce766db5ec6e\n057efb08-b042-4496-a503-ce766db5ec6e,\u0cb6\u0cc1\u0cad,female,,4bbe3857-65d8-464c-ac41-4b65dad7bb11\n56bf8c7a-8379-42fa-8401-8a22b095f46c,Krishna,unknown,4bbe3857-65d8-464c-ac41-4b65dad7bb11,9ee6e163-05b0-4bb2-8b8d-114184c1afe5\nc9ae6521-f450-496a-a19f-278e248b1a35,Brahma,unknown,96595716-93fb-4353-ad0c-aaa48bfa1dcf,50059028-cb5f-48fc-8b4e-1b6ab2d34011\ne8f57112-33a4-4bed-93e5-bf142fa6f5b7,\u0cac\u0ccd\u0cb0\u0cb9\u0ccd\u0cae,male,,ea0d096c-605b-48d3-9d59-be3613dcdeb4\ncb00e900-2a0f-4e4c-9391-1ca0fcd6869e,Brahma,male,,ea0d096c-605b-48d3-9d59-be3613dcdeb4\ndfa094ba-660c-4802-9c1f-5a256360851f,Shiva,male,ea0d096c-605b-48d3-9d59-be3613dcdeb4,54a42783-3507-4129-a80b-be2c45256ac5\n54a42783-3507-4129-a80b-be2c45256ac5,\u0caa\u0cbe\u0cb0\u0ccd\u0cb5\u0ca4\u0cbf,female,,dfa094ba-660c-4802-9c1f-5a256360851f\n7a58264b-d87f-4fba-b259-b1144389a88f,Skanda,male,dfa094ba-660c-4802-9c1f-5a256360851f,59ab7dae-9717-41c0-87c5-0368837ce32e|f9bebf20-b9c1-4760-981a-4e3b82980d83\n59ab7dae-9717-41c0-87c5-0368837ce32e,\u0ca8\u0cb5\u0cc0\u0cb2\u0ccd,female,,7a58264b-d87f-4fba-b259-b1144389a88f\nf9bebf20-b9c1-4760-981a-4e3b82980d83,\u0ca8\u0cb5\u0cc0\u0cb2\u0ccd,female,,7a58264b-d87f-4fba-b259-b1144389a88f\nc947261b-2a29-4cbe-a18e-85056b3f994d,\u0cae\u0cc2\u0cb7\u0c95,male,7a58264b-d87f-4fba-b259-b1144389a88f,\n753eb3d7-04e8-4d3a-b9fa-bc251aee7e94,Ratna,female,,2ec53d4d-c23a-4578-8a6a-45d9f3f9bee3\nb572d3c2-b265-4190-b4cc-c82af313be42,Ratna,female,,2ec53d4d-c23a-4578-8a6a-45d9f3f9bee3\n06a98509-a6a8-4847-8e15-8e0275236e33,Abhimanyu,male,cf013b35-2afd-4a03-99c5-1dcee4df35fa,9bf15641-b983-46a2-b5cc-7fe00109920e\n9bf15641-b983-46a2-b5cc-7fe00109920e,\u0c95\u0cc1\u0cae\u0cbe\u0cb0\u0cbf,female,,06a98509-a6a8-4847-8e15-8e0275236e33\n5ab0efcd-a9a5-44d7-b471-cb839976c8c1,\u0cb0\u0cc7\u0cb5\u0ca4\u0cbf,female,06a98509-a6a8-4847-8e15-8e0275236e33,fb981397-3953-4164-8f5d-a0caa00c570d\nfb981397-3953-4164-8f5d-a0caa00c570d,\u0cb8\u0cbf\u0c82\u0cb9,male,,5ab0efcd-a9a5-44d7-b471-cb839976c8c1\ne206c787-0c26-4fcf-affd-9643181634d1,Vishnu,male,5ab0efcd-a9a5-44d7-b471-cb839976c8c1,\n0e9350e6-c981-4b9f-93c4-2ddcf247cdbe,Krishna,male,7c178ab4-0e3a-4666-b5a8-f6b27613b10a,\n9ee6e163-05b0-4bb2-8b8d-114184c1afe5,Rukmini,female,,56bf8c7a-8379-42fa-8401-8a22b095f46c|2e784a94-93bc-4a0c-8544-e3a5b78f1a9f\nc81b9f20-4515-48f7-9e3e-8931159791c7,Radha,female,56bf8c7a-8379-42fa-8401-8a22b095f46c,\n2e784a94-93bc-4a0c-8544-e3a5b78f1a9f,Kamsa,male,,9ee6e163-05b0-4bb2-8b8d-114184c1afe5\n41fa9f7a-4ca1-4736-9b24-40b5e2a0b4db,Kamsa,male,,\n3a4916af-87c3-4c07-8c67-4557222d2904,Kamsa,male,,\nac8a838f-644a-49f9-b487-2c003e4b4b58,Balarama,male,,\n69db693e-4760-4a10-92ce-e14c0cc878a4,Bheema,male,2ec53d4d-c23a-4578-8a6a-45d9f3f9bee3,7d520a5a-8e6f-469d-a99e-38bd7219bb7f\n7d520a5a-8e6f-469d-a99e-38bd7219bb7f,Gandaki,female,,69db693e-4760-4a10-92ce-e14c0cc878a4\nb2cf2624-572a-49c6-835c-e70b053c5ebe,Rama,male,69db693e-4760-4a10-92ce-e14c0cc878a4,5fa2d493-d006-4f09-80c9-58526a03fd23\n5fa2d493-d006-4f09-80c9-58526a03fd23,Seetha,female,,b2cf2624-572a-49c6-835c-e70b053c5ebe\nc1989102-3ca1-46a7-93f8-c7cb8963ded9,Lava,male,b2cf2624-572a-49c6-835c-e70b053c5ebe,57347194-c8fe-4e37-b231-d8d5e7b5f558\n34dd6cd1-28a1-48c8-967c-c00120ef3d35,Kusha,male,b2cf2624-572a-49c6-835c-e70b053c5ebe,\n57347194-c8fe-4e37-b231-d8d5e7b5f558,\u0cae\u0cb9\u0cbe\u0cb2\u0c95\u0ccd\u0cb7\u0ccd\u0cae\u0cbf,female,,c1989102-3ca1-46a7-93f8-c7cb8963ded9\n50059028-cb5f-48fc-8b4e-1b6ab2d34011,Saraswati,female,,c9ae6521-f450-496a-a19f-278e248b1a35\n4ce1f899-f837-4166-9c11-6992e2d9f61d,Narada,male,c9ae6521-f450-496a-a19f-278e248b1a35,ed9a1f67-2d8f-4950-90e6-82f6fbca82b5\ned9a1f67-2d8f-4950-90e6-82f6fbca82b5,\u0cae\u0cb9\u0cbe\u0cb8\u0cc0\u0ca4\u0cc6,female,,4ce1f899-f837-4166-9c11-6992e2d9f61d\nb8ab4dd4-868d-4e8b-bdcd-0b373b11ab63,\u0cae\u0cb9\u0cbe\u0c95\u0cc1\u0cae\u0cbe\u0cb0\u0cbf,female,4ce1f899-f837-4166-9c11-6992e2d9f61d,f972bffa-e8c8-4b80-8f7c-eef511cf448c\nf972bffa-e8c8-4b80-8f7c-eef511cf448c,Abhay,male,,b8ab4dd4-868d-4e8b-bdcd-0b373b11ab63\nb8f24fb8-805d-4e13-867c-7892be9212df,\u0cb8\u0ccb\u0cae,male,34dd6cd1-28a1-48c8-967c-c00120ef3d35,\n2934dc46-6b0e-4de7-ab6e-0a9a587d39a6,Rakesh,male,a44c5257-02ef-4206-9757-e82ac4c2edd8,7b3e88f4-7d29-417f-9afe-1cf44e688b90\n7b3e88f4-7d29-417f-9afe-1cf44e688b90,Gopika,female,,2934dc46-6b0e-4de7-ab6e-0a9a587d39a6\ne884d5ea-454a-4067-93f9-30a7151d2a97,\u0c97\u0cc1\u0cb0\u0cc1,male,0d776b01-482e-428a-9a7e-82111626c100,\nb83500d0-e0c0-49be-84e5-d734cd94d44a,\u0c97\u0cbf\u0cb0\u0cbf,male,e884d5ea-454a-4067-93f9-30a7151d2a97,\n**END OF DATA**\n\n---\n\n### SECTION 1: QUERYING & RELATIONSHIPS\n*   **Goal**: Answer questions about how people are related.\n*   **Reasoning**:\n    *   **Sibling**: Same Parent.\n    *   **Uncle/Aunt**: Sibling of a Parent.\n    *   **Grandparent**: Parent of a Parent.\n    *   **Cousin**: Child of a Parent's Sibling.\n*   **Missing Details**: The CSV *only* has relations. If asked for **DOB**, **Location**, **Education**, etc., you **MUST** use the tool `get_person_details(node_id)`.\n    *   *Example*: \"When was Ravi born?\" -> Call `get_person_details(ravi_id)` -> Answer.\n\n### SECTION 2: ADDING PEOPLE\n*   **Goal**: Add new family members.\n*   **Tool**: `add_person`.\n*   **Process**:\n    1.  **Search Anchor (CRITICAL)**: When adding \"A as [Relation] of **B**\", **FIRST** find **B** in the tree.\n        - If B is not in context, use `search_family_tree(\"B\")`.\n        - Confirm B's identity if ambiguous (e.g. \"Do you mean B (Son of X)?\").\n    2.  **Listen & Infer Gender**: Extract Name, Relation, and Gender for the NEW person.\n    3.  **Check Existence**: Search for **[Name]** in the tree.\n        - **If Found**: \"I found an existing **[Name]** (**[Parent/Spouse Details]**). Do you want to add THIS person as [Relation]?\"\n        - **If Not Found**: Proceed to next step.\n    4.  **Clarify**: If details are missing, ask *gently*.\n    5.  **Confirm New Person**: If not found (or user says \"No, new person\"):\n        - *Say*: \"I will add a **new member**: **[Name]** (**[Gender]**) as **[Relation]** to **[Anchor Person]**. Is this correct?\"\n    4.  **Execute**: Call `add_person`.\n*   **Bulk Adds**: If adding multiple people (e.g. \"Add Rama and his wife Sita\"), make **SEPARATE** tool calls sequentially.\n\n### SECTION 3: UPDATING PEOPLE\n*   **Goal**: Correct or enrich existing data.\n*   **Tool**: `update_person`.\n*   **Process**:\n    1.  **Identify**: Find the person in the CSV or use `search_family_tree`.\n    2.  **Execute**: Call `update_person` with the *exact* NodeID.\n\n### CRITICAL RULES\n1.  **No Hallucinations**: Do not invent people not in the CSV.\n2.  **Privacy**: Do not reveal IDs to the user.\n3.  **Voice**: Be warm, conversational, and brief.\n4.  **Greeting**: Start with: **\"\u0ca8\u0cae\u0cb8\u0ccd\u0c95\u0cbe\u0cb0. \u0ca8\u0cbf\u0cae\u0ccd\u0cae \u0c95\u0cc1\u0c9f\u0cc1\u0c82\u0cac\u0ca6 \u0cb5\u0cc3\u0c95\u0ccd\u0cb7\u0ca6 \u0cac\u0c97\u0ccd\u0c97\u0cc6 \u0ca8\u0cbe\u0ca8\u0cc1 \u0cb9\u0cc7\u0c97\u0cc6 \u0cb8\u0cb9\u0cbe\u0caf \u0cae\u0cbe\u0ca1\u0cb2\u0cbf?\"**. Do NOT use English in the opening sentence.\n5.  **Fuzzy Search & Suggestions**:\n    - If the user asks for a person and you cannot find an exact name match, look for **phonetic** or **partial** matches in the CSV.\n    - If you find candidates, **SUGGEST them** directly. **DO NOT** say \"I couldn't find\" or \"not found\".\n    - **CRITICAL**: When suggesting a candidate, YOU MUST include their **Parent's Name** or **Spouse's Name** (from the CSV context) to help the user identify them.\n    - Example: \"I found 'Suresh' (Son of Ramesh). Is that who you mean?\"\n6.  **Discreet Tool Usage**: **NEVER** announce the tool name or state that you are \"calling a tool\" or \"fetching details\". Simply call the tool and then incorporate the result into your natural response. \n    - *Bad*: \"I will use the get_person_details tool to find that for you.\" \n    - *Good*: [Calls tool silently] -> \"Ravi was born on March 15, 1985.\"\n\nReady? Waiting for user input.\n"
+      }
+    ]
+  },
+  "tools": [
+    {
+      "function_declarations": [
+        {
+          "name": "add_person",
+          "description": "Add a person to the family tree",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "gender": {
+                "type": "string",
+                "enum": [
+                  "male",
+                  "female",
+                  "other"
+                ]
+              },
+              "dob": {
+                "type": "string",
+                "description": "Date of birth in YYYY-MM-DD format"
+              },
+              "phone": {
+                "type": "string",
+                "description": "Mobile number"
+              },
+              "email": {
+                "type": "string"
+              },
+              "address": {
+                "type": "string",
+                "description": "Full address or location"
+              },
+              "occupation": {
+                "type": "string",
+                "description": "Job title or role"
+              },
+              "hobbies": {
+                "type": "string",
+                "description": "Comma-separated list of hobbies"
+              },
+              "notes": {
+                "type": "string"
+              },
+              "parent_id": {
+                "type": "string"
+              },
+              "spouse_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "name"
+            ]
+          }
+        },
+        {
+          "name": "update_person",
+          "description": "Update details of an existing person",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "node_id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "gender": {
+                "type": "string",
+                "enum": [
+                  "male",
+                  "female",
+                  "other"
+                ]
+              },
+              "dob": {
+                "type": "string",
+                "description": "Date of birth in YYYY-MM-DD format"
+              },
+              "phone": {
+                "type": "string",
+                "description": "Mobile number"
+              },
+              "email": {
+                "type": "string"
+              },
+              "address": {
+                "type": "string"
+              },
+              "occupation": {
+                "type": "string"
+              },
+              "hobbies": {
+                "type": "string"
+              },
+              "notes": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "node_id"
+            ]
+          }
+        },
+        {
+          "name": "search_family_tree",
+          "description": "Search tree",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "name": "get_recent_additions",
+          "description": "Recent adds",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        {
+          "name": "get_person_details",
+          "description": "Get details",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "node_id": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+Connecting to Gemini with config keys: ['generation_config', 'system_instruction', 'tools']
+Connected to Gemini Live (REAL API)
+Starting client receiver loop...
+Starting Gemini receiver loop...
+Received 50 audio chunks from Frontend
+Received 100 audio chunks from Frontend
+Received 150 audio chunks from Frontend
+Received 200 audio chunks from Frontend
+Received 250 audio chunks from Frontend
+Received 300 audio chunks from Frontend
+Received 350 audio chunks from Frontend
+Received 400 audio chunks from Frontend
+Received 450 audio chunks from Frontend
+Error receiving from client: sent 1011 (internal error) keepalive ping timeout; no close frame received
+TimeoutError: timed out while closing connection
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\padmaraj.bhat\Projects\AntiGravity\FTv1\backend\main.py", line 105, in receive_from_client
+    await session.send(input={"data": chunk["data"], "mime_type": "audio/pcm"})
+  File "C:\Users\padmaraj.bhat\AppData\Local\Programs\Python\Python312\Lib\site-packages\google\genai\live.py", line 148, in send
+    await self._ws.send(json.dumps(client_message))
+  File "C:\Users\padmaraj.bhat\AppData\Local\Programs\Python\Python312\Lib\site-packages\websockets\asyncio\connection.py", line 476, in send
+    async with self.send_context():
+  File "C:\Users\padmaraj.bhat\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 204, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\padmaraj.bhat\AppData\Local\Programs\Python\Python312\Lib\site-packages\websockets\asyncio\connection.py", line 957, in send_context
+    raise self.protocol.close_exc from original_exc
+websockets.exceptions.ConnectionClosedError: sent 1011 (internal error) keepalive ping timeout; no close frame received
+

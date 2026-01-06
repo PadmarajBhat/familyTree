@@ -31,6 +31,25 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
     return window.btoa(binary);
 }
 
+function downsampleBuffer(buffer: ArrayBuffer, inputRate: number, outputRate: number = 16000): ArrayBuffer {
+    if (outputRate >= inputRate) return buffer;
+
+    const ratio = inputRate / outputRate;
+    const inputData = new Int16Array(buffer);
+    const outputLength = Math.ceil(inputData.length / ratio);
+    const outputData = new Int16Array(outputLength);
+
+    for (let i = 0; i < outputLength; i++) {
+        const offset = i * ratio;
+        const index = Math.floor(offset);
+        const nextIndex = Math.min(index + 1, inputData.length - 1);
+        const weight = offset - index;
+
+        outputData[i] = inputData[index] * (1 - weight) + inputData[nextIndex] * weight;
+    }
+    return outputData.buffer;
+}
+
 export class AudioRecorder extends EventEmitter {
     stream: MediaStream | undefined;
     audioContext: AudioContext | undefined;
@@ -68,9 +87,24 @@ export class AudioRecorder extends EventEmitter {
 
             this.recordingWorklet.port.onmessage = async (ev: MessageEvent) => {
                 // worklet processes recording floats and messages converted buffer
-                const arrayBuffer = ev.data.data.int16arrayBuffer;
+                let arrayBuffer = ev.data.data.int16arrayBuffer;
 
-                if (arrayBuffer) {
+                if (arrayBuffer && this.audioContext) {
+                    // DOWNSAMPLE if needed (e.g. 48k -> 16k)
+                    arrayBuffer = downsampleBuffer(arrayBuffer, this.audioContext.sampleRate, this.sampleRate);
+
+                    // DEBUG: Check Audio Energy (RMS)
+                    const pcmData = new Int16Array(arrayBuffer);
+                    let sum = 0;
+                    for (let i = 0; i < pcmData.length; i++) {
+                        sum += pcmData[i] * pcmData[i];
+                    }
+                    const rms = Math.sqrt(sum / pcmData.length);
+                    // Only log if meaningful signal
+                    if (rms > 100) {
+                        console.log(`[AudioRecorder] RMS: ${Math.round(rms)} | SampleRate: ${this.audioContext.sampleRate}->${this.sampleRate}`);
+                    }
+
                     const arrayBufferString = arrayBufferToBase64(arrayBuffer);
                     this.emit("data", arrayBufferString);
                 }

@@ -19,7 +19,7 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({
     onAddPerson, onUpdatePerson, onSearchNodes, onGetRecentNodes, preferredVoice = "Puck"
 }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const { logs, connected, volume, handleToggle } = useGeminiLive({
+    const { logs, connected, isActive, volume, handleToggle, toggleMic } = useGeminiLive({
         onAddPerson,
         onUpdatePerson: (nodeId: string, data: Partial<PersonNode>) => onUpdatePerson(nodeId, data),
         onSearchNodes,
@@ -46,6 +46,11 @@ export const GeminiLive: React.FC<GeminiLiveProps> = ({
                         <ChatVisualizer connected={connected} volume={volume} />
                     </div>
                     <div className="gemini-footer">
+                        {connected && (
+                            <button className={`control-btn mic-btn ${isActive ? 'active' : 'muted'}`} onClick={toggleMic} title={isActive ? "Mute Mic" : "Unmute Mic"}>
+                                {isActive ? "🎤" : "🔇"}
+                            </button>
+                        )}
                         <button className={`control-btn ${connected ? 'stop' : 'start'}`} onClick={handleToggle}>
                             {connected ? 'End Session' : 'Start Live Chat'}
                         </button>
