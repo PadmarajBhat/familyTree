@@ -24,3 +24,6 @@ steps:
 
 images:
   - 'gcr.io/$PROJECT_ID/gemini-live-backend'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
