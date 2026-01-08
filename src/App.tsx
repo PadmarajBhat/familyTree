@@ -27,15 +27,19 @@ import './App.css';
 
 function App() {
   const { t, i18n } = useTranslation();
-  const [isSignedIn, setIsSignedIn] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ email: string; name: string } | null>(null);
+  const [isSignedIn, setIsSignedIn] = useState(import.meta.env.VITE_USE_MOCK_AUTH === 'true');
+  const [currentUser, setCurrentUser] = useState<{ email: string; name: string } | null>(
+    import.meta.env.VITE_USE_MOCK_AUTH === 'true'
+      ? { email: 'padmarajbhat@gmail.com', name: 'Padmaraj Bhat (Mock)' }
+      : null
+  );
   const [tree, setTree] = useState<TreeDocument | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Loading...");
   const [error, setError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
 
-  const [isGapiReady, setIsGapiReady] = useState(false);
+  const [isGapiReady, setIsGapiReady] = useState(import.meta.env.VITE_USE_MOCK_AUTH === 'true');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editorMode, setEditorMode] = useState<'add' | 'edit' | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
@@ -132,6 +136,15 @@ function App() {
 
 
   useEffect(() => {
+    // Local Dev Auth Bypass
+    if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+      console.log("Mock Auth Enabled: Login as padmarajbhat@gmail.com");
+      setIsSignedIn(true);
+      setCurrentUser({ email: 'padmarajbhat@gmail.com', name: 'Padmaraj Bhat (Mock)' });
+      setIsGapiReady(true);
+      return;
+    }
+
     initGoogleClient((signedIn) => {
       setIsSignedIn(signedIn);
     }).then(() => {
@@ -141,6 +154,9 @@ function App() {
 
   useEffect(() => {
     if (isSignedIn && isGapiReady) {
+      // Skip fetching profile if using mock auth (profile is already set)
+      if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') return;
+
       getUserProfile().then(profile => {
         if (profile) {
           setCurrentUser({ email: profile.email, name: profile.name });
@@ -173,6 +189,12 @@ function App() {
 
   useEffect(() => {
     if (!isSignedIn || !isGapiReady || !currentUser) return;
+
+    // Skip Data Load in Mock Mode (unless we mock data too)
+    if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+      setLoading(false);
+      return;
+    }
 
     // Logic for First Run / Default Tree
     const checkAccessAndLoad = async () => {

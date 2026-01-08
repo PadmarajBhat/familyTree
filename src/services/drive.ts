@@ -129,6 +129,10 @@ export const signOut = () => {
 };
 
 export const listTreeFiles = async () => {
+    if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+        console.log("Mock Auth: Returning empty file list.");
+        return [];
+    }
     try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await (gapi.client as any).drive.files.list({
@@ -182,6 +186,9 @@ export interface UserPreferences {
 }
 
 export const getPreferences = async (): Promise<UserPreferences> => {
+    if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+        return {};
+    }
     try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await (gapi.client as any).drive.files.list({

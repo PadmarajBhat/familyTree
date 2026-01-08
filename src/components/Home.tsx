@@ -21,6 +21,8 @@ interface TreeFile {
     description?: string;
 }
 
+import { GeminiLiveButton } from './GeminiLiveButton';
+
 export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTreeId, isEditor, enableAutoload = true }) => {
     const [trees, setTrees] = useState<TreeFile[]>([]);
     const [loading, setLoading] = useState(false);
@@ -36,22 +38,17 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
     useEffect(() => {
         loadTrees();
 
-        // Load starred trees from Cloud Preferences
         const loadPrefs = async () => {
             try {
                 const prefs = await getPreferences();
                 if (prefs && prefs[userEmail]?.starredTreeNames) {
                     const stars = new Set(prefs[userEmail].starredTreeNames);
                     setStarredTreeNames(stars);
-                    // We don't need to manually set shortlistedIds here, 
-                    // the effect below will sync them based on treeIdMap
                 } else if (prefs && prefs[userEmail]?.defaultTreeName) {
-                    // Backwards compatibility
                     setStarredTreeNames(new Set([prefs[userEmail].defaultTreeName!]));
                 }
             } catch (e) {
-                console.warn("Failed to load preferences in Home", e);
-                // Fallback to local storage if needed?
+                console.warn("Failed to load preferences", e);
                 const storedShortlist = localStorage.getItem(`shortlist_${userEmail}`);
                 if (storedShortlist) {
                     setShortlistedIds(JSON.parse(storedShortlist));
@@ -62,7 +59,6 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
 
     }, [userEmail]);
 
-    // Autoload Logic
     useEffect(() => {
         if (enableAutoload && !loading && trees.length > 0 && starredTreeNames.size === 1) {
             if (autoloadAttempted.current) return;
@@ -83,7 +79,14 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         try {
             const files = await listTreeFiles();
 
-            // Group files by Tree Name
+            // Check if mock auth returned empty array
+            if (files.length === 0 && import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+                setTrees([]);
+                setLoading(false);
+                return;
+            }
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const groupedFiles: Record<string, TreeFile[]> = {};
             const idMap: Record<string, string[]> = {};
 
@@ -106,20 +109,8 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
 
             setTreeIdMap(idMap);
 
-            // Determine starred tree names based on persistent shortlistedIds (history)
-            // We do this inside loadTrees to ensure we have the file list to cross-reference
-            // However, shortlistedIds needs to be read from state or storage. 
-            // Since loadTrees is async and called from useEffect, verify we have latest shortlistedIds?
-            // State shortlistedIds might be empty on first render when this is called.
-            // Let's read localStorage directly here to be safe and dependent on userEmail, 
-            // OR rely on shortlistedIds dependency in a separate effect.
-            // Better: Just update starredNames whenever shortlistedIds OR treeIdMap changes.
-            // But let's finish calculating latestTrees first.
-
-            // For each group, pick the latest one
             const latestTrees: TreeFile[] = [];
             Object.values(groupedFiles).forEach(group => {
-                // Sort by modifiedTime descending
                 group.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime());
                 latestTrees.push(group[0]);
             });
@@ -132,7 +123,6 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         }
     };
 
-    // Sync shortlistedIds (IDs) from starredTreeNames (Names)
     useEffect(() => {
         const newIds: string[] = [];
         starredTreeNames.forEach(name => {
@@ -142,11 +132,9 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
             }
         });
         setShortlistedIds(newIds);
-        // Sync local storage as backup
         localStorage.setItem(`shortlist_${userEmail}`, JSON.stringify(newIds));
     }, [starredTreeNames, treeIdMap, userEmail]);
 
-    // Sync GlobalTreeService with ALL available trees for Unified Search (using fresh IDs from Home)
     useEffect(() => {
         if (trees.length > 0) {
             const allIds = trees.map(t => t.id);
@@ -165,11 +153,7 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         }
 
         setStarredTreeNames(newStarred);
-        // Persist to Cloud
         updateUserStarredTrees(userEmail, Array.from(newStarred)).catch(console.error);
-
-        // Also update legacy local storage for resilience
-        // We defer this since IDs are derived in effect
     };
 
     const handleCreateTree = async () => {
@@ -213,17 +197,14 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
             setLoading(true);
             setLoadingMessage("Scanning references in other trees...");
 
-            // Deep Cleanup: Remove shadow nodes in other trees that point to this one
             await GlobalTreeService.removeLinksToTree(id, userEmail, (msg) => {
                 setLoadingMessage(msg);
             });
 
             setLoadingMessage("Deleting tree...");
 
-            // Prefix delete_ to the FULL original filename
             await renameFile(id, `delete_${originalFilename}`);
 
-            // Remove from Starred Preferences (Fix for Ghost Trees)
             const treeName = getTreeNameFromFilename(originalFilename);
             if (starredTreeNames.has(treeName)) {
                 const newStarred = new Set(starredTreeNames);
@@ -232,7 +213,6 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                 await updateUserStarredTrees(userEmail, Array.from(newStarred));
             }
 
-            // Also remove from shortlist if present (Legacy ID cleanup)
             if (shortlistedIds.includes(id)) {
                 const newIds = shortlistedIds.filter(sid => sid !== id);
                 setShortlistedIds(newIds);
@@ -248,7 +228,6 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         }
     };
 
-    // Filter displayed trees logic
     const displayedTrees = (starredTreeNames.size > 0 && !showAll)
         ? trees.filter(t => starredTreeNames.has(t.name))
         : trees;
@@ -258,6 +237,7 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
             <header className="home-header">
                 <h1>Family Trees</h1>
                 <div className="home-actions">
+                    <GeminiLiveButton />
                     {isEditor && (
                         <>
                             <input
@@ -341,6 +321,16 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                     width: 1200px;
                     margin: 0 auto;
                     box-sizing: border-box; 
+                }
+                .empty-state {
+                    text-align: center;
+                    padding: 3rem;
+                    color: #555;
+                    font-size: 1.2rem;
+                    background: #f9f9f9;
+                    border-radius: 8px;
+                    margin-top: 2rem;
+                    border: 1px dashed #ccc;
                 }
                 .home-header {
                     display: flex;
