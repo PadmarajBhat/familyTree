@@ -21,7 +21,6 @@ interface TreeFile {
     description?: string;
 }
 
-import { GeminiLiveButton } from './GeminiLiveButton';
 
 export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTreeId, isEditor, enableAutoload = true }) => {
     const [trees, setTrees] = useState<TreeFile[]>([]);
@@ -237,7 +236,6 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
             <header className="home-header">
                 <h1>Family Trees</h1>
                 <div className="home-actions">
-                    <GeminiLiveButton />
                     {isEditor && (
                         <>
                             <input

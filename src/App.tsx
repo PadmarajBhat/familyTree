@@ -21,6 +21,7 @@ import { canEditNode, isGlobalEditor } from './logic/permissions';
 import { getISTTimestamp } from './logic/dateUtils';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
+import { GeminiLiveButton } from './components/GeminiLiveButton';
 
 import { getTreeNameFromFilename, generateFilename } from './logic/fileUtils';
 import './App.css';
@@ -1209,7 +1210,10 @@ function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>{currentTreeName && tree ? `${currentTreeName} 's ${t('appTitle')}` : (viewState === 'home' && currentUser ? t('dashboardTitle') : t('appTitle'))}</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          {tree && <GeminiLiveButton />}
+          <h1>{currentTreeName && tree ? `${currentTreeName} 's ${t('appTitle')}` : (viewState === 'home' && currentUser ? t('dashboardTitle') : t('appTitle'))}</h1>
+        </div>
         < div className="auth-controls" >
           <div className="menu-container">
             <button
