@@ -21,6 +21,8 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'ALLOWED_ORIGINS=https://padmarajbhat.github.io'
 
 options:
   logging: CLOUD_LOGGING_ONLY
