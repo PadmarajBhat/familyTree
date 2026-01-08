@@ -1,11 +1,11 @@
 steps:
-  # Build the container image
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/gemini-live-backend', './backend']
-
-  # Push the container image to Container Registry
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/gemini-live-backend']
+  # Build and Push the container image using Kaniko for caching
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    args:
+      - '--destination=gcr.io/$PROJECT_ID/gemini-live-backend'
+      - '--context=dir://backend'
+      - '--cache=true'
+      - '--cache-ttl=168h'
 
   # Deploy container to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'

@@ -29,6 +29,8 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
+        env:
+          VITE_GEMINI_BACKEND_URL: ${{ secrets.VITE_GEMINI_BACKEND_URL }}
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

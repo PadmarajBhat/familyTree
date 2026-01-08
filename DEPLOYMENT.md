@@ -35,7 +35,12 @@
     - Under **Build and deployment**, select **Source** as **GitHub Actions**.
     - The workflow `.github/workflows/deploy.yml` will automatically pick up the build and deploy.
 
-4.  **Verify**:
+4.  **Set Environment Variables**:
+    - Go to Repository **Settings** > **Secrets and variables** > **Actions**.
+    - Click **New repository secret**.
+    - Add `VITE_GEMINI_BACKEND_URL` with your Cloud Run URL (e.g., `wss://...`).
+
+5.  **Verify**:
     - Go to the **Actions** tab to see the deployment progress.
     - Once done, visit your site at `https://<username>.github.io/<repo>/`.
 

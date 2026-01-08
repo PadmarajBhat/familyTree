@@ -1,0 +1,13 @@
+.gcloudignore
+.git
+.gitignore
+node_modules/
+dist/
+src/
+public/
+*.ts
+*.tsx
+*.json
+*.html
+*.js
+!backend/
