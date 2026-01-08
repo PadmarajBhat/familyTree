@@ -1,7 +1,5 @@
 export class AudioStreamer {
     private audioContext: AudioContext;
-    private audioQueue: string[] = [];
-    private isPlaying: boolean = false;
     private startTime: number = 0;
 
     constructor() {
