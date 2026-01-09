@@ -9,7 +9,13 @@ let gapiInitedPromise: Promise<void> | null = null;
 let tokenClient: any = null;
 let accessToken: string | null = null;
 
+const isMockAuth = import.meta.env.VITE_USE_MOCK_AUTH === 'true' || (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_AUTH !== 'false');
+
 export const initGoogleClient = (updateSigninStatus: (isSignedIn: boolean) => void): Promise<void> => {
+    if (isMockAuth) {
+        updateSigninStatus(true);
+        return Promise.resolve();
+    }
     if (gapiInitedPromise) {
         return gapiInitedPromise;
     }
@@ -129,7 +135,7 @@ export const signOut = () => {
 };
 
 export const listTreeFiles = async () => {
-    if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+    if (isMockAuth) {
         console.log("Mock Auth: Returning empty file list.");
         return [];
     }
@@ -186,7 +192,7 @@ export interface UserPreferences {
 }
 
 export const getPreferences = async (): Promise<UserPreferences> => {
-    if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+    if (isMockAuth) {
         return {};
     }
     try {

@@ -26,5 +26,14 @@
     },
     "common": {
         "loading": "Loading..."
-    }
+    },
+    "welcomeMsg": "Welcome to Family Tree",
+    "tagline": "Connect, share, and preserve your shared family history.",
+    "signInWithGoogle": "Sign in with Google",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
+    "accessDenied": "Access Denied",
+    "accessDeniedMsg": "You do not have permission to view this family tree. Please contact the administrator.",
+    "backToHome": "Back to Home",
+    "loadingTree": "Loading family tree..."
 }

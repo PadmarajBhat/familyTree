@@ -284,23 +284,8 @@ main {
 }
 
 /* Landing Page Styles */
-.welcome-screen {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  color: #333;
-  padding: 2rem;
-  text-align: center;
-}
 
-@media (prefers-color-scheme: dark) {
-  .welcome-screen {
-    background: linear-gradient(135deg, #2c3e50 0%, #000000 100%);
-    color: white;
-  }
-}
+/* Tree Styles */
 
 .landing-content {
   max-width: 600px;
