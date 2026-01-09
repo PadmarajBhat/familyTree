@@ -9,7 +9,13 @@ export class AudioRecorder {
 
     async start() {
         this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        this.audioContext = new AudioContext({ sampleRate: 16000 }); // Gemini prefers 16k or 24k
+        this.audioContext = new AudioContext({ sampleRate: 16000 });
+
+        // Ensure AudioContext is running (required by some browsers)
+        if (this.audioContext.state === 'suspended') {
+            await this.audioContext.resume();
+        }
+
         this.source = this.audioContext.createMediaStreamSource(this.stream);
 
         // Use ScriptProcessor for legacy browser support/simplicity in extraction
@@ -72,10 +78,8 @@ export class AudioRecorder {
             outputData = result;
         }
 
-        // Convert Float32 to Int16 PCM (Little Endian)
         const buffer = new ArrayBuffer(outputData.length * 2);
         const view = new DataView(buffer);
-        // ...
 
         for (let i = 0; i < outputData.length; i++) {
             let s = Math.max(-1, Math.min(1, outputData[i]));

@@ -54,15 +54,19 @@ async def proxy_task(
     try:
         async for message in source_websocket:
             try:
-                data = json.loads(message)
                 if DEBUG:
-                    print(f"Proxying from {'server' if is_server else 'client'}: {data}")
-                await destination_websocket.send(json.dumps(data))
+                    # Only attempt to parse JSON if we are debugging
+                    try:
+                        data = json.loads(message)
+                        print(f"Proxying from {'server' if is_server else 'client'}: {data}")
+                    except:
+                        print(f"Proxying from {'server' if is_server else 'client'} (Binary/Non-JSON)")
+                
+                await destination_websocket.send(message)
             except Exception as e:
-                print(f"Error processing message: {e}")
-                print(f"Message content: {message}")
-                with open("error_log.txt", "w") as f:
-                    f.write(f"Error: {e}\nMessage: {message}")
+                print(f"Error forwarding message: {e}")
+                with open("error_log.txt", "a") as f:
+                    f.write(f"Error: {e}\n")
     except ConnectionClosed as e:
         print(
             f"{'Server' if is_server else 'Client'} connection closed: {e.code} - {e.reason}"

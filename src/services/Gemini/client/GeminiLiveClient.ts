@@ -71,7 +71,7 @@ export class GeminiLiveClient {
             realtime_input: {
                 media_chunks: [
                     {
-                        mime_type: "audio/pcm;rate=16000",
+                        mime_type: "audio/pcm",
                         data: base64Audio
                     }
                 ]
