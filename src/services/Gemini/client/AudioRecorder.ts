@@ -50,14 +50,35 @@ export class AudioRecorder {
     }
 
     private processAudio(inputData: Float32Array) {
-        // Convert Float32 to Int16 PCM (Little Endian)
-        const buffer = new ArrayBuffer(inputData.length * 2);
-        const view = new DataView(buffer);
+        let outputData = inputData;
+        const currentRate = this.audioContext?.sampleRate || 16000;
 
-        for (let i = 0; i < inputData.length; i++) {
-            let s = Math.max(-1, Math.min(1, inputData[i]));
-            // s = s < 0 ? s * 0x8000 : s * 0x7FFF;
-            // view.setInt16(i * 2, s, true);
+        // Simple linear resampling if not 16k
+        if (currentRate !== 16000) {
+            const ratio = currentRate / 16000;
+            const newLength = Math.round(inputData.length / ratio);
+            const result = new Float32Array(newLength);
+            for (let i = 0; i < newLength; i++) {
+                const index = i * ratio;
+                const low = Math.floor(index);
+                const high = Math.ceil(index);
+                const weight = index - low;
+                if (high < inputData.length) {
+                    result[i] = inputData[low] * (1 - weight) + inputData[high] * weight;
+                } else {
+                    result[i] = inputData[low];
+                }
+            }
+            outputData = result;
+        }
+
+        // Convert Float32 to Int16 PCM (Little Endian)
+        const buffer = new ArrayBuffer(outputData.length * 2);
+        const view = new DataView(buffer);
+        // ...
+
+        for (let i = 0; i < outputData.length; i++) {
+            let s = Math.max(-1, Math.min(1, outputData[i]));
             const int16 = s < 0 ? s * 0x8000 : s * 0x7FFF;
             view.setInt16(i * 2, int16, true);
         }

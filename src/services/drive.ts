@@ -161,7 +161,8 @@ export const renameFile = async (fileId: string, newName: string): Promise<void>
         name: newName,
     };
 
-    const accessToken = gapi.auth.getToken().access_token;
+    if (isMockAuth) return;
+    const accessToken = gapi.client?.getToken()?.access_token;
 
     try {
         const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
@@ -284,7 +285,8 @@ export const saveTreeFile = async (name: string, content: unknown, description?:
         description: description || "",
     };
 
-    const accessToken = gapi.auth.getToken().access_token;
+    if (isMockAuth) return { id: 'mock-file-id' };
+    const accessToken = gapi.client?.getToken()?.access_token;
     const form = new FormData();
     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
     form.append('file', file);
@@ -314,7 +316,8 @@ export const updateTreeFile = async (fileId: string, content: unknown, descripti
     }
     // unlock param is ignored in file-based locking
 
-    const accessToken = gapi.auth.getToken().access_token;
+    if (isMockAuth) return { id: fileId };
+    const accessToken = gapi.client?.getToken()?.access_token;
     const form = new FormData();
     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
     form.append('file', file);
@@ -351,8 +354,11 @@ export const deleteFile = async (fileId: string): Promise<void> => {
 };
 
 export const getUserProfile = async () => {
+    if (isMockAuth) {
+        return { email: 'padmarajbhat@gmail.com', name: 'Padmaraj Bhat' };
+    }
     try {
-        const accessToken = gapi.client.getToken()?.access_token;
+        const accessToken = gapi.client?.getToken()?.access_token;
         if (!accessToken) return null;
 
         const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -371,13 +377,14 @@ export const getUserProfile = async () => {
 };
 
 export const uploadImage = async (file: File): Promise<string> => {
+    if (isMockAuth) return "mock-image-url";
     const metadata = {
         name: file.name,
         parents: [CONFIG.DRIVE_ZS_FOLDER_ID],
         mimeType: file.type,
     };
 
-    const accessToken = gapi.client.getToken()?.access_token;
+    const accessToken = gapi.client?.getToken()?.access_token;
     if (!accessToken) throw new Error("No access token");
 
     const form = new FormData();

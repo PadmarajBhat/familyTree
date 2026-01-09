@@ -129,13 +129,16 @@ export const GeminiLiveButton: React.FC<{
     };
 
     const connect = async () => {
-        if (connected) return;
+        if (connected || active) {
+            console.log("Already connected or connecting, ignoring request.");
+            return;
+        }
 
         try {
             setActive(true);
+            setConnected(false); // Reset just in case
             setChatMessages([]); // Clear chat on new connection
-
-            // Initialize Audio
+            setSetupComplete(false);
             const recorder = new AudioRecorder();
             const streamer = new AudioStreamer();
 
@@ -189,6 +192,10 @@ export const GeminiLiveButton: React.FC<{
                 } else if (msg.type === 'SETUP_COMPLETE') {
                     console.log("Gemini Live Setup Complete");
                     setSetupComplete(true);
+                    // Automatically trigger the initiation greeting defined in system prompt
+                    if (clientRef.current) {
+                        clientRef.current.sendTextMessage("The session has started. Please greet the user in Kannada as instructed.");
+                    }
                 } else if (msg.type === 'TOOL_CALL') {
                     handleGeminiToolCall(client, msg.data);
                 } else if (msg.type === 'TEXT') {
