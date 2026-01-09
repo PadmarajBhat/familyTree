@@ -151,21 +151,32 @@ export const GeminiLiveButton: React.FC = () => {
 
             <style>{`
                 .gemini-live-btn {
-                    padding: 0.7rem 1.4rem;
-                    border-radius: 30px;
-                    border: 1px solid rgba(255, 255, 255, 0.2);
-                    background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+                    position: fixed;
+                    bottom: 25px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    padding: 0.8rem 1.6rem;
+                    border-radius: 50px;
+                    border: 1px solid rgba(255, 255, 255, 0.3);
+                    background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+                    background-size: 200% auto;
                     color: white;
                     cursor: pointer;
-                    position: relative;
-                    font-weight: 700;
-                    font-size: 0.9rem;
-                    box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
+                    font-weight: 800;
+                    font-size: 1rem;
+                    box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4);
                     transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
                     text-transform: uppercase;
-                    letter-spacing: 1px;
+                    letter-spacing: 1.5px;
                     z-index: 1000;
-                    overflow: hidden;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    animation: shimmer 3s infinite alternate;
+                }
+                @keyframes shimmer {
+                    0% { background-position: 0% 50%; }
+                    100% { background-position: 100% 50%; }
                 }
                 .btn-content {
                     display: flex;
@@ -175,8 +186,8 @@ export const GeminiLiveButton: React.FC = () => {
                     position: relative;
                 }
                 .gemini-live-btn:hover {
-                    transform: translateY(-3px) scale(1.02);
-                    box-shadow: 0 15px 30px rgba(99, 102, 241, 0.4);
+                    transform: translateX(-50%) translateY(-5px) scale(1.05);
+                    box-shadow: 0 20px 40px rgba(99, 102, 241, 0.5);
                 }
                 .gemini-live-btn.connected {
                     background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
@@ -198,9 +209,10 @@ export const GeminiLiveButton: React.FC = () => {
                 /* Premium Chat Overlay */
                 .chat-overlay {
                     position: fixed;
-                    bottom: 100px;
-                    right: 30px;
-                    width: 400px;
+                    bottom: 90px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 450px;
                     max-width: calc(100vw - 60px);
                     height: 600px;
                     max-height: calc(100vh - 150px);
@@ -217,8 +229,8 @@ export const GeminiLiveButton: React.FC = () => {
                     animation: slideUpScale 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
                 }
                 @keyframes slideUpScale {
-                    from { transform: translateY(40px) scale(0.9); opacity: 0; }
-                    to { transform: translateY(0) scale(1); opacity: 1; }
+                    from { transform: translateX(-50%) translateY(40px) scale(0.9); opacity: 0; }
+                    to { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
                 }
                 .chat-header {
                     padding: 1.2rem 1.5rem;
@@ -376,6 +388,23 @@ export const GeminiLiveButton: React.FC = () => {
                 @keyframes waveGrow {
                     0%, 100% { height: 5px; }
                     50% { height: 18px; }
+                }
+
+                @media (max-width: 600px) {
+                    .chat-overlay {
+                        width: 100%;
+                        height: 70%;
+                        bottom: 0;
+                        border-radius: 24px 24px 0 0;
+                        max-width: 100%;
+                    }
+                    @keyframes slideUpScale {
+                        from { transform: translateX(-50%) translateY(100%); opacity: 0; }
+                        to { transform: translateX(-50%) translateY(0); opacity: 1; }
+                    }
+                    .gemini-live-btn {
+                        bottom: 15px;
+                    }
                 }
             `}</style>
 

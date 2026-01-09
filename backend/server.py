@@ -200,14 +200,20 @@ async def handle_websocket_client(client_websocket: WebSocketServerProtocol) -> 
         await client_websocket.close(code=1008, reason="Invalid JSON")
     except Exception as e:
         print(f"❌ Error handling client: {e}")
-        if not client_websocket.closed:
-            await client_websocket.close(code=1011, reason="Internal error")
+        # Check if connection is still open before trying to close
+        if hasattr(client_websocket, 'closed'):
+            if not client_websocket.closed:
+                await client_websocket.close(code=1011, reason="Internal error")
+        elif hasattr(client_websocket, 'state'):
+            import websockets
+            if client_websocket.state != websockets.protocol.State.CLOSED:
+                await client_websocket.close(code=1011, reason="Internal error")
 
 
 async def start_websocket_server():
     """Start the WebSocket proxy server."""
     # Enforce Origin validation for security
-    allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,https://padmarajbhat.github.io")
+    allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,https://padmarajbhat.github.io")
     allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
     
     print(f"🔒 Enforcing allowed origins: {', '.join(allowed_origins)}")

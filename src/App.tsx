@@ -1211,7 +1211,6 @@ function App() {
     <div className="app-container">
       <header className="app-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          {tree && <GeminiLiveButton />}
           <h1>{currentTreeName && tree ? `${currentTreeName} 's ${t('appTitle')}` : (viewState === 'home' && currentUser ? t('dashboardTitle') : t('appTitle'))}</h1>
         </div>
         < div className="auth-controls" >
@@ -1540,6 +1539,7 @@ function App() {
           />
         )}
       </main>
+      {Boolean(tree || import.meta.env.VITE_USE_MOCK_AUTH === 'true') && <GeminiLiveButton />}
     </div >
   );
 
