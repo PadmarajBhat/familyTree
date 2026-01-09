@@ -45,7 +45,7 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
     const { t } = useTranslation();
 
     return (
-        <div className="app-content">
+        <div className="tree-container">
             <TreeView
                 data={tree}
                 onNodeClick={setSelectedNodeId}
