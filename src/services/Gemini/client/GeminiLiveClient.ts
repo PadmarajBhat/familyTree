@@ -243,49 +243,82 @@ export class GeminiLiveClient {
         this.ws.send(JSON.stringify(sessionSetup));
     }
 
+    sendToolResponse(toolCallId: string, output: any) {
+        if (!this.connected || !this.ws) return;
+
+        const message = {
+            tool_response: {
+                function_responses: [
+                    {
+                        name: toolCallId, // In Multimodal Live, it expects the function name as ID if only one, or actual IDs if provided
+                        response: { output }
+                    }
+                ]
+            }
+        };
+        this.ws.send(JSON.stringify(message));
+    }
+
     private handleServerMessage(data: any) {
         // console.log("RAW MSG:", JSON.stringify(data)); 
 
-        let type: any = "UNKNOWN";
-        let payload: any = null;
-
         if (data.setupComplete) {
             console.log("Setup Complete Data:", data);
-            type = "SETUP_COMPLETE";
-        } else if (data.serverContent?.turnComplete) {
-            type = "TURN_COMPLETE";
-        } else if (data.serverContent?.modelTurn?.parts?.[0]?.inlineData) {
-            type = "AUDIO";
-            payload = data.serverContent.modelTurn.parts[0].inlineData.data;
-        } else if (data.serverContent?.modelTurn?.parts?.[0]?.text) {
-            console.log("Received Text:", data.serverContent.modelTurn.parts[0].text);
-            type = "TEXT";
-            payload = data.serverContent.modelTurn.parts[0].text;
-        } else if (data.serverContent?.inputTranscription) {
-            console.log("Received Input Transcription:", data.serverContent.inputTranscription);
-            type = "INPUT_TRANSCRIPTION";
-            payload = {
-                text: data.serverContent.inputTranscription.text,
-                isFinal: true
-            };
-        } else if (data.serverContent?.outputTranscription) {
-            console.log("Received Output Transcription:", data.serverContent.outputTranscription);
-            type = "OUTPUT_TRANSCRIPTION";
-            payload = {
-                text: data.serverContent.outputTranscription.text,
-                isFinal: true
-            };
-        } else {
-            // console.log("Unknown Message Structure:", Object.keys(data));
+            this.onMessage({ type: "SETUP_COMPLETE", data });
+            return;
         }
 
-        if (type !== "UNKNOWN") {
-            const msg: MultimodalLiveResponseMessage = {
-                type,
-                data: payload,
-                endOfTurn: data.serverContent?.turnComplete
-            };
-            this.onMessage(msg);
+        const serverContent = data.serverContent;
+        if (!serverContent) return;
+
+        const endOfTurn = serverContent.turnComplete || false;
+
+        // 1. Handle Transcriptions
+        if (serverContent.inputTranscription) {
+            this.onMessage({
+                type: "INPUT_TRANSCRIPTION",
+                data: { text: serverContent.inputTranscription.text, isFinal: true },
+                endOfTurn
+            });
+        }
+
+        if (serverContent.outputTranscription) {
+            this.onMessage({
+                type: "OUTPUT_TRANSCRIPTION",
+                data: { text: serverContent.outputTranscription.text, isFinal: true },
+                endOfTurn
+            });
+        }
+
+        // 2. Handle Model Turn (Audio, Text, Tool Calls)
+        const modelTurn = serverContent.modelTurn;
+        if (modelTurn?.parts) {
+            for (const part of modelTurn.parts) {
+                if (part.inlineData) {
+                    this.onMessage({
+                        type: "AUDIO",
+                        data: part.inlineData.data,
+                        endOfTurn
+                    });
+                } else if (part.text) {
+                    this.onMessage({
+                        type: "TEXT",
+                        data: part.text,
+                        endOfTurn
+                    });
+                } else if (part.functionCall) {
+                    this.onMessage({
+                        type: "TOOL_CALL",
+                        data: part.functionCall,
+                        endOfTurn
+                    });
+                }
+            }
+        }
+
+        // 3. Handle Explicit Turn Complete if no content was present
+        if (endOfTurn && !serverContent.inputTranscription && !serverContent.outputTranscription && !modelTurn) {
+            this.onMessage({ type: "TURN_COMPLETE", endOfTurn: true });
         }
     }
 }

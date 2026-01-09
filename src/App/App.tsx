@@ -155,7 +155,11 @@ function App() {
       </main>
 
       {Boolean(init.tree || (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_AUTH !== 'false') || import.meta.env.VITE_USE_MOCK_AUTH === 'true') && (
-        <GeminiLiveButton tree={init.tree} currentUser={init.currentUser} />
+        <GeminiLiveButton
+          tree={init.tree}
+          currentUser={init.currentUser}
+          onSaveMember={actions.handleSaveMember}
+        />
       )}
     </div>
   );
