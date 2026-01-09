@@ -10,6 +10,7 @@ export class AudioRecorder {
     async start() {
         this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         this.audioContext = new AudioContext({ sampleRate: 16000 });
+        console.log("AudioContext created. Target: 16kHz, Actual:", this.audioContext.sampleRate);
 
         // Ensure AudioContext is running (required by some browsers)
         if (this.audioContext.state === 'suspended') {
@@ -82,7 +83,8 @@ export class AudioRecorder {
         const view = new DataView(buffer);
 
         for (let i = 0; i < outputData.length; i++) {
-            let s = Math.max(-1, Math.min(1, outputData[i]));
+            // Apply 1.5x gain to help with [BACKGROUND] noise issues if signal is too low
+            let s = Math.max(-1, Math.min(1, outputData[i] * 1.5));
             const int16 = s < 0 ? s * 0x8000 : s * 0x7FFF;
             view.setInt16(i * 2, int16, true);
         }

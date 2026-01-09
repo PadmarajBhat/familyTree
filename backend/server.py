@@ -43,36 +43,72 @@ async def proxy_task(
     destination_websocket: WebSocketCommonProtocol,
     is_server: bool,
 ) -> None:
-    """
-    Forwards messages from source_websocket to destination_websocket.
-
-    Args:
-        source_websocket: The WebSocket connection to receive messages from.
-        destination_websocket: The WebSocket connection to send messages to.
-        is_server: True if source is server side, False otherwise.
-    """
+    source_name = "SERVER" if is_server else "CLIENT"
+    dest_name = "CLIENT" if is_server else "SERVER"
+    audio_chunk_count = 0
+    
     try:
         async for message in source_websocket:
             try:
-                if DEBUG:
-                    # Only attempt to parse JSON if we are debugging
-                    try:
-                        data = json.loads(message)
-                        print(f"Proxying from {'server' if is_server else 'client'}: {data}")
-                    except:
-                        print(f"Proxying from {'server' if is_server else 'client'} (Binary/Non-JSON)")
+                # Always attempt to parse for logging purposes, but don't fail if it's binary
+                try:
+                    data = json.loads(message)
+                    
+                    if not is_server: # Client -> Server
+                        if "realtime_input" in data:
+                            audio_chunk_count += 1
+                            if audio_chunk_count % 50 == 0: # Log every 50 chunks to avoid spam
+                                print(f"📤 {source_name} -> {dest_name}: Sent {audio_chunk_count} audio chunks...")
+                        elif "client_content" in data:
+                            print(f"💬 {source_name} -> {dest_name}: Text/Content sent")
+                        else:
+                            print(f"📦 {source_name} -> {dest_name}: {list(data.keys())}")
+                    
+                    else: # Server -> Client
+                        if "serverContent" in data:
+                            sc = data["serverContent"]
+                            if "modelTurn" in sc:
+                                parts = sc["modelTurn"].get("parts", [])
+                                for p in parts:
+                                    if "inlineData" in p:
+                                        print(f"🔊 {source_name} -> {dest_name}: Audio response part")
+                                    if "text" in p:
+                                        print(f"📝 {source_name} -> {dest_name}: Text response: {p['text'][:50]}...")
+                                    if "functionCall" in p:
+                                        print(f"🛠️ {source_name} -> {dest_name}: Tool Call: {p['functionCall']['name']}({p['functionCall'].get('args', {})})")
+                            if "inputTranscription" in sc:
+                                print(f"🎤 {source_name} -> {dest_name}: User Transcription: {sc['inputTranscription'].get('text')}")
+                            if "outputTranscription" in sc:
+                                text = sc["outputTranscription"].get("text")
+                                if text:
+                                    print(f"🗣️ {source_name} -> {dest_name}: Bot Transcription: {text}")
+                            if sc.get("turnComplete"):
+                                print(f"🏁 {source_name} -> {dest_name}: Turn Complete")
+                        elif "setupComplete" in data:
+                            print(f"✅ {source_name} -> {dest_name}: Setup Complete")
+                        elif "toolCall" in data or "tool_call" in data:
+                            tc_key = "toolCall" if "toolCall" in data else "tool_call"
+                            tc = data[tc_key]
+                            # Handle both camelCase and snake_case for function calls
+                            calls = tc.get("functionCalls") or tc.get("function_calls") or []
+                            for call in calls:
+                                print(f"🛠️ {source_name} -> {dest_name}: Top-level Tool Call: {call['name']}({call.get('args', {})})")
+                        else:
+                            # Print a bit more of the dict to help debug unknown messages
+                            print(f"📦 {source_name} -> {dest_name}: {list(data.keys())} - {str(data)[:200]}...")
+                
+                except:
+                    # If parsing fails, it's likely raw binary or malformed JSON
+                    if DEBUG:
+                        print(f"Proxying from {source_name}: (Binary/Non-JSON)")
                 
                 await destination_websocket.send(message)
             except Exception as e:
                 print(f"Error forwarding message: {e}")
-                with open("error_log.txt", "a") as f:
-                    f.write(f"Error: {e}\n")
     except ConnectionClosed as e:
-        print(
-            f"{'Server' if is_server else 'Client'} connection closed: {e.code} - {e.reason}"
-        )
+        print(f"{source_name} connection closed: {e.code} - {e.reason}")
     except Exception as e:
-        print(f"Unexpected error in proxy_task: {e}")
+        print(f"Unexpected error in proxy_task for {source_name}: {e}")
     finally:
         await destination_websocket.close()
 

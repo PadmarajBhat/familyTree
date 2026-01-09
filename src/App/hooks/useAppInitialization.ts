@@ -156,8 +156,13 @@ export function useAppInitialization() {
     };
 
     useEffect(() => {
-        if (!isSignedIn || !isGapiReady || !currentUser || isMockAuth) {
-            if (isMockAuth) setLoading(false);
+        if (!isSignedIn || !isGapiReady || !currentUser) {
+            return;
+        }
+
+        if (isMockAuth) {
+            loadTree();
+            setViewState('tree');
             return;
         }
 

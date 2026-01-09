@@ -136,8 +136,13 @@ export const signOut = () => {
 
 export const listTreeFiles = async () => {
     if (isMockAuth) {
-        console.log("Mock Auth: Returning empty file list.");
-        return [];
+        console.log("Mock Auth: Returning sample file list.");
+        return [{
+            id: 'sample-tree-id',
+            name: 'family_tree_Sample_2026-01-08.json',
+            modifiedTime: new Date().toISOString(),
+            description: "Sample tree for testing"
+        }];
     }
     try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -262,6 +267,14 @@ export const updateUserStarredTrees = async (email: string, starredTreeNames: st
 };
 
 export const getFileContent = async (fileId: string) => {
+    if (isMockAuth && fileId === 'sample-tree-id') {
+        // Use BASE_URL to ensure it works with sub-paths like /familyTree/
+        const baseUrl = import.meta.env.BASE_URL || '/';
+        const url = `${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}family_tree_Sample_2026-01-08.json`.replace(/\/+/g, '/');
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Sample file not found at ${url}`);
+        return await response.json();
+    }
     try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await (gapi.client as any).drive.files.get({

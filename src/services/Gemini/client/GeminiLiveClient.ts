@@ -46,9 +46,18 @@ export class GeminiLiveClient {
             this.onError(event);
         };
 
-        this.ws.onmessage = (event) => {
+        this.ws.onmessage = async (event) => {
             try {
-                const data = JSON.parse(event.data);
+                let textData: string;
+                if (event.data instanceof Blob) {
+                    textData = await event.data.text();
+                } else if (typeof event.data === 'string') {
+                    textData = event.data;
+                } else {
+                    return;
+                }
+
+                const data = JSON.parse(textData);
                 this.handleServerMessage(data);
             } catch (e) {
                 console.error("Failed to parse message", e);
@@ -268,13 +277,27 @@ export class GeminiLiveClient {
             return;
         }
 
-        const serverContent = data.serverContent;
-        if (!serverContent) return;
+        // 2b. Handle top-level toolCall (Gemini Multimodal Live can send them here)
+        // Check this BEFORE serverContent because toolCall might be top-level only
+        const toolCall = data.toolCall || data.tool_call;
+        if (toolCall?.functionCalls || toolCall?.function_calls) {
+            const calls = toolCall.functionCalls || toolCall.function_calls;
+            for (const call of calls) {
+                this.onMessage({
+                    type: "TOOL_CALL",
+                    data: call,
+                    endOfTurn: data.serverContent?.turnComplete || false
+                });
+            }
+        }
 
-        const endOfTurn = serverContent.turnComplete || false;
+        const serverContent = data.serverContent;
+        if (!serverContent && !data.toolCall && !data.tool_call) return;
+
+        const endOfTurn = serverContent?.turnComplete || false;
 
         // 1. Handle Transcriptions
-        if (serverContent.inputTranscription) {
+        if (serverContent?.inputTranscription) {
             this.onMessage({
                 type: "INPUT_TRANSCRIPTION",
                 data: { text: serverContent.inputTranscription.text, isFinal: true },
@@ -282,7 +305,7 @@ export class GeminiLiveClient {
             });
         }
 
-        if (serverContent.outputTranscription) {
+        if (serverContent?.outputTranscription) {
             this.onMessage({
                 type: "OUTPUT_TRANSCRIPTION",
                 data: { text: serverContent.outputTranscription.text, isFinal: true },
@@ -291,7 +314,7 @@ export class GeminiLiveClient {
         }
 
         // 2. Handle Model Turn (Audio, Text, Tool Calls)
-        const modelTurn = serverContent.modelTurn;
+        const modelTurn = serverContent?.modelTurn;
         if (modelTurn?.parts) {
             for (const part of modelTurn.parts) {
                 if (part.inlineData) {
@@ -317,7 +340,7 @@ export class GeminiLiveClient {
         }
 
         // 3. Handle Explicit Turn Complete if no content was present
-        if (endOfTurn && !serverContent.inputTranscription && !serverContent.outputTranscription && !modelTurn) {
+        if (endOfTurn && !serverContent?.inputTranscription && !serverContent?.outputTranscription && !modelTurn && !toolCall) {
             this.onMessage({ type: "TURN_COMPLETE", endOfTurn: true });
         }
     }
