@@ -14,10 +14,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
-COPY server.py .
+COPY . .
 
-# Expose port
+# Expose port (Cloud Run sets PORT env var, but 8080 is default)
 EXPOSE 8080
 
 # Run the server
-CMD ["python", "server.py"]
+CMD ["python", "main.py"]
