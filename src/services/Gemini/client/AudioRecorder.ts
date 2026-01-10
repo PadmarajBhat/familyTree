@@ -8,33 +8,48 @@ export class AudioRecorder {
     onDataAvailable: (base64Data: string) => void = (_data) => { };
 
     async start() {
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        this.audioContext = new AudioContext({ sampleRate: 16000 });
-        console.log("AudioContext created. Target: 16kHz, Actual:", this.audioContext.sampleRate);
+        try {
+            this.stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    channelCount: 1,
+                    sampleRate: 16000,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
+            // Try to create context with preferred rate, but browser may override
+            this.audioContext = new AudioContext({ sampleRate: 16000 });
+            console.log("AudioContext created. Target: 16kHz, Actual:", this.audioContext.sampleRate);
 
-        // Ensure AudioContext is running (required by some browsers)
-        if (this.audioContext.state === 'suspended') {
-            await this.audioContext.resume();
+            // Ensure AudioContext is running (required by some browsers)
+            if (this.audioContext.state === 'suspended') {
+                await this.audioContext.resume();
+            }
+
+            this.source = this.audioContext.createMediaStreamSource(this.stream);
+
+            // Use ScriptProcessor for legacy browser support/simplicity in extraction
+            // In product, AudioWorklet is better but this is a direct port/simplification
+            this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+
+            this.processor.onaudioprocess = (e) => {
+                const inputData = e.inputBuffer.getChannelData(0);
+                if (inputData && inputData.length > 0) {
+                    this.processAudio(inputData);
+                }
+            };
+
+            this.source.connect(this.processor);
+            this.processor.connect(this.audioContext.destination); // create connection to hear? No, just keep alive.
+            // Actually, connecting to destination might cause feedback loop if playing back.
+            // Better to connect to a mute destination or just let it run.
+            // In many browsers, ScriptProcessor stops if not connected to destination.
+            // We will handle echo cancellation via getUserMedia constraints ideally, 
+            // but here we just process.
+        } catch (e) {
+            console.error("Error accessing microphone:", e);
         }
-
-        this.source = this.audioContext.createMediaStreamSource(this.stream);
-
-        // Use ScriptProcessor for legacy browser support/simplicity in extraction
-        // In product, AudioWorklet is better but this is a direct port/simplification
-        this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
-
-        this.processor.onaudioprocess = (e) => {
-            const inputData = e.inputBuffer.getChannelData(0);
-            this.processAudio(inputData);
-        };
-
-        this.source.connect(this.processor);
-        this.processor.connect(this.audioContext.destination); // create connection to hear? No, just keep alive.
-        // Actually, connecting to destination might cause feedback loop if playing back.
-        // Better to connect to a mute destination or just let it run.
-        // In many browsers, ScriptProcessor stops if not connected to destination.
-        // We will handle echo cancellation via getUserMedia constraints ideally, 
-        // but here we just process.
     }
 
     stop() {

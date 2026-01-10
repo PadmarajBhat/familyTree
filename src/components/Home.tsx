@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { listTreeFiles, saveTreeFile, renameFile, getPreferences, updateUserStarredTrees } from '../services/drive';
+import { TreeService } from '../services/TreeService';
 import { getISTTimestamp } from '../logic/dateUtils';
 import type { TreeDocument } from '../logic/types';
 import { getTreeNameFromFilename, generateFilename } from '../logic/fileUtils';
@@ -21,7 +22,6 @@ interface TreeFile {
     description?: string;
 }
 
-
 export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTreeId, isEditor, enableAutoload = true }) => {
     const [trees, setTrees] = useState<TreeFile[]>([]);
     const [loading, setLoading] = useState(false);
@@ -39,15 +39,31 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
 
         const loadPrefs = async () => {
             try {
-                const prefs = await getPreferences();
+                const prefs = await getPreferences(userEmail);
                 if (prefs && prefs[userEmail]?.starredTreeNames) {
-                    const stars = new Set(prefs[userEmail].starredTreeNames);
+                    const stars = new Set(prefs[userEmail].starredTreeNames as string[]);
                     setStarredTreeNames(stars);
                 } else if (prefs && prefs[userEmail]?.defaultTreeName) {
                     setStarredTreeNames(new Set([prefs[userEmail].defaultTreeName!]));
+                } else {
+                    // No preferences found (First time user?) -> Search for their tree
+                    console.log("No prefs found, searching for user's tree...");
+                    try {
+                        const foundTrees = await TreeService.findMyTrees(userEmail);
+                        if (foundTrees.length > 0) {
+                            console.log("Found trees for user:", foundTrees);
+                            const newStars = new Set(foundTrees);
+                            setStarredTreeNames(newStars);
+                            // Auto-save these as starred
+                            await updateUserStarredTrees(userEmail, foundTrees);
+                        }
+                    } catch (err) {
+                        console.error("Error searching for user trees", err);
+                    }
                 }
             } catch (e) {
                 console.warn("Failed to load preferences", e);
+                // Fallback to local storage if API fails completely
                 const storedShortlist = localStorage.getItem(`shortlist_${userEmail}`);
                 if (storedShortlist) {
                     setShortlistedIds(JSON.parse(storedShortlist));

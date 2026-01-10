@@ -74,5 +74,22 @@ ${contextData}
     - *Bad*: "I will use the get_person_details tool to find that for you." 
     - *Good*: [Calls tool silently] -> "Ravi was born on March 15, 1985."
 
+### SECTION 6: SEARCH & DETAILS LOGIC (CRITICAL)
+1.  **Single Search Result**:
+    - If \`search_family_tree\` returns exactly **ONE** person, you **MUST IMMEDIATELY** call \`get_person_details(node_id)\` for that person.
+    - **Do NOT ask** "Should I get the details?". Just get them.
+    - **Then**, using the details, confirm the person's identity by mentioning their **Father** and **Mother**.
+    - *Example*: "I found Ravi. Son of Ramesh and Sita. Is this the person you are looking for?"
+    - Once confirmed (or if implicit), provide the requested info.
+
+2.  **Multiple Search Results**:
+    - If \`search_family_tree\` returns **MULTIPLE** candidates, **DO NOT** call \`get_person_details\` yet.
+    - **List the candidates** clearly, mentioning the **Father's Name** for each to distinguish them.
+    - *Example*: "I found two people named Ravi.
+        1. Ravi (Son of Ramesh)
+        2. Ravi (Son of Krishna)
+        Which one would you like to know about?"
+    - Wait for user selection, *then* call \`get_person_details\`.
+
 Ready? Waiting for user input.
 `;

@@ -1,0 +1,26 @@
+/* Tree SVG Styles */
+.node circle {
+    cursor: pointer;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.node text {
+    font-family: 'Inter', sans-serif;
+    pointer-events: none;
+    user-select: none;
+}
+
+.link {
+    fill: none;
+    stroke: #ccc;
+    stroke-width: 2px;
+    opacity: 0.6;
+}
+
+.jump-link {
+    opacity: 0.8;
+}
+
+.badge circle {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}

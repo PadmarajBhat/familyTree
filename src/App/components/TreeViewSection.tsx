@@ -54,12 +54,12 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
             />
 
             <div className="floating-controls">
-                <button className="btn-fab" onClick={() => setSearchOpen(true)} title={t('search')}>🔍</button>
-                <button className="btn-fab" onClick={() => setCollaboratorsOpen(true)} title={t('collaborators')}>👥</button>
-                <button className="btn-fab" onClick={() => setFindRelationOpen(true)} title={t('findRelation')}>🔗</button>
-                <button className="btn-fab" onClick={() => setFanChartOpen(true)} title={t('fanChart')}>📉</button>
-                <button className="btn-fab" onClick={() => setVersionHistoryOpen(true)} title={t('history')}>🕒</button>
-                <button className="btn-fab logout" onClick={onSignOut} title={t('signOut')}>🚪</button>
+                <button className="btn-fab" onClick={() => setSearchOpen(true)} title={t('menu.search')}>🔍</button>
+                <button className="btn-fab" onClick={() => setCollaboratorsOpen(true)} title={t('menu.collaborators')}>👥</button>
+                <button className="btn-fab" onClick={() => setFindRelationOpen(true)} title={t('menu.findRelation')}>🔗</button>
+                <button className="btn-fab" onClick={() => setFanChartOpen(true)} title={t('menu.fanChart')}>📉</button>
+                <button className="btn-fab" onClick={() => setVersionHistoryOpen(true)} title={t('menu.history')}>🕒</button>
+                <button className="btn-fab logout" onClick={onSignOut} title={t('menu.signOut')}>🚪</button>
             </div>
 
             {selectedNodeId && tree.nodes[selectedNodeId] && (
@@ -136,7 +136,7 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
                 <div className="modal-overlay">
                     <div className="modal-content full-screen">
                         <div className="modal-header">
-                            <h2>{t('fanChart')}</h2>
+                            <h2>{t('menu.fanChart')}</h2>
                             <button className="close-all" onClick={() => setFanChartOpen(false)}>&times;</button>
                         </div>
                         <FanChartView

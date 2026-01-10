@@ -1,6 +1,6 @@
 .gemini-live-btn {
     position: fixed;
-    bottom: 25px;
+    bottom: 90px;
     left: 50%;
     transform: translateX(-50%);
     padding: 0.8rem 1.6rem;
@@ -16,16 +16,23 @@
     transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     text-transform: uppercase;
     letter-spacing: 1.5px;
-    z-index: 1000;
+    z-index: 10001;
     display: flex;
     align-items: center;
     gap: 10px;
     animation: shimmer 3s infinite alternate;
 }
+
 @keyframes shimmer {
-    0% { background-position: 0% 50%; }
-    100% { background-position: 100% 50%; }
+    0% {
+        background-position: 0% 50%;
+    }
+
+    100% {
+        background-position: 100% 50%;
+    }
 }
+
 .btn-content {
     display: flex;
     align-items: center;
@@ -33,25 +40,39 @@
     z-index: 2;
     position: relative;
 }
+
 .gemini-live-btn:hover {
     transform: translateX(-50%) translateY(-5px) scale(1.05);
     box-shadow: 0 20px 40px rgba(99, 102, 241, 0.5);
 }
+
 .gemini-live-btn.connected {
     background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     box-shadow: 0 10px 20px rgba(239, 68, 68, 0.3);
 }
+
 .pulse-ring {
     position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     border-radius: 30px;
     background: rgba(255, 255, 255, 0.3);
     animation: ringPulse 2s infinite;
     z-index: 1;
 }
+
 @keyframes ringPulse {
-    0% { transform: scale(1); opacity: 0.8; }
-    100% { transform: scale(1.5); opacity: 0; }
+    0% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
 }
 
 /* Premium Chat Overlay */
@@ -73,13 +94,22 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    z-index: 999;
+    z-index: 10000;
     animation: slideUpScale 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
+
 @keyframes slideUpScale {
-    from { transform: translateX(-50%) translateY(40px) scale(0.9); opacity: 0; }
-    to { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+    from {
+        transform: translateX(-50%) translateY(40px) scale(0.9);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(-50%) translateY(0) scale(1);
+        opacity: 1;
+    }
 }
+
 .chat-header {
     padding: 1.2rem 1.5rem;
     background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
@@ -90,8 +120,9 @@
     font-weight: 800;
     font-size: 1.1rem;
     letter-spacing: 0.5px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
+
 .close-btn {
     background: rgba(255, 255, 255, 0.2);
     border: none;
@@ -106,7 +137,10 @@
     transition: background 0.2s;
     font-size: 1.2rem;
 }
-.close-btn:hover { background: rgba(255, 255, 255, 0.3); }
+
+.close-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
 
 /* Connection / Listening States */
 .status-container {
@@ -119,10 +153,20 @@
     text-align: center;
     animation: fadeIn 0.5s ease;
 }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
 
 .mic-outer {
-    width: 80px; height: 80px;
+    width: 80px;
+    height: 80px;
     background: rgba(99, 102, 241, 0.1);
     border-radius: 50%;
     display: flex;
@@ -130,8 +174,10 @@
     justify-content: center;
     position: relative;
 }
+
 .mic-inner {
-    width: 50px; height: 50px;
+    width: 50px;
+    height: 50px;
     background: #6366f1;
     border-radius: 50%;
     display: flex;
@@ -143,17 +189,27 @@
     position: relative;
     z-index: 2;
 }
+
 .mic-pulse {
     position: absolute;
-    width: 100%; height: 100%;
+    width: 100%;
+    height: 100%;
     background: #6366f1;
     border-radius: 50%;
     animation: bubblePulse 2s infinite;
     z-index: 1;
 }
+
 @keyframes bubblePulse {
-    0% { transform: scale(1); opacity: 0.6; }
-    100% { transform: scale(2.5); opacity: 0; }
+    0% {
+        transform: scale(1);
+        opacity: 0.6;
+    }
+
+    100% {
+        transform: scale(2.5);
+        opacity: 0;
+    }
 }
 
 .status-badge {
@@ -164,8 +220,17 @@
     font-size: 0.9rem;
     letter-spacing: 1px;
 }
-.status-badge.loading { background: #fef3c7; color: #92400e; }
-.status-badge.ready { background: #dcfce7; color: #166534; box-shadow: 0 4px 10px rgba(22, 101, 52, 0.2); }
+
+.status-badge.loading {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-badge.ready {
+    background: #dcfce7;
+    color: #166534;
+    box-shadow: 0 4px 10px rgba(22, 101, 52, 0.2);
+}
 
 .status-instruction {
     font-size: 1.2rem;
@@ -176,15 +241,24 @@
 .chat-messages {
     flex: 1;
     padding: 1.5rem;
+    padding-bottom: 80px;
+    /* Space for the floating button */
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 1.2rem;
     scrollbar-width: thin;
-    scrollbar-color: rgba(0,0,0,0.1) transparent;
+    scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
 }
-.chat-messages::-webkit-scrollbar { width: 6px; }
-.chat-messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
+
+.chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+}
 
 .message-bubble {
     max-width: 85%;
@@ -192,12 +266,20 @@
     font-size: 1rem;
     line-height: 1.5;
     position: relative;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
     animation: messagePop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
+
 @keyframes messagePop {
-    from { transform: scale(0.8); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+    from {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 .message-bubble.user {
@@ -206,12 +288,29 @@
     color: white;
     border-radius: 20px 20px 4px 20px;
 }
+
 .message-bubble.assistant {
     align-self: flex-start;
     background: white;
     color: #374151;
     border-radius: 20px 20px 20px 4px;
-    border: 1px solid rgba(0,0,0,0.05);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* ... existing styles ... */
+
+.message-bubble.tool-call {
+    align-self: center;
+    background: #f3f4f6;
+    color: #4b5563;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-family: monospace;
+    padding: 0.8rem;
+    border: 1px dashed #9ca3af;
+    width: 90%;
+    white-space: pre-wrap;
+    box-shadow: none;
 }
 
 /* Waveform visual */
@@ -222,6 +321,7 @@
     height: 20px;
     margin-top: 10px;
 }
+
 .wave-bar {
     width: 3px;
     background: #6366f1;
@@ -229,13 +329,37 @@
     height: 5px;
     animation: waveGrow 1.2s infinite;
 }
-.wave-bar:nth-child(2) { animation-delay: 0.1s; height: 10px; }
-.wave-bar:nth-child(3) { animation-delay: 0.2s; height: 15px; }
-.wave-bar:nth-child(4) { animation-delay: 0.3s; height: 10px; }
-.wave-bar:nth-child(5) { animation-delay: 0.4s; height: 5px; }
+
+.wave-bar:nth-child(2) {
+    animation-delay: 0.1s;
+    height: 10px;
+}
+
+.wave-bar:nth-child(3) {
+    animation-delay: 0.2s;
+    height: 15px;
+}
+
+.wave-bar:nth-child(4) {
+    animation-delay: 0.3s;
+    height: 10px;
+}
+
+.wave-bar:nth-child(5) {
+    animation-delay: 0.4s;
+    height: 5px;
+}
+
 @keyframes waveGrow {
-    0%, 100% { height: 5px; }
-    50% { height: 18px; }
+
+    0%,
+    100% {
+        height: 5px;
+    }
+
+    50% {
+        height: 18px;
+    }
 }
 
 @media (max-width: 600px) {
@@ -246,11 +370,26 @@
         border-radius: 24px 24px 0 0;
         max-width: 100%;
     }
+
     @keyframes slideUpScale {
-        from { transform: translateX(-50%) translateY(100%); opacity: 0; }
-        to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        from {
+            transform: translateX(-50%) translateY(100%);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
     }
+
     .gemini-live-btn {
-        bottom: 15px;
+        bottom: 85px;
+        /* Stay above bottom nav */
+        padding: 0.6rem 1.2rem;
+        /* reduced padding */
+        font-size: 0.9rem;
+        /* reduced font size */
+        border-radius: 40px;
     }
 }

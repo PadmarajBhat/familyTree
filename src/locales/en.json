@@ -5,6 +5,8 @@
         "search": "Search Members",
         "findRelation": "Find Relationship",
         "editors": "Editors",
+        "collaborators": "Collaborators",
+        "fanChart": "Fan Chart",
         "history": "Version History",
         "dashboard": "Dashboard",
         "setDefault": "Set as Default Tree",

@@ -8,13 +8,13 @@ import './GeminiLive.css';
 
 const PROJECT_ID = 'familytree-477808';
 const MODEL_ID = 'gemini-live-2.5-flash-native-audio'; // Correct model for Live API from demo
-const BACKEND_URL = import.meta.env.VITE_GEMINI_BACKEND_URL || 'ws://localhost:8080';
+const BACKEND_URL = import.meta.env.VITE_GEMINI_BACKEND_URL || 'ws://localhost:8888';
 
 export const GeminiLiveButton: React.FC<{
     tree: TreeDocument | null,
     currentUser: { email: string; name: string } | null,
-    onSaveMember: (data: PersonNode, p: string | null, c: string[], s: string[], sib: string[], shadow: PersonNode[], mode: 'add' | 'edit' | null) => void;
-}> = ({ tree, currentUser, onSaveMember }) => {
+    onSaveMember?: (data: PersonNode, p: string | null, c: string[], s: string[], sib: string[], shadow: PersonNode[], mode: 'add' | 'edit' | null) => void;
+}> = ({ tree, currentUser }) => {
     const [connected, setConnected] = useState(false);
     const [active, setActive] = useState(false);
     const [setupComplete, setSetupComplete] = useState(false);
@@ -29,7 +29,7 @@ export const GeminiLiveButton: React.FC<{
         };
     }, []);
 
-    const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant', text: string }[]>([]);
+    const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant' | 'tool-call', text: string }[]>([]);
 
     const treeToCSV = (tree: TreeDocument | null): string => {
         if (!tree || !tree.nodes) return '';
@@ -41,92 +41,6 @@ export const GeminiLiveButton: React.FC<{
         return rows.join('\n');
     };
 
-    const handleGeminiToolCall = async (client: GeminiLiveClient, call: { name: string, args: any }) => {
-        console.log("Gemini Tool Call:", call);
-        let result: any = { status: "error", message: "Unknown tool" };
-
-        try {
-            if (call.name === 'get_person_details') {
-                const node = tree?.nodes[call.args.node_id];
-                result = node ? { status: "success", data: node } : { status: "error", message: "Person not found" };
-            }
-            else if (call.name === 'search_family_tree' && tree) {
-                const query = (call.args.query || '').toLowerCase();
-                const matches = Object.values(tree.nodes)
-                    .filter(n => (n.name || '').toLowerCase().includes(query))
-                    .map(n => ({ nodeId: n.nodeId, name: n.name, gender: n.gender }));
-                result = { status: "success", matches };
-            }
-            else if (call.name === 'update_person' && tree) {
-                const node = tree.nodes[call.args.node_id];
-                if (node) {
-                    const updatedNode = { ...node, ...call.args.updates };
-                    // Handle nested objects if Gemini sends them
-                    if (call.args.updates.location) updatedNode.location = { ...node.location, ...call.args.updates.location };
-                    if (call.args.updates.occupation) updatedNode.occupation = { ...node.occupation, ...call.args.updates.occupation };
-
-                    await onSaveMember(updatedNode, updatedNode.parentId, updatedNode.childrenIds, updatedNode.spouseIds, [], [], 'edit');
-                    result = { status: "success", message: `Updated ${node.name}` };
-                } else {
-                    result = { status: "error", message: "Node not found" };
-                }
-            }
-            else if (call.name === 'add_person' && tree) {
-                const { name, gender, relation, anchor_node_id, phone, email, dob } = call.args;
-                const anchorNode = tree.nodes[anchor_node_id];
-                if (!anchorNode) {
-                    result = { status: "error", message: "Anchor person not found" };
-                } else {
-                    const newNode: PersonNode = {
-                        nodeId: `person_${Date.now()}`,
-                        name,
-                        gender,
-                        phone: phone || '',
-                        phoneE164: '',
-                        email: email || '',
-                        dob: dob || '',
-                        dobApprox: { known: false, year: null, month: null, day: null },
-                        dod: null,
-                        dodApprox: { known: false, year: null, month: null, day: null },
-                        ageProvided: null,
-                        dobInferred: false,
-                        address: { freeform: '' },
-                        imageUrl: null,
-                        isEditor: false,
-                        editorSince: null,
-                        editedBy: currentUser?.email || 'unknown',
-                        editedTime: new Date().toISOString(),
-                        spouseIds: [],
-                        childrenIds: [],
-                        parentId: null
-                    };
-
-                    let newParentId = null;
-                    let newSpouseIds: string[] = [];
-                    let newChildrenIds: string[] = [];
-
-                    const rel = relation.toLowerCase();
-                    if (rel.includes('father') || rel.includes('mother')) {
-                        // New person is parent of anchor
-                        newChildrenIds = [anchor_node_id];
-                    } else if (rel.includes('son') || rel.includes('daughter')) {
-                        // New person is child of anchor
-                        newParentId = anchor_node_id;
-                    } else if (rel.includes('wife') || rel.includes('husband') || rel.includes('spouse')) {
-                        newSpouseIds = [anchor_node_id];
-                    }
-
-                    await onSaveMember(newNode, newParentId, newChildrenIds, newSpouseIds, [], [], 'add');
-                    result = { status: "success", message: `Added ${name} as ${relation} of ${anchorNode.name}`, nodeId: newNode.nodeId };
-                }
-            }
-        } catch (e) {
-            console.error("Tool execution failed", e);
-            result = { status: "error", message: String(e) };
-        }
-
-        client.sendToolResponse(call.name, result);
-    };
 
     const connect = async () => {
         if (connected || active) {
@@ -186,18 +100,21 @@ export const GeminiLiveButton: React.FC<{
                 setActive(false);
             };
 
-            client.onMessage = (msg) => {
+            client.onMessage = (msg: any) => {
                 if (msg.type === 'AUDIO' && msg.data) {
                     streamer.playAudioChunk(msg.data);
                 } else if (msg.type === 'SETUP_COMPLETE') {
                     console.log("Gemini Live Setup Complete");
                     setSetupComplete(true);
-                    // Automatically trigger the initiation greeting defined in system prompt
                     if (clientRef.current) {
                         clientRef.current.sendTextMessage("The session has started. Please greet the user in Kannada as instructed.");
                     }
-                } else if (msg.type === 'TOOL_CALL') {
-                    handleGeminiToolCall(client, msg.data);
+                } else if (msg.type === 'TREE_UPDATED') {
+                    console.log("🌳 Server notified: Family Tree Updated!");
+                    // Trigger a re-fetch of the tree if possible, or just notify user
+                    // For now, we can just reload the page or trigger the parent onSaveMember if we had a way
+                    // But since we are migrating to a DB, the parent should re-fetch from the new API
+                    window.location.reload(); // Simple sync for now until we have real-time DB
                 } else if (msg.type === 'TEXT') {
                     const text = msg.data;
                     if (text) {
@@ -231,6 +148,21 @@ export const GeminiLiveButton: React.FC<{
                             return [...prev, { role: 'assistant', text }];
                         });
                     }
+                } else if (msg.type === 'TOOL_CALL') {
+                    const fn = msg.data;
+                    console.log("🛠️ Received Tool Call:", fn);
+                    const toolName = fn.name;
+                    // Format args for display
+                    let argsDisplay = "";
+                    if (fn.args && typeof fn.args === 'object') {
+                        // filtering out long args if needed
+                        argsDisplay = JSON.stringify(fn.args);
+                    }
+
+                    setChatMessages(prev => [...prev, {
+                        role: 'tool-call' as any, // Cast to any or update type definition
+                        text: `🛠️ ${toolName}${argsDisplay ? `\n${JSON.stringify(JSON.parse(argsDisplay), null, 2)}` : ''}`
+                    }]);
                 }
             };
 

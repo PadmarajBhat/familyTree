@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { signIn, signOut } from '../services/drive';
 import { useTranslation } from 'react-i18next';
 import { Home } from '../components/Home';
 import { LoadingOverlay } from '../components/LoadingOverlay';
@@ -46,21 +45,14 @@ function App() {
   });
 
   const handleSignIn = async () => {
-    try {
-      await signIn();
-    } catch (err) {
-      console.error("Sign in failed", err);
-      init.setError("Sign in failed. Please try again.");
-    }
+    // Integration with Google Identity Services/Firebase will go here
+    init.setIsSignedIn(true);
   };
 
   const handleSignOut = () => {
-    signOut();
     init.setViewState('home');
     init.setIsSignedIn(false);
   };
-
-  if (!init.isGapiReady) return <LoadingOverlay message="Initializing..." />;
 
   const isHome = init.viewState === 'home' || !init.isSignedIn;
 
@@ -78,16 +70,6 @@ function App() {
       </header>
 
       <main className="app-main">
-        {init.accessDenied && !init.tree && (
-          <div className="access-denied">
-            <div className="card">
-              <h2>{t('accessDenied')}</h2>
-              <p>{t('accessDeniedMsg')}</p>
-              <button onClick={() => { init.setAccessDenied(false); init.setViewState('home'); }}>{t('backToHome')}</button>
-            </div>
-          </div>
-        )}
-
         {!init.isSignedIn ? (
           <LandingSection onSignIn={handleSignIn} onPrivacyClick={() => setShowPrivacy(true)} onTermsClick={() => setShowTerms(true)} />
         ) : init.viewState === 'home' ? (
@@ -96,7 +78,7 @@ function App() {
             onSelectTree={(id) => { init.setCurrentTreeId(id); init.setViewState('tree'); }}
             currentTreeId={init.currentTreeId}
             isEditor={true}
-            enableAutoload={init.homeAutoloadEnabled}
+            enableAutoload={false}
           />
         ) : init.tree ? (
           <TreeViewSection
@@ -154,11 +136,10 @@ function App() {
         )}
       </main>
 
-      {Boolean(init.tree || (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_AUTH !== 'false') || import.meta.env.VITE_USE_MOCK_AUTH === 'true') && (
+      {Boolean(init.tree || import.meta.env.DEV) && (
         <GeminiLiveButton
           tree={init.tree}
           currentUser={init.currentUser}
-          onSaveMember={actions.handleSaveMember}
         />
       )}
     </div>
