@@ -26,7 +26,7 @@ from server.client_handler import handle_websocket_client
 from tools_handler import SHARED_STORE
 from server.connection_pool import GEMINI_POOL
 
-WS_PORT = int(os.getenv("WS_PORT", 8888))
+WS_PORT = int(os.getenv("PORT", os.getenv("WS_PORT", "8888")))
 
 async def start_websocket_server():
     """Start the WebSocket proxy server."""
