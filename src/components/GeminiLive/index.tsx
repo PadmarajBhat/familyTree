@@ -328,7 +328,18 @@ export const GeminiLiveButton: React.FC<{
                             <div key={i} className={`message-bubble ${msg.role}`}>
                                 {msg.text}
                                 <span className="message-timestamp">
-                                    {msg.timestamp ? msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                    {msg.timestamp ? (
+                                        (() => {
+                                            const now = new Date();
+                                            const isToday = now.toDateString() === msg.timestamp.toDateString();
+                                            const isThisYear = now.getFullYear() === msg.timestamp.getFullYear();
+                                            const timeStr = msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                                            if (isToday) return timeStr;
+                                            if (isThisYear) return `${msg.timestamp.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timeStr}`;
+                                            return `${msg.timestamp.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}, ${timeStr}`;
+                                        })()
+                                    ) : ''}
                                 </span>
                             </div>
                         ))}
