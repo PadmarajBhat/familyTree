@@ -14,7 +14,7 @@ export const TreeView: React.FC<TreeViewProps> = (props) => {
     const { i18n } = useTranslation();
     const currentLang = i18n.language;
 
-    useTreeRenderer(svgRef, wrapperRef, dimensions, props, currentLang, zoomBehavior);
+    useTreeRenderer(svgRef as React.RefObject<SVGSVGElement>, wrapperRef as React.RefObject<HTMLDivElement>, dimensions, props, currentLang, zoomBehavior);
 
     useEffect(() => {
         if (!wrapperRef.current) return;

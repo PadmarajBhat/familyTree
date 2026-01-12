@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import * as d3 from 'd3';
 import { getPhotoUrl } from '../../services/drive';
 import type { TreeViewProps, HierarchyPersonNode, ExtendedHierarchyNode } from './types';

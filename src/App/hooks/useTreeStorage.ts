@@ -53,7 +53,8 @@ export function useTreeStorage({
             lockId = await acquireLock(targetFileId);
 
             while (!lockId) {
-                const lockInfo = await checkLock(targetFileId);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const lockInfo: any = await checkLock(targetFileId);
                 if (lockInfo) setLoadingMessage(`Waiting for lock release... (Locked by ${lockInfo.lockedBy})`);
                 else {
                     setLoadingMessage("Acquiring lock...");

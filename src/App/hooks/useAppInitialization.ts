@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { TreeService } from '../../services/TreeService';
-import { GlobalTreeService } from '../../services/GlobalTreeService';
+
 import type { TreeDocument } from '../../logic/types';
 
 export function useAppInitialization() {
     // We'll keep a simple mock state for now until Firebase Auth is integrated
     const [isSignedIn, setIsSignedIn] = useState(true);
-    const [currentUser, setCurrentUser] = useState<{ email: string; name: string } | null>({
+    const [currentUser,] = useState<{ email: string; name: string } | null>({
         email: 'user@example.com',
         name: 'Family Member'
     });
