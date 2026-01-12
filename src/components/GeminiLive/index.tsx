@@ -22,6 +22,12 @@ export const GeminiLiveButton: React.FC<{
     const recorderRef = useRef<AudioRecorder | null>(null);
     const streamerRef = useRef<AudioStreamer | null>(null);
 
+    const activeRef = useRef(false);
+
+    useEffect(() => {
+        activeRef.current = active;
+    }, [active]);
+
     useEffect(() => {
         // Cleanup on unmount
         return () => {
@@ -47,7 +53,7 @@ export const GeminiLiveButton: React.FC<{
     };
 
     const connect = async (preserveHistory = false) => {
-        if (connected || (active && !preserveHistory)) {
+        if (connected || (activeRef.current && !preserveHistory)) {
             console.log("Already connected or connecting, ignoring request.");
             return;
         }
@@ -111,7 +117,7 @@ export const GeminiLiveButton: React.FC<{
                 console.log("Gemini Closed:", e.code, e.reason);
                 // 1007/1006 = Network/Audio Error. 
                 // 1000 = Normal Closure, BUT if `active` is true, it means we didn't initiate it -> Unexpected -> Reconnect.
-                if (e.code === 1007 || e.code === 1006 || (e.code === 1000 && active)) {
+                if (e.code === 1007 || e.code === 1006 || (e.code === 1000 && activeRef.current)) {
                     console.log("⚠️ Audio/Network Error detected. Attempting SILENT RECONNECT...");
                     // Do NOT set active=false, so UI stays in "Connecting..." mode or similar
                     // Do NOT set connected=false immediately if we want to keep chat overlay?
