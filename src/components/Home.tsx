@@ -52,10 +52,11 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                         const foundTrees = await TreeService.findMyTrees(userEmail);
                         if (foundTrees.length > 0) {
                             console.log("Found trees for user:", foundTrees);
-                            const newStars = new Set(foundTrees);
+                            const treeNames = foundTrees.map(t => t.name);
+                            const newStars = new Set(treeNames);
                             setStarredTreeNames(newStars);
                             // Auto-save these as starred
-                            await updateUserStarredTrees(userEmail, foundTrees);
+                            await updateUserStarredTrees(userEmail, treeNames);
                         }
                     } catch (err) {
                         console.error("Error searching for user trees", err);
