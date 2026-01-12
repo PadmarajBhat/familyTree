@@ -1,7 +1,7 @@
 export class AudioRecorder {
     private stream: MediaStream | null = null;
     private audioContext: AudioContext | null = null;
-    private processor: ScriptProcessorNode | null = null;
+    private workletNode: AudioWorkletNode | null = null;
     private source: MediaStreamAudioSourceNode | null = null;
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -27,26 +27,30 @@ export class AudioRecorder {
                 await this.audioContext.resume();
             }
 
+            // Load the AudioWorklet processor
+            try {
+                // Ensure proper base path for production/dev consistency
+                // Vite injects BASE_URL (e.g. '/familyTree/')
+                const baseUrl = import.meta.env.BASE_URL;
+                const workletPath = `${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}audio-processor.js`;
+                await this.audioContext.audioWorklet.addModule(workletPath);
+            } catch (e) {
+                console.error("Failed to load audio worklet module:", e);
+                throw e;
+            }
+
             this.source = this.audioContext.createMediaStreamSource(this.stream);
+            this.workletNode = new AudioWorkletNode(this.audioContext, 'audio-processor');
 
-            // Use ScriptProcessor for legacy browser support/simplicity in extraction
-            // In product, AudioWorklet is better but this is a direct port/simplification
-            this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
-
-            this.processor.onaudioprocess = (e) => {
-                const inputData = e.inputBuffer.getChannelData(0);
+            this.workletNode.port.onmessage = (event) => {
+                const inputData = event.data; // Float32Array from processor
                 if (inputData && inputData.length > 0) {
                     this.processAudio(inputData);
                 }
             };
 
-            this.source.connect(this.processor);
-            this.processor.connect(this.audioContext.destination); // create connection to hear? No, just keep alive.
-            // Actually, connecting to destination might cause feedback loop if playing back.
-            // Better to connect to a mute destination or just let it run.
-            // In many browsers, ScriptProcessor stops if not connected to destination.
-            // We will handle echo cancellation via getUserMedia constraints ideally, 
-            // but here we just process.
+            this.source.connect(this.workletNode);
+            this.workletNode.connect(this.audioContext.destination); // Keep alive
         } catch (e) {
             console.error("Error accessing microphone:", e);
         }
@@ -57,9 +61,9 @@ export class AudioRecorder {
             this.stream.getTracks().forEach(track => track.stop());
             this.stream = null;
         }
-        if (this.processor) {
-            this.processor.disconnect();
-            this.processor = null;
+        if (this.workletNode) {
+            this.workletNode.disconnect();
+            this.workletNode = null;
         }
         if (this.source) {
             this.source.disconnect();
@@ -74,24 +78,44 @@ export class AudioRecorder {
     private processAudio(inputData: Float32Array) {
         let outputData = inputData;
         const currentRate = this.audioContext?.sampleRate || 16000;
+        const targetRate = 16000;
 
-        // Simple linear resampling if not 16k
-        if (currentRate !== 16000) {
-            const ratio = currentRate / 16000;
-            const newLength = Math.round(inputData.length / ratio);
-            const result = new Float32Array(newLength);
-            for (let i = 0; i < newLength; i++) {
-                const index = i * ratio;
-                const low = Math.floor(index);
-                const high = Math.ceil(index);
-                const weight = index - low;
-                if (high < inputData.length) {
-                    result[i] = inputData[low] * (1 - weight) + inputData[high] * weight;
-                } else {
-                    result[i] = inputData[low];
+        if (currentRate !== targetRate) {
+            // DOWN-SAMPLING (e.g. 48000 -> 16000)
+            // Use averaging (simple boxcar filter) to prevent aliasing
+            if (currentRate > targetRate) {
+                const ratio = currentRate / targetRate;
+                const newLength = Math.floor(inputData.length / ratio);
+                outputData = new Float32Array(newLength);
+
+                for (let i = 0; i < newLength; i++) {
+                    const start = Math.floor(i * ratio);
+                    const end = Math.floor((i + 1) * ratio);
+                    let sum = 0;
+                    let count = 0;
+                    for (let j = start; j < end && j < inputData.length; j++) {
+                        sum += inputData[j];
+                        count++;
+                    }
+                    outputData[i] = count > 0 ? sum / count : 0;
+                }
+            } else {
+                // UPSAMPLING (Rare case: 8000 -> 16000) - Linear interpolation is fine here
+                const ratio = currentRate / targetRate;
+                const newLength = Math.round(inputData.length / ratio);
+                outputData = new Float32Array(newLength);
+                for (let i = 0; i < newLength; i++) {
+                    const index = i * ratio;
+                    const low = Math.floor(index);
+                    const high = Math.ceil(index);
+                    const weight = index - low;
+                    if (high < inputData.length) {
+                        outputData[i] = inputData[low] * (1 - weight) + inputData[high] * weight;
+                    } else {
+                        outputData[i] = inputData[low];
+                    }
                 }
             }
-            outputData = result;
         }
 
         const buffer = new ArrayBuffer(outputData.length * 2);

@@ -29,7 +29,12 @@ export const GeminiLiveButton: React.FC<{
         };
     }, []);
 
-    const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant' | 'tool-call', text: string }[]>([]);
+    const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant' | 'tool-call', text: string, timestamp: Date }[]>([]);
+    const chatMessagesRef = useRef<{ role: 'user' | 'assistant' | 'tool-call', text: string, timestamp: Date }[]>([]);
+
+    useEffect(() => {
+        chatMessagesRef.current = chatMessages;
+    }, [chatMessages]);
 
     const treeToCSV = (tree: TreeDocument | null): string => {
         if (!tree || !tree.nodes) return '';
@@ -41,9 +46,8 @@ export const GeminiLiveButton: React.FC<{
         return rows.join('\n');
     };
 
-
-    const connect = async () => {
-        if (connected || active) {
+    const connect = async (preserveHistory = false) => {
+        if (connected || (active && !preserveHistory)) {
             console.log("Already connected or connecting, ignoring request.");
             return;
         }
@@ -51,7 +55,9 @@ export const GeminiLiveButton: React.FC<{
         try {
             setActive(true);
             setConnected(false); // Reset just in case
-            setChatMessages([]); // Clear chat on new connection
+            if (!preserveHistory) {
+                setChatMessages([]); // Clear chat only on fresh connection
+            }
             setSetupComplete(false);
             const recorder = new AudioRecorder();
             const streamer = new AudioStreamer();
@@ -61,7 +67,20 @@ export const GeminiLiveButton: React.FC<{
 
             // Initialize Client
             const contextData = treeToCSV(tree);
-            const systemPrompt = GET_GEMINI_SYSTEM_PROMPT(contextData);
+            let systemPrompt = GET_GEMINI_SYSTEM_PROMPT(contextData);
+
+            // CONTEXT RESTORATION
+            if (preserveHistory) {
+                const previousHistory = chatMessagesRef.current;
+                if (previousHistory.length > 0) {
+                    console.log("♻️ Restoring Context from", previousHistory.length, "messages");
+                    const historyText = previousHistory.map(m =>
+                        `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`
+                    ).join('\n');
+
+                    systemPrompt += `\n\n[SYSTEM: CONNECTION WAS INTERRUPTED AND RESTORED. HERE IS THE RECENT CONVERSATION CONTEXT. DO NOT REPEAT GREETINGS OR PREVIOUS MESSAGES, JUST CONTINUE THE CONVERSATION NATURALLY]\n${historyText}\n[END OF RESTORED CONTEXT]`;
+                }
+            }
 
             // Determine user gender and select voice
             let voiceName = "Puck"; // Default
@@ -77,7 +96,7 @@ export const GeminiLiveButton: React.FC<{
             }
             console.log(`Selecting voice: ${voiceName} for user: ${currentUser?.email}`);
 
-            const client = new GeminiLiveClient(BACKEND_URL, PROJECT_ID, MODEL_ID, systemPrompt, voiceName);
+            const client = new GeminiLiveClient(BACKEND_URL, PROJECT_ID, MODEL_ID, systemPrompt, voiceName, currentUser?.email);
 
             client.onOpen = () => {
                 setConnected(true);
@@ -88,7 +107,37 @@ export const GeminiLiveButton: React.FC<{
                 recorder.start();
             };
 
-            client.onClose = () => {
+            client.onClose = (e: CloseEvent) => {
+                console.log("Gemini Closed:", e.code, e.reason);
+                // 1007/1006 = Network/Audio Error. 
+                // 1000 = Normal Closure, BUT if `active` is true, it means we didn't initiate it -> Unexpected -> Reconnect.
+                if (e.code === 1007 || e.code === 1006 || (e.code === 1000 && active)) {
+                    console.log("⚠️ Audio/Network Error detected. Attempting SILENT RECONNECT...");
+                    // Do NOT set active=false, so UI stays in "Connecting..." mode or similar
+                    // Do NOT set connected=false immediately if we want to keep chat overlay?
+                    // Actually, we must set connected=false to restart the connection process properly?
+                    // But we want to keep the Chat Overlay visible.
+                    // The Chat Overlay renders if `connected` is true.
+                    // If we set connected=false, it disappears.
+                    // We need to keep connected=true visually, or introduce 'isReconnecting' state?
+                    // Simplify: Just toggle connected quickly or keep it?
+                    // If we keep connected=true, the 'Start/Stop' button says "End Session".
+                    // But `connect()` sets `setConnected(false)` at start.
+
+                    // Workaround: We will let it flicker briefly or rely on 'active' to keep button state?
+                    // Chat overlay conditional: `{connected && (`
+                    // If we want chat overlay to persist during reconnect, we need a separate state or condition.
+                    // Let's rely on fast reconnect. User asked for "silent", maybe momentary flicker is okay?
+                    // Or change overlay condition to `{ (connected || active) && ...`?
+
+                    recorder.stop();
+                    setConnected(false); // This will hide chat overlay momentarily
+                    setTimeout(() => {
+                        connect(true);
+                    }, 500);
+                    return;
+                }
+
                 setConnected(false);
                 setActive(false);
                 recorder.stop();
@@ -96,8 +145,7 @@ export const GeminiLiveButton: React.FC<{
 
             client.onError = (e) => {
                 console.error("Gemini Client Error", e);
-                setConnected(false);
-                setActive(false);
+                // Do NOT close session here. Let onClose handle the specific error code and close logic.
             };
 
             client.onMessage = (msg: any) => {
@@ -109,6 +157,20 @@ export const GeminiLiveButton: React.FC<{
                     if (clientRef.current) {
                         clientRef.current.sendTextMessage("The session has started. Please greet the user in Kannada as instructed.");
                     }
+                } else if (msg.type === 'CHAT_HISTORY') {
+                    console.log("📜 Received Chat History:", msg.data);
+                    const history = msg.data || [];
+                    const formattedHistory = history.map((h: any) => ({
+                        role: h.role === 'model' ? 'assistant' : 'user', // Map backend role to UI role
+                        text: h.text,
+                        timestamp: h.timestamp ? new Date(h.timestamp) : new Date() // Parse backend timestamp
+                    }));
+                    setChatMessages(prev => {
+                        // Prepend history to current messages (if any) or just set it
+                        // Since this comes on connect, usually we want to replace or prepend.
+                        // Assuming connect happens with empty state clearly.
+                        return [...formattedHistory, ...prev];
+                    });
                 } else if (msg.type === 'TREE_UPDATED') {
                     console.log("🌳 Server notified: Family Tree Updated!");
                     // Trigger a re-fetch of the tree if possible, or just notify user
@@ -120,10 +182,12 @@ export const GeminiLiveButton: React.FC<{
                     if (text) {
                         setChatMessages(prev => {
                             const last = prev[prev.length - 1];
+                            const now = new Date();
                             if (last && last.role === 'assistant') {
-                                return [...prev.slice(0, -1), { role: 'assistant', text: last.text + text }];
+                                // If appending, keep original timestamp
+                                return [...prev.slice(0, -1), { role: 'assistant', text: last.text + text, timestamp: last.timestamp }];
                             }
-                            return [...prev, { role: 'assistant', text }];
+                            return [...prev, { role: 'assistant', text, timestamp: now }];
                         });
                     }
                 } else if (msg.type === 'INPUT_TRANSCRIPTION') {
@@ -131,10 +195,11 @@ export const GeminiLiveButton: React.FC<{
                     if (text) {
                         setChatMessages(prev => {
                             const last = prev[prev.length - 1];
+                            const now = new Date();
                             if (last && last.role === 'user') {
-                                return [...prev.slice(0, -1), { role: 'user', text: last.text + text }];
+                                return [...prev.slice(0, -1), { role: 'user', text: last.text + text, timestamp: last.timestamp }];
                             }
-                            return [...prev, { role: 'user', text }];
+                            return [...prev, { role: 'user', text, timestamp: now }];
                         });
                     }
                 } else if (msg.type === 'OUTPUT_TRANSCRIPTION') {
@@ -142,10 +207,11 @@ export const GeminiLiveButton: React.FC<{
                     if (text) {
                         setChatMessages(prev => {
                             const last = prev[prev.length - 1];
+                            const now = new Date();
                             if (last && last.role === 'assistant') {
-                                return [...prev.slice(0, -1), { role: 'assistant', text: last.text + text }];
+                                return [...prev.slice(0, -1), { role: 'assistant', text: last.text + text, timestamp: last.timestamp }];
                             }
-                            return [...prev, { role: 'assistant', text }];
+                            return [...prev, { role: 'assistant', text, timestamp: now }];
                         });
                     }
                 } else if (msg.type === 'TOOL_CALL') {
@@ -161,7 +227,8 @@ export const GeminiLiveButton: React.FC<{
 
                     setChatMessages(prev => [...prev, {
                         role: 'tool-call' as any, // Cast to any or update type definition
-                        text: `🛠️ ${toolName}${argsDisplay ? `\n${JSON.stringify(JSON.parse(argsDisplay), null, 2)}` : ''}`
+                        text: `🛠️ ${toolName}${argsDisplay ? `\n${JSON.stringify(JSON.parse(argsDisplay), null, 2)}` : ''}`,
+                        timestamp: new Date()
                     }]);
                 }
             };
@@ -222,7 +289,7 @@ export const GeminiLiveButton: React.FC<{
                 {connected && <div className="pulse-ring"></div>}
             </button>
 
-            {connected && (
+            {(connected || active) && (
                 <div className="chat-overlay">
                     <div className="chat-header">
                         <span>Gemini Live</span>
@@ -254,6 +321,9 @@ export const GeminiLiveButton: React.FC<{
                         {chatMessages.map((msg, i) => (
                             <div key={i} className={`message-bubble ${msg.role}`}>
                                 {msg.text}
+                                <span className="message-timestamp">
+                                    {msg.timestamp ? msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                </span>
                             </div>
                         ))}
                         <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />

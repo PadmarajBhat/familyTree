@@ -85,6 +85,18 @@ export const FUNCTION_DECLARATIONS = [
         }
     },
     {
+        name: "create_tree",
+        description: "Creates a new family tree with the given name.",
+        parameters: {
+            type: "OBJECT",
+            properties: {
+                name: { type: "STRING", description: "Name of the new tree" },
+                owner: { type: "STRING", description: "Email of the owner (optional)" }
+            },
+            required: ["name"]
+        }
+    },
+    {
         name: "search_family_tree",
         description: "Search for a person in the family tree by name.",
         parameters: {

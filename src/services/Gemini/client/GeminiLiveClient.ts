@@ -15,13 +15,15 @@ export class GeminiLiveClient {
     private connected: boolean = false;
     private systemInstruction: string;
     private voiceName: string;
+    private currentUserEmail: string | undefined;
 
-    constructor(url: string, project: string, model: string, systemInstruction: string, voiceName: string = "Puck") {
+    constructor(url: string, project: string, model: string, systemInstruction: string, voiceName: string = "Puck", currentUserEmail?: string) {
         this.url = url;
         this.project = project;
         this.model = model;
         this.systemInstruction = systemInstruction;
         this.voiceName = voiceName;
+        this.currentUserEmail = currentUserEmail;
     }
 
     connect() {
@@ -31,13 +33,29 @@ export class GeminiLiveClient {
             this.connected = true;
             this.sendSetupMessage();
             this.onOpen();
+            // Fetch history immediately on connect
+            this.getHistory();
         };
         this.ws.onclose = (e) => { this.connected = false; this.onClose(e); };
         this.ws.onerror = (e) => this.onError(e);
         this.ws.onmessage = async (event) => {
             try {
-                const textData = event.data instanceof Blob ? await event.data.text() : event.data;
-                if (typeof textData === 'string') parseServerMessage(JSON.parse(textData), this.onMessage);
+                let textData;
+                if (event.data instanceof Blob) {
+                    textData = await event.data.text();
+                } else {
+                    textData = event.data;
+                }
+
+                const rawObj = JSON.parse(textData);
+
+                // Handle CHAT_HISTORY separately as it's our custom type, not Gemini's
+                if (rawObj.type === "CHAT_HISTORY") {
+                    this.onMessage(rawObj);
+                    return;
+                }
+
+                parseServerMessage(rawObj, this.onMessage);
             } catch (e) { console.error("Parse failed", e); }
         };
     }
@@ -46,10 +64,16 @@ export class GeminiLiveClient {
         if (this.ws) { this.ws.close(); this.ws = null; this.connected = false; }
     }
 
+    getHistory() {
+        if (!this.connected || !this.ws) return;
+        this.ws.send(JSON.stringify({ type: "GET_CHAT_HISTORY" }));
+    }
+
     sendAudioChunk(base64Audio: string) {
         if (!this.connected || !this.ws) return;
+        // console.log("Sending Audio Chunk:", base64Audio.length, "chars");
         this.ws.send(JSON.stringify({
-            realtime_input: { media_chunks: [{ mime_type: "audio/pcm", data: base64Audio }] }
+            realtime_input: { media_chunks: [{ mime_type: "audio/pcm;rate=16000", data: base64Audio }] }
         }));
     }
 
@@ -63,7 +87,8 @@ export class GeminiLiveClient {
     private sendSetupMessage() {
         if (!this.ws) return;
         const serviceUrl = `wss://us-central1-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent`;
-        this.ws.send(JSON.stringify({ service_url: serviceUrl }));
+        // Pass user_email so backend knows who to log for
+        this.ws.send(JSON.stringify({ service_url: serviceUrl, user_email: this.currentUserEmail }));
 
         const modelUri = `projects/${this.project}/locations/us-central1/publishers/google/models/${this.model}`;
         const sessionSetup = {
@@ -79,6 +104,7 @@ export class GeminiLiveClient {
                 output_audio_transcription: {}
             }
         };
+        console.log("Sending Setup Message:", JSON.stringify(sessionSetup, null, 2));
         this.ws.send(JSON.stringify(sessionSetup));
     }
 

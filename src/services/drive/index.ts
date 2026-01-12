@@ -12,12 +12,22 @@ export const signOut = () => { };
 export const getUserProfile = async () => ({ email: 'padmarajbhat@gmail.com', name: 'Padmaraj Bhat' });
 
 export const listTreeFiles = async () => [{ id: 'default', name: 'Family Tree', modifiedTime: new Date().toISOString() }];
-export const getFileContent = async (_id: string) => await TreeService.fetchFullTree();
+export const getFileContent = async (_id: string) => await TreeService.fetchFullTree(_id);
 export const updateTreeFile = async (_id: string, _content: any, _summary?: string, _isRename?: boolean) => {
     console.log("updateTreeFile called (Shim: doing nothing)");
     return true;
 };
-export const saveTreeFile = async (_name: string, content: any, _summary: string) => ({ id: 'default', ...content });
+export const saveTreeFile = async (name: string, content: any, _summary: string) => {
+    // Connect to backend to create tree
+    const owner = content.meta?.createdBy || 'unknown@user.com';
+    try {
+        const res = await TreeService.createTree(name, owner);
+        return { id: res.treeId, name: res.name, ...content };
+    } catch (e) {
+        console.error("Failed to create tree", e);
+        throw e;
+    }
+};
 export const renameFile = async (_id: string, _newName: string) => true;
 
 export const uploadImage = async (_file: File) => "https://via.placeholder.com/150";

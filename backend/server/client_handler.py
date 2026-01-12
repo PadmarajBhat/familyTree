@@ -47,14 +47,21 @@ async def handle_websocket_client(client_websocket) -> None:
                     logger.info(f"Received message payload: {message}")
                     data = json.loads(message)
                     if data.get("type") == "GET_TREE":
-                        logger.info("🌲 Fetching full tree from Firestore")
-                        full_tree = await tools.get_full_tree()
-                        logger.info(f"🌲 Tree fetched, sending {len(full_tree.get('nodes', {}))} nodes...")
-                        await client_websocket.send(json.dumps({
-                            "type": "TREE_DATA",
-                            "data": full_tree
-                        }))
-                        logger.info("🌲 Tree sent success")
+                        tree_id = data.get("treeId")
+                        logger.info(f"🌲 Fetching full tree from Firestore (TreeID: {tree_id})")
+                        full_tree, err = await tools.get_full_tree(tree_id)
+                        if full_tree:
+                            logger.info(f"🌲 Tree fetched, sending {len(full_tree.get('nodes', {}))} nodes...")
+                            await client_websocket.send(json.dumps({
+                                "type": "TREE_DATA",
+                                "data": full_tree
+                            }))
+                            logger.info("🌲 Tree sent success")
+                        else:
+                            await client_websocket.send(json.dumps({
+                                "type": "ERROR",
+                                "message": err or "Tree not found"
+                            }))
                     elif data.get("type") == "GET_PREFS":
                         email = data.get("email")
                         logger.info(f"⚙️ Fetching preferences for {email}")
@@ -76,12 +83,69 @@ async def handle_websocket_client(client_websocket) -> None:
                     elif data.get("type") == "FIND_MY_TREES":
                         email = data.get("email")
                         logger.info(f"🔍 Searching trees for user: {email}")
-                        tree_names = await store.find_trees_by_email(email)
-                        logger.info(f"🔍 Found trees: {tree_names}")
+                        trees = await store.list_trees(email)
+                        logger.info(f"🔍 Found {len(trees)} trees")
                         await client_websocket.send(json.dumps({
                             "type": "MY_TREES_FOUND",
-                            "trees": tree_names
+                            "trees": trees
                         }))
+                    elif data.get("type") == "CREATE_TREE":
+                        name = data.get("name")
+                        owner = data.get("owner")
+                        logger.info(f"🌱 Creating tree '{name}' for {owner}")
+                        try:
+                            tree_id = await store.create_tree(name, owner)
+                            await client_websocket.send(json.dumps({
+                                "type": "TREE_CREATED",
+                                "treeId": tree_id,
+                                "name": name
+                            }))
+                        except Exception as e:
+                            logger.error(f"Failed to create tree: {e}")
+                            await client_websocket.send(json.dumps({
+                                "type": "ERROR",
+                                "message": f"Failed to create tree: {str(e)}"
+                            }))
+                    elif data.get("type") == "SAVE_NODE":
+                        logger.info("💾 Saving node...")
+                        try:
+                            res = await tools.execute("save_node", {"node": data.get("node")})
+                            if res["status"] == "success":
+                                await client_websocket.send(json.dumps({
+                                    "type": "NODE_SAVED",
+                                    "nodeId": res["nodeId"]
+                                }))
+                            else:
+                                await client_websocket.send(json.dumps({
+                                    "type": "ERROR",
+                                    "message": res["message"]
+                                }))
+                        except Exception as e:
+                            logger.error(f"Failed to save node: {e}")
+                            await client_websocket.send(json.dumps({
+                                "type": "ERROR",
+                                "message": str(e)
+                            }))
+                    elif data.get("type") == "DELETE_NODE":
+                        logger.info(f"🗑️ Deleting node {data.get('nodeId')}...")
+                        try:
+                            res = await tools.execute("delete_person", {"node_id": data.get("nodeId")})
+                            if res["status"] == "success":
+                                await client_websocket.send(json.dumps({
+                                    "type": "NODE_DELETED",
+                                    "nodeId": data.get("nodeId")
+                                }))
+                            else:
+                                await client_websocket.send(json.dumps({
+                                    "type": "ERROR",
+                                    "message": res["message"]
+                                }))
+                        except Exception as e:
+                            logger.error(f"Failed to delete node: {e}")
+                            await client_websocket.send(json.dumps({
+                                "type": "ERROR",
+                                "message": str(e)
+                            }))
             except ConnectionClosed as e:
                 logger.info(f"👋 Admin client connection closed: {e}")
             except Exception as e:
@@ -106,7 +170,11 @@ async def handle_websocket_client(client_websocket) -> None:
              # Trigger replenishment task in background
              await GEMINI_POOL.replenish() 
 
-        await create_proxy(client_websocket, token, url, server_websocket=server_ws)
+        user_email = setup_data.get("user_email")
+        if user_email:
+            logger.info(f"👤 Proxying for user: {user_email}")
+
+        await create_proxy(client_websocket, token, url, server_websocket=server_ws, user_email=user_email)
 
     except json.JSONDecodeError:
         print("❌ Invalid JSON received from client")

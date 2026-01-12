@@ -26,6 +26,7 @@ export interface PersonNode {
   notes?: string | null;
   location?: { zipcode: string | null; district: string | null; state: string | null; country: string | null } | null;
   externalLink?: { treeId: string; nodeId: string; treeName?: string };
+  treeId?: string;
   nameTranslations?: {
     ta?: string;
     ml?: string;

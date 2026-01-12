@@ -75,7 +75,11 @@ function App() {
         ) : init.viewState === 'home' ? (
           <Home
             userEmail={init.currentUser?.email || ''}
-            onSelectTree={(id) => { init.setCurrentTreeId(id); init.setViewState('tree'); }}
+            onSelectTree={(id) => {
+              init.setCurrentTreeId(id);
+              init.loadTree(id);
+              // init.setViewState('tree'); // loadTree sets viewState on success
+            }}
             currentTreeId={init.currentTreeId}
             isEditor={true}
             enableAutoload={false}

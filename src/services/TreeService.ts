@@ -2,8 +2,15 @@ import type { TreeDocument } from '../logic/types';
 
 const BACKEND_URL = import.meta.env.VITE_GEMINI_BACKEND_URL || 'ws://localhost:8888';
 
+export interface TreeFile {
+    id: string;
+    name: string;
+    description?: string;
+    modifiedTime: string;
+}
+
 export class TreeService {
-    static async fetchFullTree(): Promise<TreeDocument | null> {
+    static async fetchFullTree(treeId?: string): Promise<TreeDocument | null> {
         return new Promise((resolve, reject) => {
             const socket = new WebSocket(BACKEND_URL);
 
@@ -13,15 +20,13 @@ export class TreeService {
             }, 30000);
 
             socket.onopen = () => {
-                // Initial setup message for the proxy
-                // We don't need a real bearer token if the backend uses default credentials
                 socket.send(jsonStr({
-                    service_url: "dummy", // The proxy expects this but we won't use it for GET_TREE
+                    service_url: "dummy",
                     bearer_token: "dummy"
                 }));
 
                 // Request the tree
-                socket.send(jsonStr({ type: "GET_TREE" }));
+                socket.send(jsonStr({ type: "GET_TREE", treeId }));
             };
 
             socket.onmessage = (event) => {
@@ -31,6 +36,10 @@ export class TreeService {
                         clearTimeout(timeout);
                         socket.close();
                         resolve(data.data);
+                    } else if (data.type === "ERROR") {
+                        clearTimeout(timeout);
+                        socket.close();
+                        reject(new Error(data.message));
                     }
                 } catch (e) {
                     console.error("Error parsing tree data", e);
@@ -59,7 +68,6 @@ export class TreeService {
                     bearer_token: "dummy"
                 }));
 
-                // Wait a brief moment for setup to process (though in this simple protocol it might not be strictly needed)
                 setTimeout(() => {
                     socket.send(jsonStr({ type: "GET_PREFS", email }));
                 }, 100);
@@ -113,7 +121,7 @@ export class TreeService {
         });
     }
 
-    static async findMyTrees(email: string): Promise<string[]> {
+    static async findMyTrees(email: string): Promise<TreeFile[]> {
         return new Promise((resolve, reject) => {
             const socket = new WebSocket(BACKEND_URL);
 
@@ -151,6 +159,137 @@ export class TreeService {
                 reject(error);
             };
         });
+    }
+
+    static async createTree(name: string, owner: string): Promise<{ treeId: string; name: string }> {
+        return new Promise((resolve, reject) => {
+            const socket = new WebSocket(BACKEND_URL);
+
+            socket.onopen = () => {
+                socket.send(jsonStr({
+                    service_url: "dummy",
+                    bearer_token: "dummy"
+                }));
+
+                setTimeout(() => {
+                    socket.send(jsonStr({ type: "CREATE_TREE", name, owner }));
+                }, 100);
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === "TREE_CREATED") {
+                    socket.close();
+                    resolve({ treeId: data.treeId, name: data.name });
+                } else if (data.type === "ERROR") {
+                    socket.close();
+                    reject(new Error(data.message));
+                }
+            };
+
+            socket.onerror = (error) => reject(error);
+        });
+    }
+
+    static async saveNode(node: any): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const socket = new WebSocket(BACKEND_URL);
+
+            socket.onopen = () => {
+                socket.send(jsonStr({
+                    service_url: "dummy",
+                    bearer_token: "dummy"
+                }));
+
+                setTimeout(() => {
+                    socket.send(jsonStr({ type: "SAVE_NODE", node }));
+                }, 100);
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === "NODE_SAVED") {
+                    socket.close();
+                    resolve();
+                } else if (data.type === "ERROR") {
+                    socket.close();
+                    reject(new Error(data.message));
+                }
+            };
+
+            socket.onerror = (error) => reject(error);
+        });
+    }
+
+    static async deleteNode(nodeId: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const socket = new WebSocket(BACKEND_URL);
+
+            socket.onopen = () => {
+                socket.send(jsonStr({
+                    service_url: "dummy",
+                    bearer_token: "dummy"
+                }));
+
+                setTimeout(() => {
+                    socket.send(jsonStr({ type: "DELETE_NODE", nodeId }));
+                }, 100);
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === "NODE_DELETED") {
+                    socket.close();
+                    resolve();
+                } else if (data.type === "ERROR") {
+                    socket.close();
+                    reject(new Error(data.message));
+                }
+            };
+
+            socket.onerror = (error) => reject(error);
+        });
+    }
+    private static listeners: (() => void)[] = [];
+
+    static subscribe(callback: () => void) {
+        this.listeners.push(callback);
+        return () => {
+            this.listeners = this.listeners.filter(l => l !== callback);
+        };
+    }
+
+    private static notifyListeners() {
+        this.listeners.forEach(l => l());
+    }
+
+    static async listenForUpdates() {
+        const socket = new WebSocket(BACKEND_URL);
+
+        socket.onopen = () => {
+            socket.send(jsonStr({
+                service_url: "dummy",
+                bearer_token: "dummy"
+            }));
+            console.log("TreeService: Listening for updates...");
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === "TREE_UPDATED") {
+                    console.log("TreeService: Received TREE_UPDATED signal");
+                    this.notifyListeners();
+                }
+            } catch (e) {
+                console.error("Error parsing update signal", e);
+            }
+        };
+
+        socket.onclose = () => {
+            // Reconnect logic could go here
+            console.log("TreeService: Update listener closed");
+        };
     }
 }
 
