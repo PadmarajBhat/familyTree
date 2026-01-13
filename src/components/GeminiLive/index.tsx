@@ -116,8 +116,8 @@ export const GeminiLiveButton: React.FC<{
             client.onClose = (e: CloseEvent) => {
                 console.log("Gemini Closed:", e.code, e.reason);
                 // 1007/1006 = Network/Audio Error. 
-                // 1000 = Normal Closure, BUT if `active` is true, it means we didn't initiate it -> Unexpected -> Reconnect.
-                if (e.code === 1007 || e.code === 1006 || (e.code === 1000 && activeRef.current)) {
+                // 1000/1005 = Normal/No Status, BUT if `active` is true, it means we didn't initiate it -> Unexpected -> Reconnect.
+                if (e.code === 1007 || e.code === 1006 || ((e.code === 1000 || e.code === 1005) && activeRef.current)) {
                     console.log("⚠️ Audio/Network Error detected. Attempting SILENT RECONNECT...");
                     // Do NOT set active=false, so UI stays in "Connecting..." mode or similar
                     // Do NOT set connected=false immediately if we want to keep chat overlay?
@@ -161,7 +161,11 @@ export const GeminiLiveButton: React.FC<{
                     console.log("Gemini Live Setup Complete");
                     setSetupComplete(true);
                     if (clientRef.current) {
-                        clientRef.current.sendTextMessage("The session has started. Please greet the user in Kannada as instructed.");
+                        if (preserveHistory) {
+                            clientRef.current.sendTextMessage("[SYSTEM: CONNECTION RESTORED. DO NOT GREET. CONTINUE THE CONVERSATION FROM PREVIOUS CONTEXT.]");
+                        } else {
+                            clientRef.current.sendTextMessage("The session has started. Please greet the user in Kannada as instructed.");
+                        }
                     }
                 } else if (msg.type === 'CHAT_HISTORY') {
                     console.log("📜 Received Chat History:", msg.data);

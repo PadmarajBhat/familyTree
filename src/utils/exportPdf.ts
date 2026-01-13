@@ -217,6 +217,9 @@ export async function exportPersonDetailToPdf(
 
     } catch (error) {
         console.error('Error generating PDF:', error);
+        if (error instanceof Error) {
+            console.error('Error details:', error.message, error.stack);
+        }
         throw new Error('Failed to generate PDF. Please try again.');
     }
 }

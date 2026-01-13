@@ -1,0 +1,15 @@
+1. [DONE 2026-01-13 10:51] export pdf did not work; it failed asking to try again.
+2. Interview mode should update on each information availed. AT the end it should summarize the information updated so far.
+3. menu buttons are not visible from the home screen; scroll in the menu bar can only result in the buttons display.
+4. Gemini button is on top of everything rather can be shown only in home screen
+5. close button reopens the gemini chat window..was that 1000 reconnect fix went wrong ?
+6. for input transcription, can we provide any parameters to improve it ?
+7. Search member should search all languages
+8. Hallucination, at time gemini says it could not find user though it has update recently that user. It says mobile is not available even if it has recently updated. At times it says 3 persosn are there in tree though none are being shown. Should we provide context to the bot with csv...rather it can query the firestore for all details...why should it store anything in memory ? Firestore should be its memory. firestore collection schema has to be shared so that it can auto generate queries like...oldest person...number of people. etc
+9.  switch tree button is not available (which would let us create tree)
+10. Fanchart has to be tab in home screen..there should be tree view and hourglass vew option in homescreen to see the tree. is fanchart correctly displaying it ?
+11. Verion history page has no content.
+12. Find relation from persondetail page should go to search relation but with 2 parameters: 1 myself other is the person from persondetail and it should auto show the relation. Can gemini give this info ?
+13. Version history in persondetail page does not have anyconent; it should show the only that person update history
+14. Member editor should always have narasimhapbhat@gmail.com. This user should not be deletable.
+15. Gemini must update only for narasimhapbhat@gmail and not by anyothers...other can only request info from it.

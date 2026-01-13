@@ -203,7 +203,11 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentU
                 </div>
             </div>
 
-            <div id="person-detail-tree" className="person-detail-tree">
+            <div
+                id="person-detail-tree"
+                className="person-detail-tree"
+                style={isExportingPdf ? { overflow: 'visible', height: 'auto', flex: 'none' } : undefined}
+            >
                 {filteredTreeData && (
                     <TreeView
                         data={filteredTreeData}
