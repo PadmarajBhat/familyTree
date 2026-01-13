@@ -1,5 +1,5 @@
 1. [DONE 2026-01-13 10:51] export pdf did not work; it failed asking to try again.
-2. Interview mode should update on each information availed. AT the end it should summarize the information updated so far.
+2. [DONE 2026-01-13 10:55] Interview mode should update on each information availed. AT the end it should summarize the information updated so far.
 3. menu buttons are not visible from the home screen; scroll in the menu bar can only result in the buttons display.
 4. Gemini button is on top of everything rather can be shown only in home screen
 5. close button reopens the gemini chat window..was that 1000 reconnect fix went wrong ?
