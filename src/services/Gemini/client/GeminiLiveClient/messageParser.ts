@@ -7,7 +7,8 @@ export function parseServerMessage(data: any, onMessage: (msg: MultimodalLiveRes
     }
 
     const toolCall = data.toolCall || data.tool_call;
-    if (toolCall?.functionCalls || toolCall?.function_calls) {
+    const parsedToolCall = !!(toolCall?.functionCalls || toolCall?.function_calls);
+    if (parsedToolCall) {
         const calls = toolCall.functionCalls || toolCall.function_calls;
         for (const call of calls) {
             onMessage({
@@ -44,10 +45,16 @@ export function parseServerMessage(data: any, onMessage: (msg: MultimodalLiveRes
         for (const part of modelTurn.parts) {
             if (part.inlineData) {
                 onMessage({ type: "AUDIO", data: part.inlineData.data, endOfTurn });
-            } else if (part.text) {
                 onMessage({ type: "TEXT", data: part.text, endOfTurn });
             } else if (part.functionCall) {
-                onMessage({ type: "TOOL_CALL", data: part.functionCall, endOfTurn });
+                // If we already parsed a top-level toolCall, ignoring this to prevent duplicates
+                if (parsedToolCall) {
+                    console.log("ℹ️ Ignoring modelTurn.functionCall because top-level toolCall was present.");
+                } else {
+                    // It's the only one we have, so use it. It's not necessarily "legacy" if the API chooses to send it here.
+                    // console.log("ℹ️ Using functionCall from modelTurn.");
+                    onMessage({ type: "TOOL_CALL", data: part.functionCall, endOfTurn });
+                }
             }
         }
     }

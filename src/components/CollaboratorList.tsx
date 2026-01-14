@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { PersonNode } from '../logic/types';
 import { calculateAge } from '../logic/dateUtils';
 import { getPhotoUrl } from '../services/drive';
+import { PROTECTED_EMAILS } from '../logic/permissions';
 import { CloseButton } from './CloseButton';
 import './CollaboratorList.css';
 
@@ -14,7 +15,6 @@ interface CollaboratorListProps {
     onClose: () => void;
 }
 
-const PROTECTED_EMAILS = ['padmarajbhat@gmail.com', 'narasimhapbhat@gmail.com'];
 
 export function CollaboratorList({ nodes, canToggle, onToggleEditor, onClose }: CollaboratorListProps) {
     const [searchTerm, setSearchTerm] = useState('');

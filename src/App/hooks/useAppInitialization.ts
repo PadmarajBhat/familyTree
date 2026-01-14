@@ -19,6 +19,10 @@ export function useAppInitialization() {
     const [currentTreeId, setCurrentTreeId] = useState<string | null>(null);
     const [currentTreeName, setCurrentTreeName] = useState<string>('Family Tree');
 
+    // Preferences
+    const [language, setLanguage] = useState<string>('en');
+    const [starredTrees, setStarredTrees] = useState<string[]>([]);
+
     const loadTree = async (specificTreeId?: string): Promise<TreeDocument | null> => {
         const idToLoad = specificTreeId || currentTreeId;
         if (!idToLoad) {
@@ -30,7 +34,7 @@ export function useAppInitialization() {
         setError(null);
         try {
             console.log(`Fetching tree ${idToLoad} from Firestore via Backend...`);
-            const treeDoc = await TreeService.fetchFullTree(idToLoad);
+            const treeDoc = await TreeService.fetchFullTree(idToLoad, currentUser?.email || 'unknown');
 
             if (treeDoc) {
                 // Basic validation/repair logic
@@ -90,7 +94,9 @@ export function useAppInitialization() {
 
     // Start listening for backend updates (e.g. from Gemini)
     useEffect(() => {
-        TreeService.listenForUpdates();
+        if (currentUser?.email) {
+            TreeService.listenForUpdates(currentUser.email);
+        }
 
         const unsubscribe = TreeService.subscribe(() => {
             console.log("♻️ Tree update signal received, reloading...", currentTreeId);
@@ -106,11 +112,40 @@ export function useAppInitialization() {
         };
     }, [currentTreeId]); // Re-subscribe if treeId changes so the closure captures the new ID
 
+    // Load Preferences on Mount/SignIn
+    useEffect(() => {
+        if (isSignedIn && currentUser?.email) {
+            TreeService.fetchPreferences(currentUser.email)
+                .then(prefs => {
+                    if (prefs && prefs.language) {
+                        setLanguage(prefs.language);
+                        // Also sync i18n
+                        // We need access to i18n instance or pass a callback. 
+                        // Since this hook is logic-only, we'll return language state and let App.tsx sync i18n.
+                    }
+                    if (prefs && prefs.starredTrees) {
+                        setStarredTrees(prefs.starredTrees);
+                    }
+                })
+                .catch(err => console.error("Failed to load prefs", err));
+        }
+    }, [isSignedIn, currentUser]);
+
+    // Save Preferences Helper
+    const saveLanguagePreference = async (lang: string) => {
+        if (currentUser?.email) {
+            setLanguage(lang);
+            // We optimistically update state, then save
+            await TreeService.savePreferences(currentUser.email, { language: lang });
+        }
+    };
+
     return {
         isSignedIn, setIsSignedIn, currentUser, tree, setTree, loading, setLoading,
         loadingMessage, setLoadingMessage, error, setError,
         viewState, setViewState,
         currentTreeId, setCurrentTreeId, currentTreeName, setCurrentTreeName,
-        loadTree
+        loadTree,
+        language, setLanguage: saveLanguagePreference, starredTrees, setStarredTrees
     };
 }

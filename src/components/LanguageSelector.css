@@ -1,0 +1,12 @@
+.language-selector {
+    transition: all 0.2s ease;
+}
+
+.language-selector:hover {
+    background-color: rgba(255, 255, 255, 1) !important;
+}
+
+.language-selector:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+}

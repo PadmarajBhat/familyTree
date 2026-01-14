@@ -38,7 +38,13 @@ async def handle_websocket_client(client_websocket) -> None:
             tools = ToolsHandler(store)
             logger.info("🌲 Client in Administrative mode (start)")
             
+            # Extract user_email from setup message if available
+            user_email = setup_data.get("user_email")
+            if user_email:
+                logger.info(f"👤 Admin session for user: {user_email}")
+
             # Simple loop to handle admin commands
+            last_activity = "Unknown/Idle"
             try:
                 # The recv() method raises ConnectionClosed when the connection is lost
                 while True:
@@ -46,6 +52,11 @@ async def handle_websocket_client(client_websocket) -> None:
                     message = await client_websocket.recv()
                     logger.info(f"Received message payload: {message}")
                     data = json.loads(message)
+                    
+                    # Update email if provided in specific message overrides
+                    msg_email = data.get("user_email") or user_email
+                    last_activity = data.get("type", "Unknown")
+
                     if data.get("type") == "GET_TREE":
                         tree_id = data.get("treeId")
                         logger.info(f"🌲 Fetching full tree from Firestore (TreeID: {tree_id})")
@@ -94,6 +105,7 @@ async def handle_websocket_client(client_websocket) -> None:
                         owner = data.get("owner")
                         logger.info(f"🌱 Creating tree '{name}' for {owner}")
                         try:
+                            # Pass user_email for permission check (owner should match user_email usually)
                             tree_id = await store.create_tree(name, owner)
                             await client_websocket.send(json.dumps({
                                 "type": "TREE_CREATED",
@@ -107,9 +119,9 @@ async def handle_websocket_client(client_websocket) -> None:
                                 "message": f"Failed to create tree: {str(e)}"
                             }))
                     elif data.get("type") == "SAVE_NODE":
-                        logger.info("💾 Saving node...")
+                        logger.info(f"💾 Saving node... (User: {msg_email})")
                         try:
-                            res = await tools.execute("save_node", {"node": data.get("node")})
+                            res = await tools.execute("save_node", {"node": data.get("node")}, user_email=msg_email)
                             if res["status"] == "success":
                                 await client_websocket.send(json.dumps({
                                     "type": "NODE_SAVED",
@@ -127,9 +139,9 @@ async def handle_websocket_client(client_websocket) -> None:
                                 "message": str(e)
                             }))
                     elif data.get("type") == "DELETE_NODE":
-                        logger.info(f"🗑️ Deleting node {data.get('nodeId')}...")
+                        logger.info(f"🗑️ Deleting node {data.get('nodeId')}... (User: {msg_email})")
                         try:
-                            res = await tools.execute("delete_person", {"node_id": data.get("nodeId")})
+                            res = await tools.execute("delete_person", {"node_id": data.get("nodeId")}, user_email=msg_email)
                             if res["status"] == "success":
                                 await client_websocket.send(json.dumps({
                                     "type": "NODE_DELETED",
@@ -147,9 +159,9 @@ async def handle_websocket_client(client_websocket) -> None:
                                 "message": str(e)
                             }))
             except ConnectionClosed as e:
-                logger.info(f"👋 Admin client connection closed: {e}")
+                logger.info(f"👋 Admin client connection closed (Activity: {last_activity}): {e}")
             except Exception as e:
-                logger.info(f"⚠️ Error in admin loop: {e}")
+                logger.info(f"⚠️ Error in admin loop (Activity: {last_activity}): {e}")
                 import traceback
                 traceback.print_exc()
             return

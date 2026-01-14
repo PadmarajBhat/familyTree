@@ -16,14 +16,16 @@ export class GeminiLiveClient {
     private systemInstruction: string;
     private voiceName: string;
     private currentUserEmail: string | undefined;
+    private language: string | undefined;
 
-    constructor(url: string, project: string, model: string, systemInstruction: string, voiceName: string = "Puck", currentUserEmail?: string) {
+    constructor(url: string, project: string, model: string, systemInstruction: string, voiceName: string = "Puck", currentUserEmail?: string, language: string = "en-US") {
         this.url = url;
         this.project = project;
         this.model = model;
         this.systemInstruction = systemInstruction;
         this.voiceName = voiceName;
         this.currentUserEmail = currentUserEmail;
+        this.language = language;
     }
 
     connect() {
@@ -100,7 +102,10 @@ export class GeminiLiveClient {
                 },
                 system_instruction: { parts: [{ text: this.systemInstruction }] },
                 tools: [{ function_declarations: FUNCTION_DECLARATIONS }],
-                input_audio_transcription: {},
+                input_audio_transcription: {
+                    // "model": "google-search-v1", // Optional: use specific model if needed
+                    // "language_code": this.language 
+                },
                 output_audio_transcription: {}
             }
         };

@@ -157,7 +157,7 @@ export function useMemberActions({
                     const node = updatedTree.nodes[nodeId];
                     if (node) {
                         if (!node.treeId && currentTreeId) node.treeId = currentTreeId;
-                        return TreeService.saveNode(node);
+                        return TreeService.saveNode(node, currentUser?.email || 'unknown');
                     }
                     return Promise.resolve();
                 });
@@ -193,7 +193,7 @@ export function useMemberActions({
             }
 
             try {
-                await TreeService.deleteNode(nodeId);
+                await TreeService.deleteNode(nodeId, currentUser?.email || 'unknown');
 
                 // Update local state by removing node
                 const updatedTree: TreeDocument = JSON.parse(JSON.stringify(latestTree));
@@ -232,7 +232,7 @@ export function useMemberActions({
 
             try {
                 if (!targetNode.treeId && currentTreeId) targetNode.treeId = currentTreeId;
-                await TreeService.saveNode(targetNode);
+                await TreeService.saveNode(targetNode, currentUser.email);
                 setTree(updatedTree);
                 alert(`Editor access updated!`);
             } catch (e) {

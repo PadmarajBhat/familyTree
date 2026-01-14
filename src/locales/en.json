@@ -11,6 +11,7 @@
         "dashboard": "Dashboard",
         "setDefault": "Set as Default Tree",
         "changeTree": "Change Tree",
+        "switchTree": "Switch Tree",
         "signOut": "Sign Out"
     },
     "personDetail": {

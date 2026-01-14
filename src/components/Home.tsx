@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { listTreeFiles, saveTreeFile, renameFile, getPreferences, updateUserStarredTrees } from '../services/drive';
+import { listTreeFiles, saveTreeFile, renameFile } from '../services/drive';
 import { TreeService } from '../services/TreeService';
 import { getISTTimestamp } from '../logic/dateUtils';
 import type { TreeDocument } from '../logic/types';
@@ -8,7 +8,7 @@ import { GlobalTreeService } from '../services/GlobalTreeService';
 
 interface HomeProps {
     userEmail: string;
-    onSelectTree: (treeId: string) => void;
+    onSelectTree: (treeId: string, view?: 'tree' | 'fanchart') => void;
     currentTreeId: string | null;
     isEditor: boolean;
     enableAutoload?: boolean;
@@ -39,12 +39,9 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
 
         const loadPrefs = async () => {
             try {
-                const prefs = await getPreferences(userEmail);
-                if (prefs && prefs[userEmail]?.starredTreeNames) {
-                    const stars = new Set(prefs[userEmail].starredTreeNames as string[]);
-                    setStarredTreeNames(stars);
-                } else if (prefs && prefs[userEmail]?.defaultTreeName) {
-                    setStarredTreeNames(new Set([prefs[userEmail].defaultTreeName!]));
+                const prefs = await TreeService.fetchPreferences(userEmail);
+                if (prefs && prefs.starredTrees && Array.isArray(prefs.starredTrees)) {
+                    setStarredTreeNames(new Set(prefs.starredTrees));
                 } else {
                     // No preferences found (First time user?) -> Search for their tree
                     console.log("No prefs found, searching for user's tree...");
@@ -52,11 +49,25 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                         const foundTrees = await TreeService.findMyTrees(userEmail);
                         if (foundTrees.length > 0) {
                             console.log("Found trees for user:", foundTrees);
-                            const treeNames = foundTrees.map(t => t.name);
+                            // Filter to only trees I own or edit for the "Starred" list / auto-load
+                            // New Logic: Auto-shortlist trees where I am a MEMBER (Node in the tree)
+                            // Fallback to Owner/Editor if no membership found (e.g. creating a new tree)
+                            const memberTrees = foundTrees.filter((t: any) => t.isMember);
+
+                            let treesToStar = memberTrees;
+                            if (treesToStar.length === 0) {
+                                // Fallback: Trees I own or edit
+                                treesToStar = foundTrees.filter((t: any) =>
+                                    t.owner === userEmail || (t.editors && t.editors.includes(userEmail))
+                                );
+                            }
+
+                            // Ensure we use the SAME processed name as loadTrees logic
+                            const treeNames = treesToStar.map((t: any) => getTreeNameFromFilename(t.name));
                             const newStars = new Set(treeNames);
                             setStarredTreeNames(newStars);
                             // Auto-save these as starred
-                            await updateUserStarredTrees(userEmail, treeNames);
+                            await TreeService.savePreferences(userEmail, { starredTrees: treeNames });
                         }
                     } catch (err) {
                         console.error("Error searching for user trees", err);
@@ -93,7 +104,8 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
     const loadTrees = async () => {
         setLoading(true);
         try {
-            const files = await listTreeFiles();
+            // Use TreeService to find trees for the logged-in user
+            const files = await TreeService.findMyTrees(userEmail);
 
             // Check if mock auth returned empty array
             if (files.length === 0 && import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
@@ -107,7 +119,7 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
             const idMap: Record<string, string[]> = {};
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            files.forEach((f: any) => {
+            files.filter((f: any) => f && f.name).forEach((f: any) => {
                 const treeName = getTreeNameFromFilename(f.name);
                 if (!groupedFiles[treeName]) {
                     groupedFiles[treeName] = [];
@@ -169,7 +181,7 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         }
 
         setStarredTreeNames(newStarred);
-        updateUserStarredTrees(userEmail, Array.from(newStarred)).catch(console.error);
+        TreeService.savePreferences(userEmail, { starredTrees: Array.from(newStarred) }).catch(console.error);
     };
 
     const handleCreateTree = async () => {
@@ -226,7 +238,7 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                 const newStarred = new Set(starredTreeNames);
                 newStarred.delete(treeName);
                 setStarredTreeNames(newStarred);
-                await updateUserStarredTrees(userEmail, Array.from(newStarred));
+                await TreeService.savePreferences(userEmail, { starredTrees: Array.from(newStarred) });
             }
 
             if (shortlistedIds.includes(id)) {
@@ -297,7 +309,7 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                             <div
                                 key={tree.id}
                                 className={`tree-card ${currentTreeId === tree.id ? 'active' : ''}`}
-                                onClick={() => onSelectTree(tree.id)}
+                                onClick={() => onSelectTree(tree.id, 'tree')}
                             >
                                 <div className="card-header">
                                     <h3>{tree.name}</h3>
@@ -322,6 +334,24 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                                             🗑️
                                         </button>
                                     )}
+                                    <div className="view-actions" style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+                                        <button
+                                            className="btn-text small"
+                                            onClick={(e) => { e.stopPropagation(); onSelectTree(tree.id, 'tree'); }}
+                                            title="View Family Tree"
+                                            style={{ fontSize: '0.9rem', padding: '4px 8px' }}
+                                        >
+                                            🌳 Tree
+                                        </button>
+                                        <button
+                                            className="btn-text small"
+                                            onClick={(e) => { e.stopPropagation(); onSelectTree(tree.id, 'fanchart'); }}
+                                            title="View Fan Chart / Hourglass"
+                                            style={{ fontSize: '0.9rem', padding: '4px 8px' }}
+                                        >
+                                            ⏳ Chart
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))}

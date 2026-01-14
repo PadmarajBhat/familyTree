@@ -24,6 +24,12 @@ export const searchMembers = (nodes: PersonNode[], query: string): PersonNode[] 
         const name = node.name?.toLowerCase() || '';
         if (name.includes(lowerQuery)) return true;
 
+        // 1b. Name Translations match
+        if (node.nameTranslations) {
+            const translations = Object.values(node.nameTranslations);
+            if (translations.some(t => t && t.toLowerCase().includes(lowerQuery))) return true;
+        }
+
         // 2. Phone match (check both raw and normalized)
         if (node.phone?.includes(lowerQuery)) return true;
         if (node.phoneE164?.includes(lowerQuery)) return true;

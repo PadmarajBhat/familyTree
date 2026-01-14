@@ -19,6 +19,7 @@ export interface PersonNode {
   editorSince: string | null; // ISO string
   editedBy: string | null;
   editedTime: string | null; // ISO string
+  lastUpdated?: string; // Firestore timestamp
   gender?: 'male' | 'female' | 'other' | null;
   hobbies?: string[];
   education?: { degree: string; major: string }[];

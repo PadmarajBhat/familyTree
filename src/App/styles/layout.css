@@ -21,6 +21,8 @@ main {
     flex-direction: column;
     overflow: hidden;
     height: calc(100vh - 50px);
+    position: relative;
+    /* Anchor for absolute children */
 }
 
 .tree-view-active main {

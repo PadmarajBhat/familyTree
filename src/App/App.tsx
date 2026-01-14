@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Home } from '../components/Home';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import PrivacyPolicy from '../components/PrivacyPolicy';
 import TermsOfService from '../components/TermsOfService';
 import { GeminiLiveButton } from '../components/GeminiLive';
+import { LanguageSelector } from '../components/LanguageSelector';
 
 import { useAppInitialization } from './hooks/useAppInitialization';
 import { useMemberActions } from './hooks/useMemberActions';
@@ -13,7 +14,7 @@ import { LandingSection } from './components/LandingSection';
 import './App.css';
 
 function App() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   // View State for Modals
   const [editorMode, setEditorMode] = useState<'add' | 'edit' | null>(null);
@@ -26,6 +27,7 @@ function App() {
   const [fanChartOpen, setFanChartOpen] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  const [disableAutoload, setDisableAutoload] = useState(false);
 
   // Custom Hooks
   const init = useAppInitialization();
@@ -56,6 +58,19 @@ function App() {
 
   const isHome = init.viewState === 'home' || !init.isSignedIn;
 
+  // Sync Language Preference
+  // When init.language loads (from prefs), update i18n
+  // doing this in a useEffect to avoid render loop
+  // Note: init.language is initialized to 'en', but loaded async.
+  // We might want to track if it's "loaded" vs "default". 
+  // For now, we just sync if it differs from i18n.
+  // actually, let's just do it when init.language changes.
+  useEffect(() => {
+    if (init.language && init.language !== i18n.language) {
+      i18n.changeLanguage(init.language);
+    }
+  }, [init.language, i18n]);
+
   return (
     <div className={`app-container ${isHome ? 'home-view' : 'tree-view-active'}`}>
       {init.loading && <LoadingOverlay message={init.loadingMessage} />}
@@ -66,6 +81,12 @@ function App() {
             <span className="logo-emoji">🌳</span>
             <h1>{init.currentTreeName && init.tree ? `${init.currentTreeName}'s ${t('appTitle')}` : (init.viewState === 'home' && init.currentUser ? t('dashboardTitle') : t('appTitle'))}</h1>
           </div>
+
+          {init.isSignedIn && (
+            <LanguageSelector
+              onLanguageChange={init.setLanguage}
+            />
+          )}
         </div>
       </header>
 
@@ -75,14 +96,15 @@ function App() {
         ) : init.viewState === 'home' ? (
           <Home
             userEmail={init.currentUser?.email || ''}
-            onSelectTree={(id) => {
+            onSelectTree={(id, view = 'tree') => {
               init.setCurrentTreeId(id);
+              setFanChartOpen(view === 'fanchart');
               init.loadTree(id);
               // init.setViewState('tree'); // loadTree sets viewState on success
             }}
             currentTreeId={init.currentTreeId}
             isEditor={true}
-            enableAutoload={false}
+            enableAutoload={!disableAutoload}
           />
         ) : init.tree ? (
           <TreeViewSection
@@ -108,6 +130,10 @@ function App() {
             onDeleteMember={actions.handleDeleteMember}
             onToggleEditor={actions.handleToggleEditor}
             onSignOut={handleSignOut}
+            onSwitchTree={() => {
+              setDisableAutoload(true);
+              init.setViewState('home');
+            }}
           />
         ) : (
           <div className="loading-state">

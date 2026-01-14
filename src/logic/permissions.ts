@@ -1,6 +1,8 @@
 import type { TreeDocument } from './types';
 import { canEdit } from './accessControl';
 
+export const PROTECTED_EMAILS = ['padmarajbhat@gmail.com', 'narasimhapbhat@gmail.com'];
+
 /**
  * Checks if a user has global editor privileges.
  * A global editor can edit any node in the tree.

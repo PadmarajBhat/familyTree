@@ -4,6 +4,7 @@ export const getTreeNameFromFilename = (filename: string): string => {
     // Or legacy: family_tree_[Date].json (TreeName is "family_tree")
     // Or legacy: family_tree_name without date?
 
+    if (!filename) return 'Unknown Tree';
     let temp = filename.replace('family_tree_', '').replace('.json', '');
 
     // Remove Google Drive duplicate suffixes like " (1)" or "_1"

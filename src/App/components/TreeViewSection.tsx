@@ -33,6 +33,7 @@ interface TreeViewSectionProps {
     onDeleteMember: (id: string) => void;
     onToggleEditor: (id: string, s: boolean, u?: { email?: string; phone?: string }) => void;
     onSignOut: () => void;
+    onSwitchTree: () => void;
 }
 
 export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
@@ -40,9 +41,19 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
     editorMode, setEditorMode, editingNodeId, setEditingNodeId,
     searchOpen, setSearchOpen, collaboratorsOpen, setCollaboratorsOpen,
     findRelationOpen, setFindRelationOpen, versionHistoryOpen, setVersionHistoryOpen,
-    fanChartOpen, setFanChartOpen, onSaveMember, onDeleteMember, onToggleEditor, onSignOut
+    fanChartOpen, setFanChartOpen, onSaveMember, onDeleteMember, onToggleEditor, onSignOut, onSwitchTree
 }) => {
     const { t } = useTranslation();
+
+    // Find current user's node ID
+    const currentUserNodeId = React.useMemo(() => {
+        if (!currentUser || !tree || !tree.nodes) return null;
+        const userNode = Object.values(tree.nodes).find(n => n.email === currentUser.email);
+        return userNode ? userNode.nodeId : null;
+    }, [currentUser, tree]);
+
+    // State for filtering Version History
+    const [historyFilterId, setHistoryFilterId] = React.useState<string | null>(null);
 
     return (
         <div className="tree-container">
@@ -54,11 +65,13 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
             />
 
             <div className="floating-controls">
+                <button className="btn-fab primary" onClick={() => { setEditingNodeId(null); setEditorMode('add'); }} title="Add Member" style={{ backgroundColor: '#2196f3', color: 'white' }}>➕</button>
                 <button className="btn-fab" onClick={() => setSearchOpen(true)} title={t('menu.search')}>🔍</button>
                 <button className="btn-fab" onClick={() => setCollaboratorsOpen(true)} title={t('menu.collaborators')}>👥</button>
                 <button className="btn-fab" onClick={() => setFindRelationOpen(true)} title={t('menu.findRelation')}>🔗</button>
                 <button className="btn-fab" onClick={() => setFanChartOpen(true)} title={t('menu.fanChart')}>📉</button>
-                <button className="btn-fab" onClick={() => setVersionHistoryOpen(true)} title={t('menu.history')}>🕒</button>
+                <button className="btn-fab" onClick={() => { setHistoryFilterId(null); setVersionHistoryOpen(true); }} title={t('menu.history')}>🕒</button>
+                <button className="btn-fab" onClick={onSwitchTree} title={t('menu.switchTree') || "Switch Tree"}>🌳</button>
                 <button className="btn-fab logout" onClick={onSignOut} title={t('menu.signOut')}>🚪</button>
             </div>
 
@@ -72,7 +85,7 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
                     onDelete={() => onDeleteMember(selectedNodeId)}
                     onNodeClick={setSelectedNodeId}
                     onFindRelation={(id) => { setSelectedNodeId(id); setFindRelationOpen(true); }}
-                    onViewHistory={(id) => { setSelectedNodeId(id); setVersionHistoryOpen(true); }}
+                    onViewHistory={(id) => { setSelectedNodeId(id); setHistoryFilterId(id); setVersionHistoryOpen(true); }}
                 />
             )}
 
@@ -114,6 +127,8 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
             {findRelationOpen && (
                 <FindRelation
                     nodes={tree.nodes}
+                    initialPerson1Id={currentUserNodeId} // Myself
+                    initialPerson2Id={selectedNodeId}   // The person we are viewing
                     onClose={() => setFindRelationOpen(false)}
                     onMemberClick={(nodeId: string) => {
                         setSelectedNodeId(nodeId);
@@ -129,6 +144,8 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
                     onClose={() => setVersionHistoryOpen(false)}
                     onSelectNode={setSelectedNodeId}
                     treeName={tree.treeName}
+                    treeId={tree.treeId}
+                    filterNodeId={historyFilterId}
                 />
             )}
 

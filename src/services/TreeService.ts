@@ -10,7 +10,7 @@ export interface TreeFile {
 }
 
 export class TreeService {
-    static async fetchFullTree(treeId?: string): Promise<TreeDocument | null> {
+    static async fetchFullTree(treeId: string | undefined, email: string): Promise<TreeDocument | null> {
         return new Promise((resolve, reject) => {
             const socket = new WebSocket(BACKEND_URL);
 
@@ -22,11 +22,12 @@ export class TreeService {
             socket.onopen = () => {
                 socket.send(jsonStr({
                     service_url: "dummy",
-                    bearer_token: "dummy"
+                    bearer_token: "dummy",
+                    user_email: email
                 }));
 
                 // Request the tree
-                socket.send(jsonStr({ type: "GET_TREE", treeId }));
+                socket.send(jsonStr({ type: "GET_TREE", treeId, user_email: email }));
             };
 
             socket.onmessage = (event) => {
@@ -65,11 +66,12 @@ export class TreeService {
             socket.onopen = () => {
                 socket.send(jsonStr({
                     service_url: "dummy",
-                    bearer_token: "dummy"
+                    bearer_token: "dummy",
+                    user_email: email
                 }));
 
                 setTimeout(() => {
-                    socket.send(jsonStr({ type: "GET_PREFS", email }));
+                    socket.send(jsonStr({ type: "GET_PREFS", email, user_email: email }));
                 }, 100);
             };
 
@@ -101,11 +103,12 @@ export class TreeService {
             socket.onopen = () => {
                 socket.send(jsonStr({
                     service_url: "dummy",
-                    bearer_token: "dummy"
+                    bearer_token: "dummy",
+                    user_email: email
                 }));
 
                 setTimeout(() => {
-                    socket.send(jsonStr({ type: "SAVE_PREFS", email, prefs }));
+                    socket.send(jsonStr({ type: "SAVE_PREFS", email, prefs, user_email: email }));
                 }, 100);
             };
 
@@ -133,11 +136,12 @@ export class TreeService {
             socket.onopen = () => {
                 socket.send(jsonStr({
                     service_url: "dummy",
-                    bearer_token: "dummy"
+                    bearer_token: "dummy",
+                    user_email: email
                 }));
 
                 setTimeout(() => {
-                    socket.send(jsonStr({ type: "FIND_MY_TREES", email }));
+                    socket.send(jsonStr({ type: "FIND_MY_TREES", email, user_email: email }));
                 }, 100);
             };
 
@@ -168,11 +172,12 @@ export class TreeService {
             socket.onopen = () => {
                 socket.send(jsonStr({
                     service_url: "dummy",
-                    bearer_token: "dummy"
+                    bearer_token: "dummy",
+                    user_email: owner
                 }));
 
                 setTimeout(() => {
-                    socket.send(jsonStr({ type: "CREATE_TREE", name, owner }));
+                    socket.send(jsonStr({ type: "CREATE_TREE", name, owner, user_email: owner }));
                 }, 100);
             };
 
@@ -191,18 +196,19 @@ export class TreeService {
         });
     }
 
-    static async saveNode(node: any): Promise<void> {
+    static async saveNode(node: any, email: string): Promise<void> {
         return new Promise((resolve, reject) => {
             const socket = new WebSocket(BACKEND_URL);
 
             socket.onopen = () => {
                 socket.send(jsonStr({
                     service_url: "dummy",
-                    bearer_token: "dummy"
+                    bearer_token: "dummy",
+                    user_email: email
                 }));
 
                 setTimeout(() => {
-                    socket.send(jsonStr({ type: "SAVE_NODE", node }));
+                    socket.send(jsonStr({ type: "SAVE_NODE", node, user_email: email }));
                 }, 100);
             };
 
@@ -221,18 +227,19 @@ export class TreeService {
         });
     }
 
-    static async deleteNode(nodeId: string): Promise<void> {
+    static async deleteNode(nodeId: string, email: string): Promise<void> {
         return new Promise((resolve, reject) => {
             const socket = new WebSocket(BACKEND_URL);
 
             socket.onopen = () => {
                 socket.send(jsonStr({
                     service_url: "dummy",
-                    bearer_token: "dummy"
+                    bearer_token: "dummy",
+                    user_email: email
                 }));
 
                 setTimeout(() => {
-                    socket.send(jsonStr({ type: "DELETE_NODE", nodeId }));
+                    socket.send(jsonStr({ type: "DELETE_NODE", nodeId, user_email: email }));
                 }, 100);
             };
 
@@ -263,13 +270,14 @@ export class TreeService {
         this.listeners.forEach(l => l());
     }
 
-    static async listenForUpdates() {
+    static async listenForUpdates(email: string) {
         const socket = new WebSocket(BACKEND_URL);
 
         socket.onopen = () => {
             socket.send(jsonStr({
                 service_url: "dummy",
-                bearer_token: "dummy"
+                bearer_token: "dummy",
+                user_email: email
             }));
             console.log("TreeService: Listening for updates...");
         };
@@ -290,6 +298,55 @@ export class TreeService {
             // Reconnect logic could go here
             console.log("TreeService: Update listener closed");
         };
+    }
+    static async fetchHistory(treeId: string, nodeId?: string): Promise<any[]> {
+        return new Promise((resolve, reject) => {
+            const socket = new WebSocket(BACKEND_URL);
+
+            const timeout = setTimeout(() => {
+                socket.close();
+                reject(new Error("Timeout fetching history"));
+            }, 30000);
+
+            socket.onopen = () => {
+                socket.send(jsonStr({
+                    service_url: "dummy",
+                    bearer_token: "dummy",
+                    user_email: "query-only" // Or pass current user email if available
+                }));
+
+                setTimeout(() => {
+                    socket.send(jsonStr({
+                        type: "GET_HISTORY",
+                        treeId,
+                        nodeId,
+                        user_email: "query-only"
+                    }));
+                }, 100);
+            };
+
+            socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === "HISTORY_LOGS") {
+                        clearTimeout(timeout);
+                        socket.close();
+                        resolve(data.logs);
+                    } else if (data.type === "ERROR") {
+                        clearTimeout(timeout);
+                        socket.close();
+                        reject(new Error(data.message));
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            };
+
+            socket.onerror = (err) => {
+                clearTimeout(timeout);
+                reject(err);
+            };
+        });
     }
 }
 

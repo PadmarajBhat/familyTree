@@ -389,7 +389,6 @@ export const GlobalTreeService = {
             return null;
         }
     },
-
     async removeLinksToTree(deletedTreeId: string, userEmail: string, onProgress?: (msg: string) => void): Promise<void> {
         console.log(`Starting deep cleanup for tree ${deletedTreeId}...`);
         try {

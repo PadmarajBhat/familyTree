@@ -133,7 +133,7 @@ async def proxy_task(
                             for call in calls:
                                 logger.info(f"🛠️ {source_name} -> {dest_name}: Intercepting Tool Call: {call['name']}")
                                 if tools_handler:
-                                    result = await tools_handler.execute(call['name'], call.get('args', {}))
+                                    result = await tools_handler.execute(call['name'], call.get('args', {}), user_email=user_email)
                                     
                                     function_response = {
                                         "name": call['name'],

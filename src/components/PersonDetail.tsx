@@ -4,7 +4,7 @@ import { CloseButton } from './CloseButton';
 import { getPhotoUrl } from '../services/drive';
 import { TreeView } from './TreeView';
 import { exportPersonDetailToPdf } from '../utils/exportPdf';
-import { canEditNode, isGlobalEditor } from '../logic/permissions';
+import { canEditNode, isGlobalEditor, PROTECTED_EMAILS } from '../logic/permissions';
 import { useTranslation } from 'react-i18next';
 import './PersonDetail.css';
 
@@ -27,7 +27,8 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentU
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     const canEdit = canEditNode(tree, currentUser?.email, node.nodeId);
-    const canDelete = isGlobalEditor(tree, currentUser?.email) && isOrphan;
+    const isProtected = node.email && PROTECTED_EMAILS.includes(node.email.toLowerCase());
+    const canDelete = isGlobalEditor(tree, currentUser?.email) && isOrphan && !isProtected;
 
     // Show only non-empty fields
     const fields = [

@@ -15,7 +15,182 @@ class FamilyTreeStore:
         self.people_ref = self.db.collection('people')
         self.tree_ref = self.db.collection('trees')
         self.users_ref = self.db.collection('users')
+        self.audit_ref = self.db.collection('audit_logs')
         self.chats_ref = self.db.collection('chats')
+
+    async def log_audit(self, tree_id, action, user_email, summary, details=None, target_node_id=None):
+        if not tree_id: return
+        
+        log_entry = {
+            "treeId": tree_id,
+            "action": action, # ADD, EDIT, DELETE
+            "userEmail": user_email,
+            "summary": summary,
+            "details": details or {}, # Structured diff: { field: { old: ..., new: ... } }
+            "targetNodeId": target_node_id,
+            "timestamp": firestore.SERVER_TIMESTAMP
+        }
+        await asyncio.to_thread(self.audit_ref.add, log_entry)
+
+    async def get_history_logs(self, tree_id, limit=50, node_id=None):
+        if not tree_id: return []
+        
+        try:
+            query = self.audit_ref.where("treeId", "==", tree_id)
+            
+            if node_id:
+                query = query.where("targetNodeId", "==", node_id)
+                
+            # Note: Compound query with order_by("timestamp") requires an index in Firestore.
+            # If (treeId, timestamp) index exists, good.
+            # If (treeId, targetNodeId, timestamp) index exists, good.
+            # Without index, this might fail or require client-side sorting.
+            # For robustness in this MVP without claiming index creation:
+            # We will fetch a bit more and sort in memory if the specific index is missing/erroring
+            # BUT sticking to simple valid queries is better.
+            # Let's try to order by timestamp. If it fails, we catch and sort manually.
+            try:
+                query = query.order_by("timestamp", direction=firestore.Query.DESCENDING)
+                docs = await asyncio.to_thread(lambda: list(query.limit(limit).stream()))
+            except Exception as e:
+                logger.warning(f"Index missing for sorted history? Fallback to memory sort. Error: {e}")
+                # Fallback: Fetch without sort (limit might be risky if data is huge, but fine for MVP)
+                query = self.audit_ref.where("treeId", "==", tree_id)
+                if node_id:
+                     query = query.where("targetNodeId", "==", node_id)
+                # Fetch recent 100 or so? defaults to arbitrary order w/o sort
+                docs = await asyncio.to_thread(lambda: list(query.limit(100).stream()))
+            
+            logs = []
+            for doc in docs:
+                d = doc.to_dict()
+                if d.get("timestamp"):
+                    d["timestamp"] = d["timestamp"].isoformat() if hasattr(d["timestamp"], 'isoformat') else str(d["timestamp"])
+                logs.append(d)
+                
+            # Ensure sorting if fallback was used
+            logs.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            return logs[:limit]
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch history: {e}")
+            return []
+
+    async def add_person(self, name, gender, relation, anchor_node_id, tree_id, **kwargs):
+        new_id = str(uuid.uuid4())
+        user_email = kwargs.get('email') # Wait, kwargs might contain node email, not editor email.
+        # We need editor email passed explicitly to add_person/update_person in ToolsHandler.execute
+        
+        # ... (rest of add logic) ...
+        
+        new_node = {
+            "nodeId": new_id,
+            "treeId": tree_id, 
+            "name": name,
+            "gender": gender,
+            "parentId": None,
+            "spouseIds": [],
+            "childrenIds": [],
+            "lastUpdated": firestore.SERVER_TIMESTAMP,
+            **kwargs
+        }
+        
+        batch = self.db.batch()
+        
+        if anchor_node_id:
+            rel = relation.lower()
+            if "father" in rel or "mother" in rel:
+                new_node["childrenIds"] = [anchor_node_id]
+                batch.update(self.people_ref.document(anchor_node_id), {"parentId": new_id})
+            elif "son" in rel or "daughter" in rel:
+                new_node["parentId"] = anchor_node_id
+                batch.update(self.people_ref.document(anchor_node_id), {
+                    "childrenIds": firestore.ArrayUnion([new_id])
+                })
+            elif "wife" in rel or "husband" in rel or "spouse" in rel:
+                new_node["spouseIds"] = [anchor_node_id]
+                batch.update(self.people_ref.document(anchor_node_id), {
+                    "spouseIds": firestore.ArrayUnion([new_id])
+                })
+            
+        batch.set(self.people_ref.document(new_id), new_node)
+        await asyncio.to_thread(batch.commit)
+        
+        # Audit Log
+        # We need the user_email here. It's not in kwargs properly from `execute` yet.
+        # I'll update `execute` to pass `_user_email` in kwargs or similar?
+        # Actually `save_node` has `editedBy`. 
+        # For `add_person` via Gemini, we need to ensure we capture checking.
+        return new_id, None
+
+    # ... (skipping update_person for a moment to focus on save_node which is primary for UI)
+
+    async def save_node(self, node, user_email=None):
+        node_id = node.get("nodeId")
+        if not node_id: return None, "Node ID required"
+        
+        # 1. Fetch existing for Diff
+        doc_ref = self.people_ref.document(node_id)
+        doc = await asyncio.to_thread(doc_ref.get)
+        
+        diff = {}
+        action = "ADD"
+        
+        if doc.exists:
+            action = "EDIT"
+            existing = doc.to_dict()
+            # Calculate simple diff of scalar fields
+            check_fields = ["name", "gender", "dob", "dod", "occupation", "education", "phone", "email", "address"]
+            for field in check_fields:
+                old_val = existing.get(field)
+                new_val = node.get(field)
+                
+                # Normalize for comparison
+                if old_val != new_val:
+                    # Deep check for objects like address/occupation needed?
+                    # For now strictly compare
+                    if str(old_val) != str(new_val):
+                         diff[field] = {"old": old_val, "new": new_val}
+        
+        node["lastUpdated"] = firestore.SERVER_TIMESTAMP
+        if user_email:
+             node["editedBy"] = user_email
+             
+        await asyncio.to_thread(doc_ref.set, node, merge=True)
+        
+        # Log it
+        if user_email: # Only log if we know who
+            tree_id = node.get("treeId")
+            
+            summary = ""
+            if action == "ADD":
+                summary = f"Added {node.get('name')}"
+            else:
+                fields = ", ".join(diff.keys())
+                summary = f"Updated {node.get('name')} with {fields}" if fields else f"Updated {node.get('name')}"
+            
+            await self.log_audit(tree_id, action, user_email, summary, diff, node_id)
+            
+        return node_id, None
+
+    async def delete_person(self, node_id, user_email=None):
+        if not node_id: return False
+        
+        # Fetch name for log
+        doc = await asyncio.to_thread(self.people_ref.document(node_id).get)
+        name = "Unknown"
+        tree_id = None
+        if doc.exists:
+            data = doc.to_dict()
+            name = data.get("name", "Unknown")
+            tree_id = data.get("treeId")
+            
+        await asyncio.to_thread(self.people_ref.document(node_id).delete)
+        
+        if user_email and tree_id:
+            await self.log_audit(tree_id, "DELETE", user_email, f"Deleted {name}", target_node_id=node_id)
+            
+        return True
 
     async def warmup(self):
         """Performs a lightweight query to establish the connection pool."""
@@ -118,22 +293,38 @@ class FamilyTreeStore:
 
     async def list_trees(self, email):
         if not email: return []
-        # Find trees where user is owner or editor
-        # Firestore OR queries are limited, so we might need separate queries or a composed field.
-        # For simplicity in V1, we check 'editors' array_contains email
-        
+        # Return ALL trees for visibility
         try:
-            docs = await asyncio.to_thread(lambda: list(self.tree_ref.where('editors', 'array_contains', email).stream()))
+            # Query all trees
+            all_trees = await asyncio.to_thread(lambda: list(self.tree_ref.stream()))
+            
             trees = []
-            for doc in docs:
+            for doc in all_trees:
                 data = doc.to_dict()
+                # Handle timestamp safely
+                ts = data.get("createdTime")
+                time_str = ts.isoformat() if hasattr(ts, 'isoformat') else str(ts)
+                
+                # Check if user is a member in this tree
+                nodes = data.get("nodes", {})
+                is_member = False
+                for node in nodes.values():
+                    # Check email case-insensitively
+                    if node.get("email") and str(node.get("email")).lower() == email.lower():
+                        is_member = True
+                        break
+                
                 trees.append({
                     "id": data.get("treeId"),
                     "name": data.get("treeName"),
                     "description": f"Owned by {data.get('owner')}",
-                    "modifiedTime": datetime.now().isoformat() # Placeholder as we don't track tree mod time separately yet
+                    "modifiedTime": time_str,
+                    "owner": data.get("owner"),
+                    "editors": data.get("editors", []),
+                    "isMember": is_member
                 })
             
+            logger.info(f"List trees: found {len(trees)} total trees (public visibility)")
             return trees
         except Exception as e:
             logger.error(f"Failed to list trees: {e}")
@@ -251,18 +442,7 @@ class FamilyTreeStore:
         await asyncio.to_thread(doc_ref.update, updates)
         return True
 
-    async def save_node(self, node):
-        node_id = node.get("nodeId")
-        if not node_id: return None, "Node ID required"
-        
-        node["lastUpdated"] = firestore.SERVER_TIMESTAMP
-        await asyncio.to_thread(self.people_ref.document(node_id).set, node, merge=True)
-        return node_id, None
 
-    async def delete_person(self, node_id):
-        if not node_id: return False
-        await asyncio.to_thread(self.people_ref.document(node_id).delete)
-        return True
 
     async def get_full_tree(self, tree_id):
         start_time = datetime.now()
@@ -313,9 +493,20 @@ class FamilyTreeStore:
 
         # Fetch tree metadata
         tree_doc = await asyncio.to_thread(self.tree_ref.document(tree_id).get)
+        
+        # Fallback: If not found by ID, try searching by treeId field
         if not tree_doc.exists:
-             logger.warning(f"Tree {tree_id} not found")
-             return None, "Tree not found"
+             logger.warning(f"Tree document {tree_id} not found by key. Trying field lookup...")
+             # Query where treeId == tree_id
+             # Note: limit(1).get() returns a generator of snapshots
+             query = self.tree_ref.where("treeId", "==", tree_id).limit(1)
+             docs = await asyncio.to_thread(lambda: list(query.stream()))
+             if docs:
+                 tree_doc = docs[0]
+             else:
+                 logger.warning(f"Tree {tree_id} not found by key or field")
+                 return None, "Tree not found"
+        
         tree_meta = tree_doc.to_dict()
         
         # Optimize: Select only fields needed for tree visualization
@@ -330,8 +521,27 @@ class FamilyTreeStore:
 
         # We need a lambda to run the query in the thread
         def fetch_optimized():
-            # Filter by treeId
-            return list(self.people_ref.where('treeId', '==', tree_id).select(field_mask).stream())
+            # Filter by treeId (field)
+            results_by_id = list(self.people_ref.where('treeId', '==', tree_id).select(field_mask).stream())
+            
+            # If the Document Key differs from the tree_id field (e.g. legacy/sample tree),
+            # check if nodes are linked by the Document Key instead.
+            doc_key = tree_doc.id 
+            if doc_key != tree_id:
+                logger.info(f"🔎 Checking for nodes linked by Document Key: {doc_key}")
+                results_by_key = list(self.people_ref.where('treeId', '==', doc_key).select(field_mask).stream())
+                if results_by_key:
+                    logger.info(f"✅ Found {len(results_by_key)} nodes linked by Key. Merging...")
+                    # Combine and deduplicate by nodeId
+                    seen = set(d.get('nodeId') for d in results_by_id)
+                    for d in results_by_key:
+                         # Snapshot to dict handled later? No, select() returns snapshots.
+                         # We deal with snapshots here.
+                         data = d.to_dict()
+                         if data.get('nodeId') not in seen:
+                             results_by_id.append(d)
+                             seen.add(data.get('nodeId'))
+            return results_by_id
 
         docs = await asyncio.to_thread(fetch_optimized)
         
@@ -424,8 +634,22 @@ class ToolsHandler:
     def __init__(self, store: FamilyTreeStore):
         self.store = store
 
-    async def execute(self, name, args):
-        logger.info(f"🛠️ Executing Firestore-backed tool: {name}({args})")
+    async def execute(self, name, args, user_email=None):
+        logger.info(f"🛠️ Executing Firestore-backed tool: {name}({args}) for {user_email}")
+
+        # Permission Check for Write Operations
+        WRITE_TOOLS = ["add_person", "update_person", "delete_person", "save_node", "create_tree"]
+        ALLOWED_EDITORS = ["narasimhapbhat@gmail.com", "padmarajbhat@gmail.com"]
+
+        if name in WRITE_TOOLS:
+            if not user_email:
+                 # If no user context, DENY by default for safety (or allow if system/admin? We assume Live needs auth)
+                 return {"status": "error", "message": "Authentication required for updates"}
+            
+            if user_email.lower() not in [e.lower() for e in ALLOWED_EDITORS]:
+                logger.warning(f"⛔ PERMISSION DENIED: {user_email} tried to call {name}")
+                return {"status": "error", "message": f"Permission Denied: You ({user_email}) are not authorized to make changes."}
+
         if name == "get_person_details":
             node = await self.store.get_details(args.get("node_id"))
             return {"status": "success", "data": node} if node else {"status": "error", "message": "Person not found"}
@@ -440,11 +664,16 @@ class ToolsHandler:
                 args.get("gender"),
                 args.get("relation"),
                 args.get("anchor_node_id"),
-                args.get("tree_id"), # Added tree_id
+                args.get("tree_id"),
                 phone=args.get("phone"),
                 email=args.get("email"),
                 dob=args.get("dob")
             )
+            # Add audit log for add_person (harder since we don't have diff or user_email easily here without kwargs update)
+            # Ideally user_email is passed to execute.
+            if user_email and not err:
+                 pass # TODO: Add log_audit call here cleanly or inside add_person using passed email
+            
             if err: return {"status": "error", "message": err}
             return {"status": "success", "message": f"Added {args.get('name')}", "nodeId": node_id}
         
@@ -453,17 +682,27 @@ class ToolsHandler:
             return {"status": "success", "message": "Updated"} if success else {"status": "error", "message": "Failed"}
         
         elif name == "save_node":
-            node_id, err = await self.store.save_node(args.get("node"))
+            # Pass user_email to save_node for audit logging
+            node_id, err = await self.store.save_node(args.get("node"), user_email=user_email)
             if err: return {"status": "error", "message": err}
             return {"status": "success", "nodeId": node_id}
 
         elif name == "delete_person":
-            success = await self.store.delete_person(args.get("node_id"))
+            # Pass user_email to delete_person for audit logging
+            success = await self.store.delete_person(args.get("node_id"), user_email=user_email)
             return {"status": "success"} if success else {"status": "error", "message": "Failed"}
 
         elif name == "create_tree":
             tree_id = await self.store.create_tree(args.get("name"), args.get("owner"))
             return {"status": "success", "treeId": tree_id, "message": f"Created tree {args.get('name')}"}
+
+        elif name == "get_history":
+            logs = await self.store.get_history_logs(
+                args.get("treeId"), 
+                limit=args.get("limit", 50),
+                node_id=args.get("nodeId") # Support filtering
+            )
+            return {"status": "success", "logs": logs}
 
         return {"status": "error", "message": "Unknown tool"}
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { GeminiLiveClient } from '../../services/Gemini/client/GeminiLiveClient';
 import { AudioRecorder } from '../../services/Gemini/client/AudioRecorder';
 import { AudioStreamer } from '../../services/Gemini/client/AudioStreamer';
@@ -15,6 +16,7 @@ export const GeminiLiveButton: React.FC<{
     currentUser: { email: string; name: string } | null,
     onSaveMember?: (data: PersonNode, p: string | null, c: string[], s: string[], sib: string[], shadow: PersonNode[], mode: 'add' | 'edit' | null) => void;
 }> = ({ tree, currentUser }) => {
+    const { i18n } = useTranslation();
     const [connected, setConnected] = useState(false);
     const [active, setActive] = useState(false);
     const [setupComplete, setSetupComplete] = useState(false);
@@ -42,15 +44,6 @@ export const GeminiLiveButton: React.FC<{
         chatMessagesRef.current = chatMessages;
     }, [chatMessages]);
 
-    const treeToCSV = (tree: TreeDocument | null): string => {
-        if (!tree || !tree.nodes) return '';
-        const rows = Object.values(tree.nodes).map(node => {
-            const parentIds = node.parentId ? node.parentId : '';
-            const spouseIds = (node.spouseIds || []).join('|');
-            return `${node.nodeId}, "${node.name || 'Unknown'}", ${node.gender || 'unknown'}, "${parentIds}", "${spouseIds}"`;
-        });
-        return rows.join('\n');
-    };
 
     const connect = async (preserveHistory = false) => {
         if (connected || (activeRef.current && !preserveHistory)) {
@@ -72,8 +65,8 @@ export const GeminiLiveButton: React.FC<{
             streamerRef.current = streamer;
 
             // Initialize Client
-            const contextData = treeToCSV(tree);
-            let systemPrompt = GET_GEMINI_SYSTEM_PROMPT(contextData);
+            // System prompt (No CSV context anymore - purely tool-based)
+            let systemPrompt = GET_GEMINI_SYSTEM_PROMPT();
 
             // CONTEXT RESTORATION
             if (preserveHistory) {
@@ -102,7 +95,22 @@ export const GeminiLiveButton: React.FC<{
             }
             console.log(`Selecting voice: ${voiceName} for user: ${currentUser?.email}`);
 
-            const client = new GeminiLiveClient(BACKEND_URL, PROJECT_ID, MODEL_ID, systemPrompt, voiceName, currentUser?.email);
+            const getLanguageCode = (lang: string) => {
+                const map: Record<string, string> = {
+                    'kn': 'kn-IN',
+                    'hi': 'hi-IN',
+                    'ta': 'ta-IN',
+                    'te': 'te-IN',
+                    'ml': 'ml-IN',
+                    'en': 'en-US'
+                };
+                return map[lang] || 'en-US';
+            };
+
+            const languageCode = getLanguageCode(i18n.language);
+            console.log(`Setting Input Language: ${languageCode}`);
+
+            const client = new GeminiLiveClient(BACKEND_URL, PROJECT_ID, MODEL_ID, systemPrompt, voiceName, currentUser?.email, languageCode);
 
             client.onOpen = () => {
                 setConnected(true);
@@ -235,11 +243,27 @@ export const GeminiLiveButton: React.FC<{
                         argsDisplay = JSON.stringify(fn.args);
                     }
 
-                    setChatMessages(prev => [...prev, {
-                        role: 'tool-call' as any, // Cast to any or update type definition
-                        text: `🛠️ ${toolName}${argsDisplay ? `\n${JSON.stringify(JSON.parse(argsDisplay), null, 2)}` : ''}`,
-                        timestamp: new Date()
-                    }]);
+                    setChatMessages(prev => {
+                        const last = prev[prev.length - 1];
+                        // Deduplicate if the same tool call appears within 2000ms (incase of retries or echoes)
+                        // Also check if ANY recent message is identical, not just the absolute last one
+                        const isDuplicate = prev.slice(-3).some(m =>
+                            m.role === 'tool-call' &&
+                            m.text.includes(toolName) &&
+                            (new Date().getTime() - m.timestamp.getTime() < 2000)
+                        );
+
+                        if (isDuplicate) {
+                            console.log("⚠️ Ignoring duplicate tool call display:", toolName);
+                            return prev;
+                        }
+
+                        return [...prev, {
+                            role: 'tool-call' as any,
+                            text: `🛠️ ${toolName}${argsDisplay ? `\n${JSON.stringify(JSON.parse(argsDisplay), null, 2)}` : ''}`,
+                            timestamp: new Date()
+                        }];
+                    });
                 }
             };
 
@@ -253,6 +277,7 @@ export const GeminiLiveButton: React.FC<{
     };
 
     const disconnect = () => {
+        activeRef.current = false; // Prevent reconnect loop
         if (clientRef.current) {
             clientRef.current.disconnect();
             clientRef.current = null;
