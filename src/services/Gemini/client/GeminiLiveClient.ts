@@ -16,16 +16,16 @@ export class GeminiLiveClient {
     private systemInstruction: string;
     private voiceName: string;
     private currentUserEmail: string | undefined;
-    private _language: string | undefined;
 
-    constructor(url: string, project: string, model: string, systemInstruction: string, voiceName: string = "Puck", currentUserEmail?: string, language: string = "en-US") {
+
+    constructor(url: string, project: string, model: string, systemInstruction: string, voiceName: string = "Puck", currentUserEmail?: string, _language: string = "en-US") {
         this.url = url;
         this.project = project;
         this.model = model;
         this.systemInstruction = systemInstruction;
         this.voiceName = voiceName;
         this.currentUserEmail = currentUserEmail;
-        this._language = language;
+
     }
 
     connect() {
