@@ -244,7 +244,6 @@ export const GeminiLiveButton: React.FC<{
                     }
 
                     setChatMessages(prev => {
-                        const last = prev[prev.length - 1];
                         // Deduplicate if the same tool call appears within 2000ms (incase of retries or echoes)
                         // Also check if ANY recent message is identical, not just the absolute last one
                         const isDuplicate = prev.slice(-3).some(m =>

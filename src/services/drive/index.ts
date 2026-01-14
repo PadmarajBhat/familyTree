@@ -12,7 +12,7 @@ export const signOut = () => { };
 export const getUserProfile = async () => ({ email: 'padmarajbhat@gmail.com', name: 'Padmaraj Bhat' });
 
 export const listTreeFiles = async () => [{ id: 'default', name: 'Family Tree', modifiedTime: new Date().toISOString() }];
-export const getFileContent = async (_id: string) => await TreeService.fetchFullTree(_id);
+export const getFileContent = async (_id: string) => await TreeService.fetchFullTree(_id, "shim@legacy");
 export const updateTreeFile = async (_id: string, _content: any, _summary?: string, _isRename?: boolean) => {
     console.log("updateTreeFile called (Shim: doing nothing)");
     return true;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { PersonNode } from '../logic/types';
 import { CloseButton } from './CloseButton';
 import './VersionHistory.css';

@@ -16,7 +16,7 @@ export class GeminiLiveClient {
     private systemInstruction: string;
     private voiceName: string;
     private currentUserEmail: string | undefined;
-    private language: string | undefined;
+    private _language: string | undefined;
 
     constructor(url: string, project: string, model: string, systemInstruction: string, voiceName: string = "Puck", currentUserEmail?: string, language: string = "en-US") {
         this.url = url;
@@ -25,7 +25,7 @@ export class GeminiLiveClient {
         this.systemInstruction = systemInstruction;
         this.voiceName = voiceName;
         this.currentUserEmail = currentUserEmail;
-        this.language = language;
+        this._language = language;
     }
 
     connect() {
