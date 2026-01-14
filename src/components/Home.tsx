@@ -3,7 +3,7 @@ import { saveTreeFile, renameFile } from '../services/drive';
 import { TreeService } from '../services/TreeService';
 import { getISTTimestamp } from '../logic/dateUtils';
 import type { TreeDocument } from '../logic/types';
-import { getTreeNameFromFilename, generateFilename } from '../logic/fileUtils';
+import { getTreeNameFromFilename } from '../logic/fileUtils';
 import { GlobalTreeService } from '../services/GlobalTreeService';
 
 interface HomeProps {
@@ -188,7 +188,7 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
         if (!newTreeName.trim()) return;
         setCreating(true);
         try {
-            const name = generateFilename(newTreeName);
+            const name = newTreeName.trim() + '.json';
             const newTree: TreeDocument = {
                 schemaVersion: 1,
                 treeId: crypto.randomUUID(),

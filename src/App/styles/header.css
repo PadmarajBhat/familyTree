@@ -12,6 +12,19 @@
     font-size: 1.2rem;
     margin: 0;
     font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60vw;
+    /* Safety cap */
+}
+
+.logo-section {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    /* Allow flex shrinking */
 }
 
 .header-content {
