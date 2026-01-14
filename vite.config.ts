@@ -26,15 +26,9 @@ export default defineConfig({
           jspdf: ['jspdf'],
           html2canvas: ['html2canvas'],
           utils: ['date-fns', 'uuid'],
-          gapi: ['gapi-script'],
         },
       },
-      onwarn(warning, warn) {
-        if (warning.code === 'EVAL' && warning.id?.includes('gapi-script')) {
-          return;
-        }
-        warn(warning);
-      },
+
     },
   },
 })
