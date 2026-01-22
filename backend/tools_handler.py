@@ -448,9 +448,50 @@ class FamilyTreeStore:
                         if node_data.get("parentId") == next_nid:
                             step["relationshipToNext"] = "Child of"
                         elif next_nid in node_data.get("childrenIds", []):
-                             step["relationshipToNext"] = "Parent of" # or specific Father/Mother
-                             if node_data.get("gender") == "male": step["relationshipToNext"] = "Father of"
-                             elif node_data.get("gender") == "female": step["relationshipToNext"] = "Mother of"
+                             children = node_data.get("childrenIds", [])
+                             # Determine birth order (assuming childrenIds is sorted by birth, or we should sort by DOB if available)
+                             # Since childrenIds is usually Append-only or sorted by frontend, we'll trust order or try to sort by DOB from nodes_map?
+                             # Let's try to sort siblings by DOB if available.
+                             siblings_data = [nodes_map.get(cid) for cid in children if nodes_map.get(cid)]
+                             
+                             # Sort by DOB (if available), then by creation time or whatever
+                             def get_dob(d):
+                                 return d.get("dob") or "9999-99-99"
+                             
+                             siblings_data.sort(key=get_dob)
+                             sorted_ids = [d["nodeId"] for d in siblings_data]
+                             
+                             try:
+                                 rank = sorted_ids.index(next_nid) + 1
+                                 total = len(sorted_ids)
+                                 
+                                 next_node_data = nodes_map.get(next_nid, {})
+                                 next_gender = next_node_data.get("gender")
+                                 
+                                 # Gender specific rank
+                                 same_gender_siblings = [s for s in siblings_data if s.get("gender") == next_gender]
+                                 same_gender_ids = [s["nodeId"] for s in same_gender_siblings]
+                                 gender_rank = same_gender_ids.index(next_nid) + 1
+                                 total_gender = len(same_gender_ids)
+                                 
+                                 step["birthOrder"] = {
+                                     "rank": rank,
+                                     "total": total,
+                                     "genderRank": gender_rank,
+                                     "totalGender": total_gender
+                                 }
+                                 
+                                 step["relationshipToNext"] = "Parent of" 
+                                 if node_data.get("gender") == "male": step["relationshipToNext"] = "Father of"
+                                 elif node_data.get("gender") == "female": step["relationshipToNext"] = "Mother of"
+                                 
+                                 # Add readable string for LLM
+                                 ordinal = lambda n: "%d%s" % (n,"tsnrhtdd"[(n//10%10!=1)*(n%10<4)*n%10::4])
+                                 gender_noun = "son" if next_gender == "male" else ("daughter" if next_gender == "female" else "child")
+                                 step["relationshipDetail"] = f"{ordinal(gender_rank)} {gender_noun} (out of {total_gender})"
+                                 
+                             except ValueError:
+                                 pass # Should not happen if data consistent
                         elif next_nid in node_data.get("spouseIds", []):
                              step["relationshipToNext"] = "Spouse of"
                              if node_data.get("gender") == "male": step["relationshipToNext"] = "Husband of"
@@ -503,12 +544,16 @@ class FamilyTreeStore:
     async def add_person(self, name, gender, relation, anchor_node_id, tree_id, **kwargs):
         new_id = str(uuid.uuid4())
         
-        # If anchor_node_id is provided, verify it exists (in the same tree?)
+        # If anchor_node_id is provided, verify it exists and get tree_id
         if anchor_node_id:
             anchor_doc = await asyncio.to_thread(self.people_ref.document(anchor_node_id).get)
             if not anchor_doc.exists:
                 return None, "Anchor node not found"
-        
+            
+            # If tree_id not explicitly passed, inherit from anchor
+            if not tree_id:
+                tree_id = anchor_doc.to_dict().get("treeId")
+
         new_node = {
             "nodeId": new_id,
             "treeId": tree_id, 
@@ -538,6 +583,37 @@ class FamilyTreeStore:
                 batch.update(self.people_ref.document(anchor_node_id), {
                     "spouseIds": firestore.ArrayUnion([new_id])
                 })
+            elif "brother" in rel or "sister" in rel or "sibling" in rel:
+                # Sibling logic: Find anchor's parent
+                anchor_data = anchor_doc.to_dict()
+                existing_parent_id = anchor_data.get("parentId")
+                
+                if existing_parent_id:
+                    # Anchor has a parent, add new node as child of that parent
+                    new_node["parentId"] = existing_parent_id
+                    batch.update(self.people_ref.document(existing_parent_id), {
+                        "childrenIds": firestore.ArrayUnion([new_id])
+                    })
+                else:
+                    # Anchor has no parent, create a placeholder "Unknown Parent"
+                    parent_id = str(uuid.uuid4())
+                    parent_node = {
+                        "nodeId": parent_id,
+                        "treeId": tree_id,
+                        "name": "Unknown Parent",
+                        "gender": "male", # Default or infer? Safe default.
+                        "parentId": None,
+                        "spouseIds": [],
+                        "childrenIds": [anchor_node_id, new_id],
+                        "lastUpdated": firestore.SERVER_TIMESTAMP
+                    }
+                    batch.set(self.people_ref.document(parent_id), parent_node)
+                    
+                    # Update anchor to point to new parent
+                    batch.update(self.people_ref.document(anchor_node_id), {"parentId": parent_id})
+                    
+                    # New node points to new parent
+                    new_node["parentId"] = parent_id
             
         batch.set(self.people_ref.document(new_id), new_node)
         await asyncio.to_thread(batch.commit)
@@ -566,6 +642,12 @@ class FamilyTreeStore:
                  # Merge with existing address to prevent wiping other fields if partial
                  existing_addr = current_data.get("address") or {}
                  updates["address"] = {**existing_addr, **addr_update}
+
+        if "location" in updates:
+            loc_update = updates["location"]
+            if isinstance(loc_update, dict):
+                 existing_loc = current_data.get("location") or {}
+                 updates["location"] = {**existing_loc, **loc_update}
 
         updates["lastUpdated"] = firestore.SERVER_TIMESTAMP
         await asyncio.to_thread(doc_ref.update, updates)

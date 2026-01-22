@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Home } from '../components/Home';
 import { LoadingOverlay } from '../components/LoadingOverlay';
@@ -72,12 +72,31 @@ function App() {
   }, [init.language, i18n]);
 
   // Handle Back Button Navigation
-  const prevViewRef = useRef(init.viewState);
-
+  // We need to track which modal is open to close it on back press
   useEffect(() => {
-    // 1. Listen for back button (popstate)
-    const handlePopState = (event: PopStateEvent) => {
-      // If we are not home, go back to home
+    // Helper to check if any modal is open
+    const isAnyModalOpen = () =>
+      !!editorMode || !!editingNodeId || !!selectedNodeId || searchOpen || collaboratorsOpen || findRelationOpen || versionHistoryOpen || fanChartOpen || showPrivacy || showTerms;
+
+    const handlePopState = () => {
+      // Prioritize closing modals in logical order
+      if (showPrivacy) { setShowPrivacy(false); return; }
+      if (showTerms) { setShowTerms(false); return; }
+
+      if (searchOpen) { setSearchOpen(false); return; }
+      if (findRelationOpen) { setFindRelationOpen(false); return; }
+      if (versionHistoryOpen) { setVersionHistoryOpen(false); return; }
+      if (fanChartOpen) { setFanChartOpen(false); return; }
+      if (collaboratorsOpen) { setCollaboratorsOpen(false); return; }
+
+      if (editingNodeId || editorMode) {
+        setEditingNodeId(null);
+        setEditorMode(null);
+        return;
+      }
+      if (selectedNodeId) { setSelectedNodeId(null); return; }
+
+      // If no modals, check view state
       if (init.viewState !== 'home') {
         init.setViewState('home');
       }
@@ -85,23 +104,35 @@ function App() {
 
     window.addEventListener('popstate', handlePopState);
 
-    // 2. Push history state when moving AWAY from home
-    if (prevViewRef.current === 'home' && init.viewState !== 'home') {
+    // Push state when opening a modal if we haven't already
+    // This is tricky because we don't want to push stack infinity.
+    // Simplifying: we only rely on the fact that if we aren't at "root" state, back should close things.
+    // But browser back only fires if there is history.
+    // So we need to push state when entering deep states.
+
+    // Strategy: 
+    // - Home -> Tree: Push '#tree'
+    // - Tree -> Modal: Push '#modal'
+
+    // Check if we just entered a non-home state or opened a modal
+    const anyModalOpen = isAnyModalOpen();
+    const currentState = window.history.state;
+
+    // If we opened a modal and current hash isn't already tagging it (simple debounce check)
+    if (anyModalOpen && (!currentState || !currentState.modal)) {
+      window.history.pushState({ modal: true }, '', '#modal');
+    } else if (init.viewState !== 'home' && (!currentState || !currentState.page)) {
+      // If we navigated to tree but no hash
       window.history.pushState({ page: 'tree' }, '', '#tree');
-    } else if (init.viewState === 'home' && prevViewRef.current !== 'home') {
-      // If logic moved us home (e.g. button click), we might want to clear hash?
-      // But we can't pop state programmatically safely without risking "Back" closing app.
-      // Best to just replaceState to clean url if needed, or leave it.
-      if (window.location.hash === '#tree') {
-        // Replace current history entry to remove hash without adding new entry
-        window.history.replaceState(null, '', window.location.pathname);
-      }
     }
 
-    prevViewRef.current = init.viewState;
-
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [init.viewState, init.setViewState]);
+  }, [
+    init.viewState, init.setViewState,
+    editorMode, editingNodeId, selectedNodeId,
+    searchOpen, collaboratorsOpen, findRelationOpen,
+    versionHistoryOpen, fanChartOpen, showPrivacy, showTerms
+  ]);
 
   return (
     <div className={`app-container ${isHome ? 'home-view' : 'tree-view-active'}`}>
@@ -198,7 +229,7 @@ function App() {
         )}
       </main>
 
-      {(init.viewState === 'home' && init.isSignedIn) && (
+      {(init.viewState === 'home' && init.isSignedIn && !editingNodeId && !fanChartOpen && !findRelationOpen && !versionHistoryOpen && !searchOpen && !collaboratorsOpen) && (
         <GeminiLiveButton
           tree={init.tree}
           currentUser={init.currentUser}

@@ -29,7 +29,7 @@ export async function exportPersonDetailToPdf(
         // --- Font Setup for Kannada ---
         // Try to load NotoSansKannada if available
         try {
-            const fontUrl = '/fonts/NotoSansKannada-Regular.ttf';
+            const fontUrl = `${import.meta.env.BASE_URL}fonts/NotoSansKannada-Regular.ttf`;
             const response = await fetch(fontUrl);
             if (response.ok) {
                 const buffer = await response.arrayBuffer();
@@ -112,7 +112,7 @@ export async function exportPersonDetailToPdf(
             { label: 'Died', value: node.dod || '—' },
             { label: 'Phone', value: node.phone || '—' },
             { label: 'Email', value: node.email || '—' },
-            { label: 'Address', value: node.address.freeform || '—' }
+            { label: 'Address', value: node.address?.freeform || '—' }
         ];
 
         // Render each field

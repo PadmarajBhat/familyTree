@@ -25,9 +25,14 @@ export const GeminiLiveButton: React.FC<{
     const streamerRef = useRef<AudioStreamer | null>(null);
 
     const activeRef = useRef(false);
+    const reconnectAttemptsRef = useRef(0);
+    const MAX_RECONNECT_ATTEMPTS = 3;
 
     useEffect(() => {
         activeRef.current = active;
+        if (!active) {
+            reconnectAttemptsRef.current = 0;
+        }
     }, [active]);
 
     useEffect(() => {
@@ -134,6 +139,7 @@ export const GeminiLiveButton: React.FC<{
                 }
 
                 setConnected(true);
+                reconnectAttemptsRef.current = 0; // Reset attempts on success
                 // Start recording
                 recorder.onDataAvailable = (data) => {
                     client.sendAudioChunk(data);
@@ -148,30 +154,23 @@ export const GeminiLiveButton: React.FC<{
                 // 1007/1006 = Network/Audio Error. 
                 // 1000/1005 = Normal/No Status, BUT if `active` is true, it means we didn't initiate it -> Unexpected -> Reconnect.
                 if (e.code === 1007 || e.code === 1006 || ((e.code === 1000 || e.code === 1005) && activeRef.current)) {
-                    console.log("⚠️ Audio/Network Error detected. Attempting SILENT RECONNECT...");
-                    // Do NOT set active=false, so UI stays in "Connecting..." mode or similar
-                    // Do NOT set connected=false immediately if we want to keep chat overlay?
-                    // Actually, we must set connected=false to restart the connection process properly?
-                    // But we want to keep the Chat Overlay visible.
-                    // The Chat Overlay renders if `connected` is true.
-                    // If we set connected=false, it disappears.
-                    // We need to keep connected=true visually, or introduce 'isReconnecting' state?
-                    // Simplify: Just toggle connected quickly or keep it?
-                    // If we keep connected=true, the 'Start/Stop' button says "End Session".
-                    // But `connect()` sets `setConnected(false)` at start.
+                    if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+                        reconnectAttemptsRef.current += 1;
+                        console.log(`⚠️ Audio/Network Error detected. Attempting SILENT RECONNECT (${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})...`);
 
-                    // Workaround: We will let it flicker briefly or rely on 'active' to keep button state?
-                    // Chat overlay conditional: `{connected && (`
-                    // If we want chat overlay to persist during reconnect, we need a separate state or condition.
-                    // Let's rely on fast reconnect. User asked for "silent", maybe momentary flicker is okay?
-                    // Or change overlay condition to `{ (connected || active) && ...`?
-
-                    recorder.stop();
-                    setConnected(false); // This will hide chat overlay momentarily
-                    setTimeout(() => {
-                        connect(true);
-                    }, 500);
-                    return;
+                        recorder.stop();
+                        setConnected(false); // This will hide chat overlay momentarily
+                        setTimeout(() => {
+                            connect(true);
+                        }, 500 * reconnectAttemptsRef.current); // Exponential backoffish
+                        return;
+                    } else {
+                        console.error("❌ Max reconnect attempts reached. Stopping.");
+                        setConnected(false);
+                        setActive(false);
+                        recorder.stop();
+                        return;
+                    }
                 }
 
                 setConnected(false);

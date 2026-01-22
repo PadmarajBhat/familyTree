@@ -4,7 +4,8 @@
 Tree pdf export is still failing.
 
 ## Solution
-Wrapped the `html2canvas` tree capture logic in a `try-catch` block. If the tree visualization fails to render (likely due to CORS issues with images), the error is caught, logged, and a text error message is added to the PDF instead of failing the entire download. This ensures the user at least gets the text and profile details.
+1. **Resolved TypeError**: Fixed the `TypeError: Cannot read properties of undefined (reading 'freeform')` by using optional chaining (`node.address?.freeform`) in `src/utils/exportPdf.ts`. This ensures the PDF generation doesn't crash if the address object is missing.
+2. **Fixed Font Loading**: Addressed the `404 (Not Found)` error for the Kannada font by updating the font URL to use `import.meta.env.BASE_URL`. This ensures the font loads correctly even when the application is deployed to a subpath like `/familyTree/`.
 
 ## Status
 Closed

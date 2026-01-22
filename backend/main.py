@@ -45,8 +45,8 @@ async def start_websocket_server():
             WS_PORT, 
             reuse_address=True,
             origins=None,
-            ping_interval=None, # Disable built-in pings to handle them manually if needed or avoid timeouts
-            ping_timeout=None
+            ping_interval=20, # Send ping every 20s to keep connection alive
+            ping_timeout=20
         ):
             logger.info(f"🔌 WebSocket proxy running on port {WS_PORT}")
             # Use an event to keep the server running
