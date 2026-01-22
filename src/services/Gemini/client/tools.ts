@@ -77,6 +77,16 @@ export const FUNCTION_DECLARATIONS = [
                                 state: { type: "STRING" },
                                 country: { type: "STRING" }
                             }
+                        },
+                        nameTranslations: {
+                            type: "OBJECT",
+                            properties: {
+                                kn: { type: "STRING" },
+                                hi: { type: "STRING" },
+                                ta: { type: "STRING" },
+                                te: { type: "STRING" },
+                                ml: { type: "STRING" }
+                            }
                         }
                     }
                 }
@@ -94,6 +104,18 @@ export const FUNCTION_DECLARATIONS = [
                 owner: { type: "STRING", description: "Email of the owner (optional)" }
             },
             required: ["name"]
+        }
+    },
+    {
+        name: "find_relationship",
+        description: "Finds the relationship path between two people in the family tree. Returns a list of people connecting them.",
+        parameters: {
+            type: "OBJECT",
+            properties: {
+                node_id_1: { type: "STRING", description: "The ID of the first person." },
+                node_id_2: { type: "STRING", description: "The ID of the second person." }
+            },
+            required: ["node_id_1", "node_id_2"]
         }
     },
     {

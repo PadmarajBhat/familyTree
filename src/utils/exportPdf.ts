@@ -139,75 +139,92 @@ export async function exportPersonDetailToPdf(
 
         const treeElement = document.getElementById(treeElementId);
         if (treeElement) {
-            // Add a new page for the tree
-            pdf.addPage();
-            yPosition = margin;
+            try {
+                // Add a new page for the tree
+                pdf.addPage();
+                yPosition = margin;
 
-            // Add tree section title
-            pdf.setFontSize(14);
-            pdf.setFont('helvetica', 'bold');
-            pdf.text('Family Tree', margin, yPosition);
-            yPosition += 10;
+                // Add tree section title
+                pdf.setFontSize(14);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text('Family Tree', margin, yPosition);
+                yPosition += 10;
 
-            // Capture the tree using html2canvas
-            // We capture the full scrollable content
-            const canvas = await html2canvas(treeElement, {
-                scale: 2, // Higher quality
-                useCORS: true,
-                logging: false,
-                scrollY: -window.scrollY,
-                scrollX: -window.scrollX,
-                windowWidth: treeElement.scrollWidth,
-                windowHeight: treeElement.scrollHeight,
-                width: treeElement.scrollWidth,
-                height: treeElement.scrollHeight
-            });
-
-            // Calculate dimensions
-            const imgData = canvas.toDataURL('image/png');
-            const imgWidth = contentWidth;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            const availableHeight = pageHeight - yPosition - margin;
-
-            // If the image fits on one page
-            if (imgHeight <= availableHeight) {
-                pdf.addImage(imgData, 'PNG', margin, yPosition, imgWidth, imgHeight);
-            } else {
-                // Split across multiple pages
-                let remainingHeight = imgHeight;
-                let sourceY = 0;
-
-                while (remainingHeight > 0) {
-                    const heightToAdd = Math.min(availableHeight, remainingHeight);
-                    const sourceHeight = (heightToAdd / imgWidth) * canvas.width;
-
-                    // Create a temporary canvas for this slice
-                    const sliceCanvas = document.createElement('canvas');
-                    sliceCanvas.width = canvas.width;
-                    sliceCanvas.height = sourceHeight;
-                    const sliceCtx = sliceCanvas.getContext('2d');
-
-                    if (sliceCtx) {
-                        sliceCtx.drawImage(
-                            canvas,
-                            0, sourceY,
-                            canvas.width, sourceHeight,
-                            0, 0,
-                            canvas.width, sourceHeight
-                        );
-
-                        const sliceData = sliceCanvas.toDataURL('image/png');
-                        pdf.addImage(sliceData, 'PNG', margin, yPosition, imgWidth, heightToAdd);
+                // Capture the tree using html2canvas
+                // We capture the full scrollable content
+                const canvas = await html2canvas(treeElement, {
+                    scale: 2, // Higher quality
+                    useCORS: true,
+                    logging: false, // Set to true if debugging is needed
+                    scrollY: -window.scrollY,
+                    scrollX: -window.scrollX,
+                    windowWidth: treeElement.scrollWidth,
+                    windowHeight: treeElement.scrollHeight,
+                    width: treeElement.scrollWidth,
+                    height: treeElement.scrollHeight,
+                    onclone: (document) => {
+                        // Optional: Modify the cloned document before screenshot
+                        // e.g., hide scrollbars or non-printable elements
+                        const el = document.getElementById(treeElementId);
+                        if (el) {
+                            el.style.overflow = 'visible';
+                            el.style.maxHeight = 'none';
+                        }
                     }
+                });
 
-                    sourceY += sourceHeight;
-                    remainingHeight -= heightToAdd;
+                // Calculate dimensions
+                const imgData = canvas.toDataURL('image/png');
+                const imgWidth = contentWidth;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                const availableHeight = pageHeight - yPosition - margin;
 
-                    if (remainingHeight > 0) {
-                        pdf.addPage();
-                        yPosition = margin;
+                // If the image fits on one page
+                if (imgHeight <= availableHeight) {
+                    pdf.addImage(imgData, 'PNG', margin, yPosition, imgWidth, imgHeight);
+                } else {
+                    // Split across multiple pages
+                    let remainingHeight = imgHeight;
+                    let sourceY = 0;
+
+                    while (remainingHeight > 0) {
+                        const heightToAdd = Math.min(availableHeight, remainingHeight);
+                        const sourceHeight = (heightToAdd / imgWidth) * canvas.width;
+
+                        // Create a temporary canvas for this slice
+                        const sliceCanvas = document.createElement('canvas');
+                        sliceCanvas.width = canvas.width;
+                        sliceCanvas.height = sourceHeight;
+                        const sliceCtx = sliceCanvas.getContext('2d');
+
+                        if (sliceCtx) {
+                            sliceCtx.drawImage(
+                                canvas,
+                                0, sourceY,
+                                canvas.width, sourceHeight,
+                                0, 0,
+                                canvas.width, sourceHeight
+                            );
+
+                            const sliceData = sliceCanvas.toDataURL('image/png');
+                            pdf.addImage(sliceData, 'PNG', margin, yPosition, imgWidth, heightToAdd);
+                        }
+
+                        sourceY += sourceHeight;
+                        remainingHeight -= heightToAdd;
+
+                        if (remainingHeight > 0) {
+                            pdf.addPage();
+                            yPosition = margin;
+                        }
                     }
                 }
+            } catch (treeError) {
+                console.error("Failed to capture tree visualization:", treeError);
+                pdf.setTextColor(255, 0, 0);
+                pdf.setFontSize(10);
+                pdf.text("Error: Could not render Family Tree visualization.", margin, yPosition + 10);
+                pdf.setTextColor(0, 0, 0); // Reset color
             }
         }
 

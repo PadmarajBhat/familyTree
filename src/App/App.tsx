@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Home } from '../components/Home';
 import { LoadingOverlay } from '../components/LoadingOverlay';
@@ -70,6 +70,38 @@ function App() {
       i18n.changeLanguage(init.language);
     }
   }, [init.language, i18n]);
+
+  // Handle Back Button Navigation
+  const prevViewRef = useRef(init.viewState);
+
+  useEffect(() => {
+    // 1. Listen for back button (popstate)
+    const handlePopState = (event: PopStateEvent) => {
+      // If we are not home, go back to home
+      if (init.viewState !== 'home') {
+        init.setViewState('home');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    // 2. Push history state when moving AWAY from home
+    if (prevViewRef.current === 'home' && init.viewState !== 'home') {
+      window.history.pushState({ page: 'tree' }, '', '#tree');
+    } else if (init.viewState === 'home' && prevViewRef.current !== 'home') {
+      // If logic moved us home (e.g. button click), we might want to clear hash?
+      // But we can't pop state programmatically safely without risking "Back" closing app.
+      // Best to just replaceState to clean url if needed, or leave it.
+      if (window.location.hash === '#tree') {
+        // Replace current history entry to remove hash without adding new entry
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    }
+
+    prevViewRef.current = init.viewState;
+
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [init.viewState, init.setViewState]);
 
   return (
     <div className={`app-container ${isHome ? 'home-view' : 'tree-view-active'}`}>
@@ -166,7 +198,7 @@ function App() {
         )}
       </main>
 
-      {Boolean(init.tree || import.meta.env.DEV) && (
+      {(init.viewState === 'home' && init.isSignedIn) && (
         <GeminiLiveButton
           tree={init.tree}
           currentUser={init.currentUser}

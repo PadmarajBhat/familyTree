@@ -158,6 +158,22 @@ async def handle_websocket_client(client_websocket) -> None:
                                 "type": "ERROR",
                                 "message": str(e)
                             }))
+                    elif data.get("type") == "GET_HISTORY":
+                        tree_id = data.get("treeId")
+                        node_id = data.get("nodeId")
+                        logger.info(f"📜 Fetching history for tree {tree_id} node {node_id}")
+                        try:
+                            logs = await store.get_history_logs(tree_id, node_id=node_id)
+                            await client_websocket.send(json.dumps({
+                                "type": "HISTORY_LOGS",
+                                "logs": logs
+                            }))
+                        except Exception as e:
+                            logger.error(f"Failed to fetch history: {e}")
+                            await client_websocket.send(json.dumps({
+                                "type": "ERROR",
+                                "message": str(e)
+                            }))
             except ConnectionClosed as e:
                 logger.info(f"👋 Admin client connection closed (Activity: {last_activity}): {e}")
             except Exception as e:

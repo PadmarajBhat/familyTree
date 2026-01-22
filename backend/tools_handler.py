@@ -4,6 +4,7 @@ from google.cloud import firestore
 from datetime import datetime
 import asyncio
 import logging
+import difflib
 
 logger = logging.getLogger(__name__)
 
@@ -351,7 +352,17 @@ class FamilyTreeStore:
 
         # 2. Filter and enrich
         for node in all_nodes:
-            if query in node.get("name", "").lower():
+            name = node.get("name", "").lower()
+            is_match = False
+            
+            # Exact or Substring match
+            if query in name:
+                is_match = True
+            # Fuzzy match for typos
+            elif len(query) > 3 and difflib.SequenceMatcher(None, query, name).ratio() > 0.7:
+                is_match = True
+
+            if is_match:
                 parent_name = None
                 parent_id = node.get("parentId")
                 if parent_id and parent_id in id_to_name:
@@ -367,9 +378,127 @@ class FamilyTreeStore:
                 })
         return results
 
-    async def get_details(self, node_id):
+    async def find_relationship(self, node_id_1, node_id_2):
+        """
+        Finds the shortest path between two people in the family tree.
+        Returns a list of people in the path.
+        """
+        if not node_id_1 or not node_id_2:
+            return None
+        
+        if node_id_1 == node_id_2:
+            return "Same person"
+
+        # 1. Fetch ALL nodes to build graph (expensive but necessary for global path)
+        # Optimization: Caching? For now, raw fetch.
+        docs = await asyncio.to_thread(lambda: list(self.people_ref.stream()))
+        
+        graph = {}
+        nodes_map = {}
+        
+        for doc in docs:
+            data = doc.to_dict()
+            nid = data.get("nodeId")
+            nodes_map[nid] = data
+            
+            if nid not in graph: graph[nid] = set()
+            
+            # Parent <-> Child
+            pid = data.get("parentId")
+            if pid:
+                if pid not in graph: graph[pid] = set()
+                graph[pid].add(nid)
+                graph[nid].add(pid)
+            
+            # Spouse <-> Spouse
+            for sid in data.get("spouseIds", []):
+                if sid not in graph: graph[sid] = set()
+                graph[sid].add(nid)
+                graph[nid].add(sid)
+                
+            # Children <-> Parent (redundant if parentId set, but good for completeness)
+            for cid in data.get("childrenIds", []):
+                if cid not in graph: graph[cid] = set()
+                graph[cid].add(nid)
+                graph[nid].add(cid)
+
+        # 2. BFS
+        queue = [[node_id_1]]
+        visited = {node_id_1}
+        
+        while queue:
+            path = queue.pop(0)
+            node = path[-1]
+            
+            if node == node_id_2:
+                # Path found! Enrich it.
+                enriched_path = []
+                for idx, path_nid in enumerate(path):
+                    node_data = nodes_map.get(path_nid, {})
+                    step = {
+                        "nodeId": path_nid,
+                        "name": node_data.get("name", "Unknown"),
+                        "gender": node_data.get("gender"),
+                    }
+                    
+                    # Describe relationship to NEXT node
+                    if idx < len(path) - 1:
+                        next_nid = path[idx + 1]
+                        # Determine relation
+                        if node_data.get("parentId") == next_nid:
+                            step["relationshipToNext"] = "Child of"
+                        elif next_nid in node_data.get("childrenIds", []):
+                             step["relationshipToNext"] = "Parent of" # or specific Father/Mother
+                             if node_data.get("gender") == "male": step["relationshipToNext"] = "Father of"
+                             elif node_data.get("gender") == "female": step["relationshipToNext"] = "Mother of"
+                        elif next_nid in node_data.get("spouseIds", []):
+                             step["relationshipToNext"] = "Spouse of"
+                             if node_data.get("gender") == "male": step["relationshipToNext"] = "Husband of"
+                             elif node_data.get("gender") == "female": step["relationshipToNext"] = "Wife of"
+                        else:
+                            step["relationshipToNext"] = "Related to"
+                            
+                    enriched_path.append(step)
+                return enriched_path
+            
+            for neighbor in graph.get(node, []):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    new_path = list(path)
+                    new_path.append(neighbor)
+                    queue.append(new_path)
+                    
+        return None # No path found
         doc = await asyncio.to_thread(self.people_ref.document(node_id).get)
-        return doc.to_dict() if doc.exists else None
+        if not doc.exists: return None
+        
+        data = doc.to_dict()
+        
+        # Enrich with related names for LLM readability
+        ids_to_fetch = []
+        if data.get("parentId"): ids_to_fetch.append(data.get("parentId"))
+        if data.get("spouseIds"): ids_to_fetch.extend(data.get("spouseIds"))
+        if data.get("childrenIds"): ids_to_fetch.extend(data.get("childrenIds"))
+        
+        ids_to_fetch = list(set(ids_to_fetch))
+        
+        if ids_to_fetch:
+            # Batch fetch related nodes to get names
+            refs = [self.people_ref.document(nid) for nid in ids_to_fetch]
+            try:
+                 # Run get_all in thread
+                snapshots = await asyncio.to_thread(lambda: list(self.db.get_all(refs)))
+                id_map = {d.id: d.to_dict().get("name", "Unknown") for d in snapshots if d.exists}
+                
+                data["relatedNames"] = {
+                    "parent": id_map.get(data.get("parentId")),
+                    "spouses": [id_map.get(sid) for sid in data.get("spouseIds", []) if sid in id_map],
+                    "children": [id_map.get(cid) for cid in data.get("childrenIds", []) if cid in id_map]
+                }
+            except Exception as e:
+                logger.error(f"Failed to fetch related names: {e}")
+                
+        return data
 
     async def add_person(self, name, gender, relation, anchor_node_id, tree_id, **kwargs):
         new_id = str(uuid.uuid4())

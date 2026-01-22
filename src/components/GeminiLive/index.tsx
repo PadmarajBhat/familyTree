@@ -40,6 +40,9 @@ export const GeminiLiveButton: React.FC<{
     const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant' | 'tool-call', text: string, timestamp: Date }[]>([]);
     const chatMessagesRef = useRef<{ role: 'user' | 'assistant' | 'tool-call', text: string, timestamp: Date }[]>([]);
 
+    // Connection timeout ref
+    const connectionTimeoutRef = useRef<number | null>(null);
+
     useEffect(() => {
         chatMessagesRef.current = chatMessages;
     }, [chatMessages]);
@@ -63,6 +66,13 @@ export const GeminiLiveButton: React.FC<{
 
             recorderRef.current = recorder;
             streamerRef.current = streamer;
+
+            // Set a timeout to reset state if connection hangs
+            if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+            connectionTimeoutRef.current = setTimeout(() => {
+                console.warn("Connection timed out. Resetting state.");
+                disconnect();
+            }, 10000); // 10 seconds timeout
 
             // Initialize Client
             // System prompt (No CSV context anymore - purely tool-based)
@@ -113,6 +123,16 @@ export const GeminiLiveButton: React.FC<{
             const client = new GeminiLiveClient(BACKEND_URL, PROJECT_ID, MODEL_ID, systemPrompt, voiceName, currentUser?.email, languageCode);
 
             client.onOpen = () => {
+                // Clear timeout on success
+                if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+
+                // If user cancelled while connecting, abort
+                if (!activeRef.current) {
+                    console.log("Connection established but active is false. Disconnecting.");
+                    client.disconnect();
+                    return;
+                }
+
                 setConnected(true);
                 // Start recording
                 recorder.onDataAvailable = (data) => {
@@ -123,6 +143,8 @@ export const GeminiLiveButton: React.FC<{
 
             client.onClose = (e: CloseEvent) => {
                 console.log("Gemini Closed:", e.code, e.reason);
+                if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+
                 // 1007/1006 = Network/Audio Error. 
                 // 1000/1005 = Normal/No Status, BUT if `active` is true, it means we didn't initiate it -> Unexpected -> Reconnect.
                 if (e.code === 1007 || e.code === 1006 || ((e.code === 1000 || e.code === 1005) && activeRef.current)) {
@@ -179,7 +201,7 @@ export const GeminiLiveButton: React.FC<{
                     console.log("📜 Received Chat History:", msg.data);
                     const history = msg.data || [];
                     const formattedHistory = history.map((h: any) => ({
-                        role: h.role === 'model' ? 'assistant' : 'user', // Map backend role to UI role
+                        role: h.role === 'model' ? 'assistant' : (h.role === 'tool-call' ? 'tool-call' : 'user'), // Map backend role to UI role
                         text: h.text,
                         timestamp: h.timestamp ? new Date(h.timestamp) : new Date() // Parse backend timestamp
                     }));
@@ -276,6 +298,7 @@ export const GeminiLiveButton: React.FC<{
     };
 
     const disconnect = () => {
+        if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
         activeRef.current = false; // Prevent reconnect loop
         if (clientRef.current) {
             clientRef.current.disconnect();

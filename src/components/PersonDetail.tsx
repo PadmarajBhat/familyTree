@@ -31,12 +31,31 @@ export const PersonDetail: React.FC<PersonDetailProps> = ({ node, tree, currentU
     const canDelete = isGlobalEditor(tree, currentUser?.email) && isOrphan && !isProtected;
 
     // Show only non-empty fields
+    // Format complex helper fields
+    const educationStr = node.education?.map(e => `${e.degree || ''} ${e.major ? 'in ' + e.major : ''}`.trim()).join(', ');
+    const occupationStr = node.occupation ? `${node.occupation.role || ''} ${node.occupation.organization ? 'at ' + node.occupation.organization : ''}`.trim() : null;
+    const locationStr = node.location
+        ? [node.location.zipcode, node.location.district, node.location.state, node.location.country].filter(Boolean).join(', ')
+        : null;
+
+    const translationsStr = node.nameTranslations
+        ? Object.entries(node.nameTranslations)
+            .map(([lang, val]) => `${lang.toUpperCase()}: ${val}`)
+            .join(', ')
+        : null;
+
+    // Show only non-empty fields
     const fields = [
         { label: t('personDetail.born'), value: node.dob },
         { label: t('personDetail.died'), value: node.dod },
         { label: t('personDetail.phone'), value: node.phone },
         { label: t('personDetail.email'), value: node.email },
         { label: t('personDetail.address'), value: node.address?.freeform },
+        { label: t('personDetail.location') || "Location", value: locationStr },
+        { label: t('personDetail.education') || "Education", value: educationStr },
+        { label: t('personDetail.occupation') || "Occupation", value: occupationStr },
+        { label: t('personDetail.hobbies') || "Hobbies", value: node.hobbies?.join(', ') },
+        { label: t('personDetail.translations') || "Translations", value: translationsStr }
     ].filter(f => f.value && f.value !== '—' && f.value.trim() !== '');
 
     const handleExportPdf = async () => {

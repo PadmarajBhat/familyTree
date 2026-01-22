@@ -132,6 +132,12 @@ async def proxy_task(
                             calls = tc.get("functionCalls") or tc.get("function_calls") or []
                             for call in calls:
                                 logger.info(f"🛠️ {source_name} -> {dest_name}: Intercepting Tool Call: {call['name']}")
+                                
+                                # Log tool call to chat history
+                                if tools_handler and tools_handler.store and user_email:
+                                    args_str = json.dumps(call.get('args', {}))
+                                    asyncio.create_task(tools_handler.store.log_chat(user_email, "tool-call", f"🛠️ {call['name']}: {args_str}"))
+
                                 if tools_handler:
                                     result = await tools_handler.execute(call['name'], call.get('args', {}), user_email=user_email)
                                     

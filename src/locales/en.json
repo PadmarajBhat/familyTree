@@ -25,7 +25,12 @@
         "history": "History",
         "exportPdf": "Export PDF",
         "delete": "Delete Member",
-        "unknown": "Unknown"
+        "unknown": "Unknown",
+        "location": "Location",
+        "education": "Education",
+        "occupation": "Occupation",
+        "hobbies": "Hobbies",
+        "translations": "Translations"
     },
     "common": {
         "loading": "Loading..."
