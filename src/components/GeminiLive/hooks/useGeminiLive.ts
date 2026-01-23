@@ -106,7 +106,7 @@ export const useGeminiLive = (
                 disconnect();
             }, 10000);
 
-            let systemPrompt = GET_GEMINI_SYSTEM_PROMPT();
+            let systemPrompt = GET_GEMINI_SYSTEM_PROMPT(tree?.treeId || 'default');
 
             if (preserveHistory) {
                 const previousHistory = chatMessagesRef.current;

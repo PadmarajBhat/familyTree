@@ -234,12 +234,13 @@ function App() {
         )}
       </main>
 
-      {(init.viewState === 'home' && init.isSignedIn && !showPrivacy && !showTerms) && (
+      {init.isSignedIn && !showPrivacy && !showTerms && (
         <GeminiLiveButton
           tree={init.tree}
           currentUser={init.currentUser}
         />
       )}
+
     </div>
   );
 }

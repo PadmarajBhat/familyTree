@@ -22,9 +22,10 @@ export const FUNCTION_DECLARATIONS = [
                 anchor_node_id: { type: "STRING", description: "The ID of the existing family member this person is related to." },
                 phone: { type: "STRING", description: "Phone number (optional)." },
                 email: { type: "STRING", description: "Email address (optional)." },
-                dob: { type: "STRING", description: "Date of birth in YYYY-MM-DD format (optional)." }
+                dob: { type: "STRING", description: "Date of birth in YYYY-MM-DD format (optional)." },
+                treeId: { type: "STRING", description: "The ID of the current family tree." }
             },
-            required: ["name", "gender", "relation", "anchor_node_id"]
+            required: ["name", "gender", "relation", "anchor_node_id", "treeId"]
         }
     },
     {
@@ -119,14 +120,15 @@ export const FUNCTION_DECLARATIONS = [
         }
     },
     {
-        name: "search_family_tree",
+        name: "search",
         description: "Search for a person in the family tree by name.",
         parameters: {
             type: "OBJECT",
             properties: {
-                query: { type: "STRING", description: "The name or part of the name to search for." }
+                query: { type: "STRING", description: "The name or part of the name to search for." },
+                treeId: { type: "STRING", description: "The ID of the current family tree." }
             },
-            required: ["query"]
+            required: ["query", "treeId"]
         }
     }
 ];

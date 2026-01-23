@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as d3 from 'd3';
 import type { TreeDocument, PersonNode } from '../logic/types';
 import { getPhotoUrl } from '../services/drive';
@@ -21,6 +22,13 @@ interface AncestorNode extends PersonNode {
 }
 
 export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, onNodeClick, onResetRoot }) => {
+    const { i18n } = useTranslation();
+    const currentLang = i18n.language;
+
+    const getTranslatedName = (node: PersonNode | undefined | null) => {
+        if (!node) return "Unknown";
+        return (currentLang && node.nameTranslations?.[currentLang]) || node.name || "Unknown";
+    };
     const svgRef = useRef<SVGSVGElement>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -108,12 +116,12 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             if (node.spouseIds && node.spouseIds.length > 0) {
                 const spouse = data.nodes[node.spouseIds[0]];
                 if (spouse) {
-                    spouseName = spouse.name;
+                    spouseName = getTranslatedName(spouse);
                     spouseImageUrl = spouse.imageUrl;
                 }
             }
 
-            return { ...node, generation, spouseName, spouseImageUrl, children: parents.length > 0 ? parents : undefined };
+            return { ...node, name: getTranslatedName(node), generation, spouseName, spouseImageUrl, children: parents.length > 0 ? parents : undefined };
         };
 
         const buildDescendantTree = (nodeId: string, generation: number = 0): AncestorNode | null => {
@@ -126,25 +134,30 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
             let spouseImageUrl = null;
 
             if (node.childrenIds) {
+                // console.log(`🔍 Processing descendants for ${node.name} (${nodeId}). Children:`, node.childrenIds);
                 node.childrenIds.forEach(childId => {
                     // Safe lookup
                     if (data.nodes[childId]) {
                         const child = buildDescendantTree(childId, generation + 1);
                         if (child) children.push(child);
+                    } else {
+                        console.warn(`⚠️ Child node ${childId} not found in data.nodes for parent ${node.name}`);
                     }
                 });
+            } else {
+                // console.log(`ℹ️ Node ${node.name} has no childrenIds`);
             }
 
             // Verify spouse exists
             if (node.spouseIds && node.spouseIds.length > 0) {
                 const spouse = data.nodes[node.spouseIds[0]];
                 if (spouse) {
-                    spouseName = spouse.name;
+                    spouseName = getTranslatedName(spouse);
                     spouseImageUrl = spouse.imageUrl;
                 }
             }
 
-            return { ...node, generation, spouseName, spouseImageUrl, children: children.length > 0 ? children : undefined };
+            return { ...node, name: getTranslatedName(node), generation, spouseName, spouseImageUrl, children: children.length > 0 ? children : undefined };
         };
 
         const mainGroup = svg.append("g")
@@ -369,8 +382,17 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
         };
 
         // Always render in hourglass mode
+        if (data.nodes[rootNodeId]) {
+            console.log("Root Node Children Checks:", {
+                hasChildrenIds: !!data.nodes[rootNodeId].childrenIds,
+                childrenCount: data.nodes[rootNodeId].childrenIds?.length,
+                rawChildren: data.nodes[rootNodeId].childrenIds
+            });
+        }
+        console.log("FanChart Root:", rootNodeId, "Data available:", !!data.nodes[rootNodeId]);
         const ancestorData = buildAncestorTree(rootNodeId);
         const descendantData = buildDescendantTree(rootNodeId);
+        console.log("Descendant Data built:", descendantData);
 
         if (ancestorData) {
             renderTree(ancestorData, Math.PI, -90, true, false);
@@ -460,7 +482,7 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
                 .text(displayText);
         }
 
-    }, [data, rootNodeId, dimensions]);
+    }, [data, rootNodeId, dimensions, currentLang]);
 
     return (
         <div ref={wrapperRef} style={{ width: '100%', height: '100vh', overflow: 'hidden', background: '#f9f9f9', position: 'relative' }}>

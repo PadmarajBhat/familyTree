@@ -143,7 +143,7 @@ async def proxy_task(
                                     
                                     function_response = {
                                         "name": call['name'],
-                                        "response": result
+                                        "response": {"output": result}
                                     }
                                     if "id" in call: function_response["id"] = call["id"]
                                         

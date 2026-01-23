@@ -176,10 +176,22 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
 
     // Use an effect for searching to handle async GlobalTreeService if needed (though it's sync for now if loaded)
     // Actually GlobalTreeService.searchAllTrees is sync on cache.
+    // Use an effect for searching to handle async GlobalTreeService if needed (though it's sync for now if loaded)
+    // Actually GlobalTreeService.searchAllTrees is sync on cache.
+    // UPDATE: Now utilizing Backend Search via GlobalTreeService.searchBackend for consistency.
+
+    // Helper to get treeId
+    const currentTreeId = useMemo(() => {
+        if (initialData?.treeId) return initialData.treeId;
+        const firstNode = Object.values(existingNodes)[0];
+        return firstNode?.treeId;
+    }, [initialData, existingNodes]);
+
     useEffect(() => {
-        const timer = setTimeout(() => {
+        const timer = setTimeout(async () => {
             if (name && name.length > 2) {
-                const results = GlobalTreeService.searchAllTrees(name);
+                // Use backend search
+                const results = await GlobalTreeService.searchBackend(name, currentTreeId || '');
                 const filtered = results.filter(res => res.node.nodeId !== initialData?.nodeId);
                 setNameSuggestions(filtered);
                 setShowNameSuggestions(true);
@@ -189,29 +201,16 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
             }
         }, 300);
         return () => clearTimeout(timer);
-    }, [name, initialData]);
+    }, [name, initialData, currentTreeId]);
 
     const [suggestedFathers, setSuggestedFathers] = useState<SearchResult[]>([]);
     useEffect(() => {
-        const timer = setTimeout(() => {
+        const timer = setTimeout(async () => {
             if (fatherSearch && fatherSearch.length > 2) {
-                const results = GlobalTreeService.searchAllTrees(fatherSearch);
+                const results = await GlobalTreeService.searchBackend(fatherSearch, currentTreeId || '');
                 const filtered = results.filter(res => {
                     // Cannot be own father
                     if (res.node.nodeId === initialData?.nodeId) return false;
-                    // Prevent cycle if in same tree (simple check)
-                    // If in different tree, cycle check is harder, omitting for now or assuming OK.
-                    // Ideally we should check if 'res.node' is a descendant of 'initialData' crossing trees.
-                    // This requires a global graph traversal which is expensive.
-                    // For now, simple same-tree check:
-                    if (res.treeId === (initialData?.externalLink?.treeId || 'current') && initialData) {
-                        // This logic is flawed because we don't know "current" tree ID easily here without props.
-                        // But existingNodes comes from current tree.
-                        // Let's rely on the fact that if it's in existingNodes, use the old logic.
-                        // If it's from another tree, assume safe for now (or Shadow Node logic handles it).
-                    }
-                    // Prevent cycle: Candidate cannot be a descendant of current node
-                    // if (initialData && isAncestor(res.node.nodeId, initialData.nodeId, existingNodes)) return false; // Hard to check global ancenstry.
                     return true;
                 }).slice(0, 10);
                 setSuggestedFathers(filtered);
@@ -220,13 +219,13 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
             }
         }, 300);
         return () => clearTimeout(timer);
-    }, [fatherSearch, initialData]);
+    }, [fatherSearch, initialData, currentTreeId]);
 
     const [suggestedSpouses, setSuggestedSpouses] = useState<SearchResult[]>([]);
     useEffect(() => {
-        const timer = setTimeout(() => {
+        const timer = setTimeout(async () => {
             if (spouseSearch && spouseSearch.length > 2) {
-                const results = GlobalTreeService.searchAllTrees(spouseSearch);
+                const results = await GlobalTreeService.searchBackend(spouseSearch, currentTreeId || '');
                 const filtered = results.filter(res => {
                     if (res.node.nodeId === initialData?.nodeId) return false;
                     return true;
@@ -237,13 +236,13 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
             }
         }, 300);
         return () => clearTimeout(timer);
-    }, [spouseSearch, initialData]);
+    }, [spouseSearch, initialData, currentTreeId]);
 
     const [suggestedChildren, setSuggestedChildren] = useState<SearchResult[]>([]);
     useEffect(() => {
-        const timer = setTimeout(() => {
+        const timer = setTimeout(async () => {
             if (childSearch && childSearch.length > 2) {
-                const results = GlobalTreeService.searchAllTrees(childSearch);
+                const results = await GlobalTreeService.searchBackend(childSearch, currentTreeId || '');
                 const filtered = results.filter(res => {
                     if (res.node.nodeId === initialData?.nodeId) return false;
                     return true;
@@ -254,7 +253,7 @@ export const MemberEditor: React.FC<MemberEditorProps> = ({
             }
         }, 300);
         return () => clearTimeout(timer);
-    }, [childSearch, initialData]);
+    }, [childSearch, initialData, currentTreeId]);
 
     // State for pending Shadow Nodes (remote nodes selected as relations)
     const [pendingShadowNodes, setPendingShadowNodes] = useState<PersonNode[]>([]);

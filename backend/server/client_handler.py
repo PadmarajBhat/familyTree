@@ -60,7 +60,7 @@ async def handle_websocket_client(client_websocket) -> None:
                     if data.get("type") == "GET_TREE":
                         tree_id = data.get("treeId")
                         logger.info(f"🌲 Fetching full tree from Firestore (TreeID: {tree_id})")
-                        full_tree, err = await tools.get_full_tree(tree_id)
+                        full_tree = await tools.get_full_tree(tree_id)
                         if full_tree:
                             logger.info(f"🌲 Tree fetched, sending {len(full_tree.get('nodes', {}))} nodes...")
                             await client_websocket.send(json.dumps({
@@ -71,7 +71,7 @@ async def handle_websocket_client(client_websocket) -> None:
                         else:
                             await client_websocket.send(json.dumps({
                                 "type": "ERROR",
-                                "message": err or "Tree not found"
+                                "message": "Tree not found or error occurred"
                             }))
                     elif data.get("type") == "GET_PREFS":
                         email = data.get("email")
@@ -170,6 +170,23 @@ async def handle_websocket_client(client_websocket) -> None:
                             }))
                         except Exception as e:
                             logger.error(f"Failed to fetch history: {e}")
+                            await client_websocket.send(json.dumps({
+                                "type": "ERROR",
+                                "message": str(e)
+                            }))
+                    elif data.get("type") == "SEARCH_TREE":
+                        query = data.get("query")
+                        tree_id = data.get("treeId")
+                        logger.info(f"🔎 Searching tree {tree_id} for '{query}'")
+                        try:
+                            # Use execute to leverage standard tool logic (including tree_id filtering properly if implemented)
+                            results = await tools.execute("search", {"query": query, "tree_id": tree_id})
+                            await client_websocket.send(json.dumps({
+                                "type": "SEARCH_RESULTS",
+                                "results": results
+                            }))
+                        except Exception as e:
+                            logger.error(f"Failed to search tree: {e}")
                             await client_websocket.send(json.dumps({
                                 "type": "ERROR",
                                 "message": str(e)
