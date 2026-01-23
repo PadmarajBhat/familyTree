@@ -127,11 +127,15 @@ export const FanChartView: React.FC<FanChartViewProps> = ({ data, rootNodeId, on
 
             if (node.childrenIds) {
                 node.childrenIds.forEach(childId => {
-                    const child = buildDescendantTree(childId, generation + 1);
-                    if (child) children.push(child);
+                    // Safe lookup
+                    if (data.nodes[childId]) {
+                        const child = buildDescendantTree(childId, generation + 1);
+                        if (child) children.push(child);
+                    }
                 });
             }
 
+            // Verify spouse exists
             if (node.spouseIds && node.spouseIds.length > 0) {
                 const spouse = data.nodes[node.spouseIds[0]];
                 if (spouse) {

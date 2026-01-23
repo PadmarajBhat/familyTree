@@ -8,6 +8,7 @@ import { CollaboratorList } from '../../components/CollaboratorList';
 import { FindRelation } from '../../components/FindRelation';
 import { VersionHistory } from '../../components/VersionHistory';
 import { FanChartView } from '../../components/FanChartView';
+import { Dashboard } from '../../components/Dashboard';
 import type { TreeDocument, PersonNode } from '../../logic/types';
 
 interface TreeViewSectionProps {
@@ -27,8 +28,12 @@ interface TreeViewSectionProps {
     setFindRelationOpen: (open: boolean) => void;
     versionHistoryOpen: boolean;
     setVersionHistoryOpen: (open: boolean) => void;
-    fanChartOpen: boolean;
-    setFanChartOpen: (open: boolean) => void;
+    versionHistoryOpen: boolean;
+    setVersionHistoryOpen: (open: boolean) => void;
+    viewMode: 'tree' | 'fanchart';
+    setViewMode: (mode: 'tree' | 'fanchart') => void;
+    dashboardOpen: boolean;
+    setDashboardOpen: (open: boolean) => void;
     onSaveMember: (data: PersonNode, p: string | null, c: string[], s: string[], sib: string[], shadow: PersonNode[], mode: 'add' | 'edit' | null) => void;
     onDeleteMember: (id: string) => void;
     onToggleEditor: (id: string, s: boolean, u?: { email?: string; phone?: string }) => void;
@@ -41,7 +46,8 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
     editorMode, setEditorMode, editingNodeId, setEditingNodeId,
     searchOpen, setSearchOpen, collaboratorsOpen, setCollaboratorsOpen,
     findRelationOpen, setFindRelationOpen, versionHistoryOpen, setVersionHistoryOpen,
-    fanChartOpen, setFanChartOpen, onSaveMember, onDeleteMember, onToggleEditor, onSignOut, onSwitchTree
+    findRelationOpen, setFindRelationOpen, versionHistoryOpen, setVersionHistoryOpen,
+    viewMode, setViewMode, dashboardOpen, setDashboardOpen, onSaveMember, onDeleteMember, onToggleEditor, onSignOut, onSwitchTree
 }) => {
     const { t } = useTranslation();
 
@@ -57,19 +63,76 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
 
     return (
         <div className="tree-container">
-            <TreeView
-                data={tree}
-                onNodeClick={setSelectedNodeId}
-                onNodeLongPress={setSelectedNodeId}
-                showControls={true}
-            />
+            {/* View Mode Toggle */}
+            <div className="view-toggle-container" style={{
+                position: 'absolute',
+                top: '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 100,
+                background: 'white',
+                padding: '4px',
+                borderRadius: '20px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                display: 'flex',
+                gap: '8px'
+            }}>
+                <button
+                    onClick={() => setViewMode('tree')}
+                    style={{
+                        padding: '6px 16px',
+                        borderRadius: '16px',
+                        border: 'none',
+                        background: viewMode === 'tree' ? '#4a90e2' : 'transparent',
+                        color: viewMode === 'tree' ? 'white' : '#666',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    Tree
+                </button>
+                <button
+                    onClick={() => setViewMode('fanchart')}
+                    style={{
+                        padding: '6px 16px',
+                        borderRadius: '16px',
+                        border: 'none',
+                        background: viewMode === 'fanchart' ? '#4a90e2' : 'transparent',
+                        color: viewMode === 'fanchart' ? 'white' : '#666',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    Fan Chart
+                </button>
+            </div>
+
+            {viewMode === 'tree' ? (
+                <TreeView
+                    data={tree}
+                    onNodeClick={setSelectedNodeId}
+                    onNodeLongPress={setSelectedNodeId}
+                    showControls={true}
+                />
+            ) : (
+                <FanChartView
+                    data={tree}
+                    rootNodeId={selectedNodeId || tree.rootNodeId}
+                    onNodeClick={setSelectedNodeId}
+                    onResetRoot={() => setSelectedNodeId(null)}
+                />
+            )}
 
             <div className="floating-controls">
                 <button className="btn-fab primary" onClick={() => { setEditingNodeId(null); setEditorMode('add'); }} title="Add Member" style={{ backgroundColor: '#2196f3', color: 'white' }}>➕</button>
                 <button className="btn-fab" onClick={() => setSearchOpen(true)} title={t('menu.search')}>🔍</button>
                 <button className="btn-fab" onClick={() => setCollaboratorsOpen(true)} title={t('menu.collaborators')}>👥</button>
                 <button className="btn-fab" onClick={() => setFindRelationOpen(true)} title={t('menu.findRelation')}>🔗</button>
-                <button className="btn-fab" onClick={() => setFanChartOpen(true)} title={t('menu.fanChart')}>📉</button>
+                <button className="btn-fab" onClick={() => setFindRelationOpen(true)} title={t('menu.findRelation')}>🔗</button>
+                {/* FanChart button removed from here, moved to top toggle */}
+                <button className="btn-fab" onClick={() => setDashboardOpen(true)} title="Dashboard">📊</button>
                 <button className="btn-fab" onClick={() => { setHistoryFilterId(null); setVersionHistoryOpen(true); }} title={t('menu.history')}>🕒</button>
                 <button className="btn-fab" onClick={onSwitchTree} title={t('menu.switchTree') || "Switch Tree"}>🌳</button>
                 <button className="btn-fab logout" onClick={onSignOut} title={t('menu.signOut')}>🚪</button>
@@ -149,17 +212,18 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
                 />
             )}
 
-            {fanChartOpen && (
+            {/* FanChart Modal Removed - now inline */}
+
+            {dashboardOpen && (
                 <div className="modal-overlay">
-                    <div className="modal-content full-screen">
-                        <div className="modal-header">
-                            <h2>{t('menu.fanChart')}</h2>
-                            <button className="close-all" onClick={() => setFanChartOpen(false)}>&times;</button>
-                        </div>
-                        <FanChartView
-                            data={tree}
-                            rootNodeId={selectedNodeId || tree.rootNodeId}
-                            onNodeClick={setSelectedNodeId}
+                    <div className="modal-content full-screen" style={{ padding: 0, background: '#f5f7fa' }}>
+                        <Dashboard
+                            tree={tree}
+                            onClose={() => setDashboardOpen(false)}
+                            onNodeClick={(id) => {
+                                setSelectedNodeId(id);
+                                setDashboardOpen(false);
+                            }}
                         />
                     </div>
                 </div>

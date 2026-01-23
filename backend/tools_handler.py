@@ -5,6 +5,7 @@ from datetime import datetime
 import asyncio
 import logging
 import difflib
+from googletrans import Translator
 
 logger = logging.getLogger(__name__)
 
@@ -77,52 +78,7 @@ class FamilyTreeStore:
             logger.error(f"Failed to fetch history: {e}")
             return []
 
-    async def add_person(self, name, gender, relation, anchor_node_id, tree_id, **kwargs):
-        new_id = str(uuid.uuid4())
-        user_email = kwargs.get('email') # Wait, kwargs might contain node email, not editor email.
-        # We need editor email passed explicitly to add_person/update_person in ToolsHandler.execute
-        
-        # ... (rest of add logic) ...
-        
-        new_node = {
-            "nodeId": new_id,
-            "treeId": tree_id, 
-            "name": name,
-            "gender": gender,
-            "parentId": None,
-            "spouseIds": [],
-            "childrenIds": [],
-            "lastUpdated": firestore.SERVER_TIMESTAMP,
-            **kwargs
-        }
-        
-        batch = self.db.batch()
-        
-        if anchor_node_id:
-            rel = relation.lower()
-            if "father" in rel or "mother" in rel:
-                new_node["childrenIds"] = [anchor_node_id]
-                batch.update(self.people_ref.document(anchor_node_id), {"parentId": new_id})
-            elif "son" in rel or "daughter" in rel:
-                new_node["parentId"] = anchor_node_id
-                batch.update(self.people_ref.document(anchor_node_id), {
-                    "childrenIds": firestore.ArrayUnion([new_id])
-                })
-            elif "wife" in rel or "husband" in rel or "spouse" in rel:
-                new_node["spouseIds"] = [anchor_node_id]
-                batch.update(self.people_ref.document(anchor_node_id), {
-                    "spouseIds": firestore.ArrayUnion([new_id])
-                })
-            
-        batch.set(self.people_ref.document(new_id), new_node)
-        await asyncio.to_thread(batch.commit)
-        
-        # Audit Log
-        # We need the user_email here. It's not in kwargs properly from `execute` yet.
-        # I'll update `execute` to pass `_user_email` in kwargs or similar?
-        # Actually `save_node` has `editedBy`. 
-        # For `add_person` via Gemini, we need to ensure we capture checking.
-        return new_id, None
+
 
     # ... (skipping update_person for a moment to focus on save_node which is primary for UI)
 
@@ -554,11 +510,36 @@ class FamilyTreeStore:
             if not tree_id:
                 tree_id = anchor_doc.to_dict().get("treeId")
 
+        # --- Name Translation Logic ---
+        name_translations = {}
+        try:
+            translator = Translator()
+            target_langs = ['kn', 'hi', 'ta', 'te', 'ml']
+            # Run translation in thread to avoid blocking loop
+            # googletrans is sync
+            def do_translate():
+                results = {}
+                for lang in target_langs:
+                    try:
+                        res = translator.translate(name, dest=lang)
+                        if res and res.text:
+                            results[lang] = res.text
+                    except Exception as e:
+                        logger.warning(f"Translation failed for {lang}: {e}")
+                return results
+
+            name_translations = await asyncio.to_thread(do_translate)
+            logger.info(f"Generated translations for {name}: {name_translations}")
+        except Exception as e:
+            logger.error(f"Global translation error: {e}")
+        # -----------------------------
+
         new_node = {
             "nodeId": new_id,
             "treeId": tree_id, 
             "name": name,
             "gender": gender,
+            "nameTranslations": name_translations,
             "parentId": None,
             "spouseIds": [],
             "childrenIds": [],
@@ -617,6 +598,13 @@ class FamilyTreeStore:
             
         batch.set(self.people_ref.document(new_id), new_node)
         await asyncio.to_thread(batch.commit)
+
+        # Log the addition
+        user_email = kwargs.get("user_email") # Ensure user_email is passed to add_person or available
+        if user_email: 
+            await self.log_audit(tree_id, "ADD", user_email, f"Added {name}", details=new_node, target_node_id=new_id)
+
+        return new_node, None
         return new_id, None
 
     async def update_person(self, node_id, updates):
@@ -878,7 +866,8 @@ class ToolsHandler:
                 args.get("tree_id"),
                 phone=args.get("phone"),
                 email=args.get("email"),
-                dob=args.get("dob")
+                dob=args.get("dob"),
+                user_email=user_email
             )
             # Add audit log for add_person (harder since we don't have diff or user_email easily here without kwargs update)
             # Ideally user_email is passed to execute.

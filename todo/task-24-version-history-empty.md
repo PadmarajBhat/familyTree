@@ -1,12 +1,16 @@
-# Version history empty
+# Version History Empty for New Adds
 
 ## Problem Statement
-Version history page has no content.
+When adding a new person (especially via Gemini), the action was not appearing in the Version History log.
 
-## Solution
-Added `GET_HISTORY` handler to `backend/server/client_handler.py`. This handler receives the `GET_HISTORY` request via WebSocket, calls `FamilyTreeStore.get_history_logs`, and returns the history logs to the client. This resolves the issue where the version history was empty because the backend was not processing the request.
+## Update 2026-01-23 11:58
+**Solution Implemented:**
+1.  **Backend Logging**: Updated `add_person` in `backend/tools_handler.py` to explicitly call `self.log_audit` with action "ADD".
+2.  **Attribution**: Updated `ToolsHandler.execute` to pass `user_email` to `add_person`.
+3.  **Frontend**: Verified `VersionHistory.tsx` renders "ADD" events correctly.
 
 ## Status
 Closed
 
 ## Failed Reason
+N/A
