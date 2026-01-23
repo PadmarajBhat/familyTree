@@ -1,6 +1,6 @@
 # Use the latest Python 3 image
 # User requested 3.14, using 3.13 (or latest 3) as 3.14 is future/alpha
-FROM python:3.13-slim
+FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app

@@ -7,6 +7,10 @@ Main entry point.
 import asyncio
 import os
 import sys
+
+# Immediate startup log
+print("🚀 Application starting...", flush=True)
+
 import websockets
 import logging
 
