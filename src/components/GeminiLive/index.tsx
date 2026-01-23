@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import type { TreeDocument, PersonNode } from '../../logic/types';
 import './GeminiLive.css';
 import { useGeminiLive } from './hooks/useGeminiLive';
@@ -28,7 +29,7 @@ export const GeminiLiveButton: React.FC<{
         }
     };
 
-    return (
+    return createPortal(
         <>
             <button
                 className={`gemini-live-btn ${connected ? 'connected' : ''} ${active ? 'active' : ''}`}
@@ -59,6 +60,7 @@ export const GeminiLiveButton: React.FC<{
                 chatMessages={chatMessages}
                 onDisconnect={disconnect}
             />
-        </>
+        </>,
+        document.body
     );
 };

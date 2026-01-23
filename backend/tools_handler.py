@@ -50,7 +50,7 @@ class ToolsHandler:
                 if err: return {"status": "error", "message": err}
                 return {"status": "success", "nodeId": node_id}
             elif tool_name == "update_person":
-                 success = await self.store.update_person(args.get("node_id") or args.get("nodeId"), args)
+                 success = await self.store.update_person(args.get("node_id") or args.get("nodeId"), args.get("updates", {}))
                  return {"status": "success"} if success else {"status": "error", "message": "Failed to update"}
             elif tool_name == "delete_person":
                 success = await self.store.delete_person(args.get("node_id") or args.get("nodeId"), user_email=user_email)

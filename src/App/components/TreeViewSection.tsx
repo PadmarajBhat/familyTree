@@ -140,11 +140,19 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
                     tree={tree}
                     currentUser={currentUser}
                     onClose={() => setSelectedNodeId(null)}
-                    onEdit={() => setEditorMode('edit')}
+                    onEdit={() => {
+                        setEditingNodeId(selectedNodeId); // Save ID before closing
+                        setSelectedNodeId(null); // Close Person Detail
+                        setEditorMode('edit');
+                    }}
                     onDelete={() => onDeleteMember(selectedNodeId)}
                     onNodeClick={setSelectedNodeId}
                     onFindRelation={(id) => { setSelectedNodeId(id); setFindRelationOpen(true); }}
-                    onViewHistory={(id) => { setSelectedNodeId(id); setHistoryFilterId(id); setVersionHistoryOpen(true); }}
+                    onViewHistory={(id) => {
+                        setSelectedNodeId(null); // Close Person Detail
+                        setHistoryFilterId(id);
+                        setVersionHistoryOpen(true);
+                    }}
                 />
             )}
 
@@ -152,7 +160,11 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
                 <MemberEditor
                     currentUserEmail={currentUser?.email || ''}
                     mode={editorMode}
-                    initialData={editorMode === 'edit' && selectedNodeId ? tree.nodes[selectedNodeId] : (editingNodeId ? { parentId: editingNodeId } as any : undefined)}
+                    initialData={
+                        editorMode === 'edit'
+                            ? (tree.nodes[editingNodeId || ''] || (selectedNodeId ? tree.nodes[selectedNodeId] : undefined))
+                            : (editingNodeId ? { parentId: editingNodeId } as any : undefined)
+                    }
                     existingNodes={tree.nodes}
                     onCancel={() => {
                         setEditorMode(null);
@@ -201,7 +213,10 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
                     summary={tree.summary}
                     nodes={tree.nodes}
                     onClose={() => setVersionHistoryOpen(false)}
-                    onSelectNode={setSelectedNodeId}
+                    onSelectNode={(nodeId) => {
+                        setVersionHistoryOpen(false); // Close history
+                        setSelectedNodeId(nodeId); // Open detail
+                    }}
                     treeName={tree.treeName}
                     treeId={tree.treeId}
                     filterNodeId={historyFilterId}

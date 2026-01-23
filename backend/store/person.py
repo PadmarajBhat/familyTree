@@ -28,10 +28,18 @@ class PersonMixin:
         if doc.exists:
             action = "EDIT"
             existing = doc.to_dict()
-            check_fields = ["name", "gender", "dob", "dod", "occupation", "education", "phone", "email", "address"]
+            # Comprehensive list of fields to track for audit history
+            check_fields = [
+                "name", "gender", "dob", "dod", "occupation", "education", 
+                "phone", "email", "address", "location", "notes", "hobbies",
+                "spouseIds", "childrenIds", "parentId", "nameTranslations", "externalLink"
+            ]
             for field in check_fields:
                 old_val = existing.get(field)
                 new_val = node.get(field)
+                # Simple equality check handles most types (None, str, list of strings)
+                # For complex objects (dict), it also works if order matches, but good enough for now.
+                # enhanced check for lists to ignore order if needed, but strict is safer for history.
                 if str(old_val) != str(new_val):
                      diff[field] = {"old": old_val, "new": new_val}
         
@@ -42,15 +50,19 @@ class PersonMixin:
         await asyncio.to_thread(doc_ref.set, node, merge=True)
         
         if user_email: 
-            tree_id = node.get("treeId")
-            summary = ""
-            if action == "ADD":
-                summary = f"Added {node.get('name')}"
-            else:
-                fields = ", ".join(diff.keys())
-                summary = f"Updated {node.get('name')} with {fields}" if fields else f"Updated {node.get('name')}"
-            
-            await self.log_audit(tree_id, action, user_email, summary, diff, node_id)
+            # ONLY log audit if there is a diff (for EDIT) or if it's an ADD
+            if action == "ADD" or diff:
+                tree_id = node.get("treeId")
+                summary = ""
+                if action == "ADD":
+                    summary = f"Added {node.get('name')}"
+                else:
+                    fields = ", ".join(diff.keys())
+                    summary = f"Updated {node.get('name')} with {fields}"
+                
+                await self.log_audit(str(tree_id), action, user_email, summary, diff, node_id)
+        else:
+             logger.warning(f"⚠️ SAVE_NODE: user_email is MISSING. Audit log skipped for {node.get('name')} (Tree: {node.get('treeId')})")
             
         return node_id, None
 
@@ -68,7 +80,9 @@ class PersonMixin:
         await asyncio.to_thread(self.people_ref.document(node_id).delete)
         
         if user_email and tree_id:
-            await self.log_audit(tree_id, "DELETE", user_email, f"Deleted {name}", target_node_id=node_id)
+            await self.log_audit(str(tree_id), "DELETE", user_email, f"Deleted {name}", target_node_id=node_id)
+        elif not user_email:
+             logger.warning(f"⚠️ DELETE_PERSON: user_email is MISSING. Audit log skipped for {name} (Tree: {tree_id})")
             
         return True
 
@@ -286,7 +300,10 @@ class PersonMixin:
 
         user_email = kwargs.get("user_email")
         if user_email: 
-            await self.log_audit(tree_id, "ADD", user_email, f"Added {name}", details=new_node, target_node_id=new_id)
+            # Ensure tree_id is treated as string for consistency in logs, matching the robustness fix in audit.py
+            await self.log_audit(str(tree_id), "ADD", user_email, f"Added {name}", details=new_node, target_node_id=new_id)
+        else:
+            logger.warning(f"⚠️ ADD_PERSON: user_email is MISSING. Audit log skipped for {name} (Tree: {tree_id})")
 
         return new_node, None
 
