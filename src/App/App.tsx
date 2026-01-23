@@ -78,66 +78,64 @@ function App() {
   useEffect(() => {
     // Helper to check if any modal is open
     const isAnyModalOpen = () =>
-    const isAnyModalOpen = () =>
       !!editorMode || !!editingNodeId || !!selectedNodeId || searchOpen || collaboratorsOpen || findRelationOpen || versionHistoryOpen || dashboardOpen || showPrivacy || showTerms;
 
-      const handlePopState = () => {
-        // Prioritize closing modals in logical order
-        if (showPrivacy) { setShowPrivacy(false); return; }
-        if (showTerms) { setShowTerms(false); return; }
+    const handlePopState = () => {
+      // Prioritize closing modals in logical order
+      if (showPrivacy) { setShowPrivacy(false); return; }
+      if (showTerms) { setShowTerms(false); return; }
 
-        if (searchOpen) { setSearchOpen(false); return; }
-        if (findRelationOpen) { setFindRelationOpen(false); return; }
-        if (versionHistoryOpen) { setVersionHistoryOpen(false); return; }
-        // fanChartOpen check removed
-        if (dashboardOpen) { setDashboardOpen(false); return; }
-        if (collaboratorsOpen) { setCollaboratorsOpen(false); return; }
+      if (searchOpen) { setSearchOpen(false); return; }
+      if (findRelationOpen) { setFindRelationOpen(false); return; }
+      if (versionHistoryOpen) { setVersionHistoryOpen(false); return; }
+      // fanChartOpen check removed
+      if (dashboardOpen) { setDashboardOpen(false); return; }
+      if (collaboratorsOpen) { setCollaboratorsOpen(false); return; }
 
-        if (editingNodeId || editorMode) {
-          setEditingNodeId(null);
-          setEditorMode(null);
-          return;
-        }
-        if (selectedNodeId) { setSelectedNodeId(null); return; }
-
-        // If no modals, check view state
-        if (init.viewState !== 'home') {
-          init.setViewState('home');
-        }
-      };
-
-      window.addEventListener('popstate', handlePopState);
-
-      // Push state when opening a modal if we haven't already
-      // This is tricky because we don't want to push stack infinity.
-      // Simplifying: we only rely on the fact that if we aren't at "root" state, back should close things.
-      // But browser back only fires if there is history.
-      // So we need to push state when entering deep states.
-
-      // Strategy: 
-      // - Home -> Tree: Push '#tree'
-      // - Tree -> Modal: Push '#modal'
-
-      // Check if we just entered a non-home state or opened a modal
-      const anyModalOpen = isAnyModalOpen();
-      const currentState = window.history.state;
-
-      // If we opened a modal and current hash isn't already tagging it (simple debounce check)
-      if (anyModalOpen && (!currentState || !currentState.modal)) {
-        window.history.pushState({ modal: true }, '', '#modal');
-      } else if (init.viewState !== 'home' && (!currentState || !currentState.page)) {
-        // If we navigated to tree but no hash
-        window.history.pushState({ page: 'tree' }, '', '#tree');
+      if (editingNodeId || editorMode) {
+        setEditingNodeId(null);
+        setEditorMode(null);
+        return;
       }
+      if (selectedNodeId) { setSelectedNodeId(null); return; }
 
-      return () => window.removeEventListener('popstate', handlePopState);
-    }, [
-      init.viewState, init.setViewState,
-      editorMode, editingNodeId, selectedNodeId,
-      searchOpen, collaboratorsOpen, findRelationOpen,
-      searchOpen, collaboratorsOpen, findRelationOpen,
-      versionHistoryOpen, viewMode, dashboardOpen, showPrivacy, showTerms
-    ]);
+      // If no modals, check view state
+      if (init.viewState !== 'home') {
+        init.setViewState('home');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    // Push state when opening a modal if we haven't already
+    // This is tricky because we don't want to push stack infinity.
+    // Simplifying: we only rely on the fact that if we aren't at "root" state, back should close things.
+    // But browser back only fires if there is history.
+    // So we need to push state when entering deep states.
+
+    // Strategy: 
+    // - Home -> Tree: Push '#tree'
+    // - Tree -> Modal: Push '#modal'
+
+    // Check if we just entered a non-home state or opened a modal
+    const anyModalOpen = isAnyModalOpen();
+    const currentState = window.history.state;
+
+    // If we opened a modal and current hash isn't already tagging it (simple debounce check)
+    if (anyModalOpen && (!currentState || !currentState.modal)) {
+      window.history.pushState({ modal: true }, '', '#modal');
+    } else if (init.viewState !== 'home' && (!currentState || !currentState.page)) {
+      // If we navigated to tree but no hash
+      window.history.pushState({ page: 'tree' }, '', '#tree');
+    }
+
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [
+    init.viewState, init.setViewState,
+    editorMode, editingNodeId, selectedNodeId,
+    searchOpen, collaboratorsOpen, findRelationOpen,
+    versionHistoryOpen, viewMode, dashboardOpen, showPrivacy, showTerms
+  ]);
 
   return (
     <div className={`app-container ${isHome ? 'home-view' : 'tree-view-active'}`}>

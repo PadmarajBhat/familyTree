@@ -41,7 +41,7 @@ async def start_websocket_server():
         # Enable reuse_address to avoid "Address already in use" errors on restart
         async with websockets.serve(
             handle_websocket_client, 
-            None, # Bind to all interfaces (IPv4/IPv6) to support localhost resolution
+            "0.0.0.0", # Bind to all IPv4 interfaces for Cloud Run support
             WS_PORT, 
             reuse_address=True,
             origins=None,

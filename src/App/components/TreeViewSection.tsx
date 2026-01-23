@@ -28,8 +28,6 @@ interface TreeViewSectionProps {
     setFindRelationOpen: (open: boolean) => void;
     versionHistoryOpen: boolean;
     setVersionHistoryOpen: (open: boolean) => void;
-    versionHistoryOpen: boolean;
-    setVersionHistoryOpen: (open: boolean) => void;
     viewMode: 'tree' | 'fanchart';
     setViewMode: (mode: 'tree' | 'fanchart') => void;
     dashboardOpen: boolean;
@@ -45,7 +43,6 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
     tree, currentUser, selectedNodeId, setSelectedNodeId,
     editorMode, setEditorMode, editingNodeId, setEditingNodeId,
     searchOpen, setSearchOpen, collaboratorsOpen, setCollaboratorsOpen,
-    findRelationOpen, setFindRelationOpen, versionHistoryOpen, setVersionHistoryOpen,
     findRelationOpen, setFindRelationOpen, versionHistoryOpen, setVersionHistoryOpen,
     viewMode, setViewMode, dashboardOpen, setDashboardOpen, onSaveMember, onDeleteMember, onToggleEditor, onSignOut, onSwitchTree
 }) => {
@@ -129,7 +126,6 @@ export const TreeViewSection: React.FC<TreeViewSectionProps> = ({
                 <button className="btn-fab primary" onClick={() => { setEditingNodeId(null); setEditorMode('add'); }} title="Add Member" style={{ backgroundColor: '#2196f3', color: 'white' }}>➕</button>
                 <button className="btn-fab" onClick={() => setSearchOpen(true)} title={t('menu.search')}>🔍</button>
                 <button className="btn-fab" onClick={() => setCollaboratorsOpen(true)} title={t('menu.collaborators')}>👥</button>
-                <button className="btn-fab" onClick={() => setFindRelationOpen(true)} title={t('menu.findRelation')}>🔗</button>
                 <button className="btn-fab" onClick={() => setFindRelationOpen(true)} title={t('menu.findRelation')}>🔗</button>
                 {/* FanChart button removed from here, moved to top toggle */}
                 <button className="btn-fab" onClick={() => setDashboardOpen(true)} title="Dashboard">📊</button>
