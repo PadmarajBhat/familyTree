@@ -61,7 +61,7 @@ class ToolsHandler:
                 return {"status": "success", "nodeId": node_id}
             elif tool_name == "find_relationship":
                 return await self.store.find_relationship(args.get("node_id_1"), args.get("node_id_2"))
-            elif tool_name == "search":
+            elif tool_name in ["search", "search_family_tree"]:
                 # Pass tree_id to contextually search
                 return await self.store.search(args.get("query"), tree_id=args.get("tree_id") or args.get("treeId"))
             # Add other tools as needed

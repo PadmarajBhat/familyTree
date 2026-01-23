@@ -234,7 +234,7 @@ function App() {
         )}
       </main>
 
-      {init.isSignedIn && !showPrivacy && !showTerms && (
+      {init.isSignedIn && !showPrivacy && !showTerms && init.viewState !== 'home' && !dashboardOpen && (
         <GeminiLiveButton
           tree={init.tree}
           currentUser={init.currentUser}

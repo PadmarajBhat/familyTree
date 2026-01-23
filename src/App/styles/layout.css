@@ -9,9 +9,11 @@ main {
     flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: auto;
+    overflow: hidden;
     position: relative;
     padding: 0;
+    height: calc(100vh - 64px);
+    /* Subtract header height */
 }
 
 .tree-container {

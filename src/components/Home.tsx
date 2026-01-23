@@ -361,11 +361,15 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
 
             <style>{`
                 .home-screen {
+                    height: 100%;
+                    display: flex;
+                    flex-direction: column;
                     padding: 2rem;
                     max-width: 100%;
                     width: 1200px;
                     margin: 0 auto;
                     box-sizing: border-box; 
+                    overflow: hidden;
                 }
                 .empty-state {
                     text-align: center;
@@ -411,7 +415,10 @@ export const Home: React.FC<HomeProps> = ({ userEmail, onSelectTree, currentTree
                     }
                 }
                 .tree-list {
+                    flex: 1;
+                    overflow-y: auto;
                     margin-top: 1rem;
+                    padding-bottom: 80px; /* Space for fixed Gemini button */
                 }
                 .cards-grid {
                     display: grid;

@@ -1,9 +1,8 @@
 .gemini-live-btn {
     position: fixed;
     bottom: 30px;
-    right: 30px;
-    left: auto;
-    transform: none;
+    left: 50%;
+    transform: translateX(-50%);
     padding: 0.8rem 1.6rem;
     border-radius: 50px;
     border: 1px solid rgba(255, 255, 255, 0.3);
@@ -43,7 +42,7 @@
 }
 
 .gemini-live-btn:hover {
-    transform: translateY(-5px) scale(1.05);
+    transform: translateX(-50%) translateY(-5px) scale(1.05);
     box-shadow: 0 20px 40px rgba(99, 102, 241, 0.5);
 }
 
@@ -80,7 +79,8 @@
 .chat-overlay {
     position: fixed;
     bottom: 100px;
-    right: 30px;
+    left: 50%;
+    transform: translateX(-50%);
     width: 450px;
     max-width: calc(100vw - 60px);
     height: 600px;
@@ -100,12 +100,12 @@
 
 @keyframes slideUpScale {
     from {
-        transform: translateY(40px) scale(0.9);
+        transform: translateX(-50%) translateY(40px) scale(0.9);
         opacity: 0;
     }
 
     to {
-        transform: translateY(0) scale(1);
+        transform: translateX(-50%) translateY(0) scale(1);
         opacity: 1;
     }
 }
@@ -390,12 +390,12 @@
 
     @keyframes slideUpScale {
         from {
-            transform: translateY(100%);
+            transform: translateX(-50%) translateY(100%);
             opacity: 0;
         }
 
         to {
-            transform: translateY(0);
+            transform: translateX(-50%) translateY(0);
             opacity: 1;
         }
     }
@@ -403,6 +403,8 @@
     .gemini-live-btn {
         bottom: 85px;
         /* Stay above bottom nav */
+        left: 50%;
+        transform: translateX(-50%);
         padding: 0.6rem 1.2rem;
         /* reduced padding */
         font-size: 0.9rem;
